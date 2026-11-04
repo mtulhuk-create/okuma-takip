@@ -54,7 +54,20 @@
       "@clerk/expo",
       "expo-secure-store",
       "@react-native-community/datetimepicker",
-      "./plugins/with-release-signing"
+      "./plugins/with-release-signing",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableMinifyInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true,
+            "buildArchs": [
+              "arm64-v8a",
+              "armeabi-v7a"
+            ]
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": false,
