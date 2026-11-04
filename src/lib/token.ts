@@ -19,9 +19,13 @@ export async function signQuickToken(userId: string, groupId: string, dayKey: st
 export async function verifyQuickToken(token: string) {
   const [body, sig] = token.split(".");
   if (!body || !sig) return null;
-  const ok = await crypto.subtle.verify("HMAC", await key(), b64urlDecode(sig), utf8(body));
-  if (!ok) return null;
-  const p = JSON.parse(new TextDecoder().decode(b64urlDecode(body))) as Payload;
-  if (Date.now() > p.e) return null;
-  return { userId: p.u, groupId: p.g, dayKey: p.d };
+  try {
+    const ok = await crypto.subtle.verify("HMAC", await key(), b64urlDecode(sig), utf8(body));
+    if (!ok) return null;
+    const p = JSON.parse(new TextDecoder().decode(b64urlDecode(body))) as Payload;
+    if (Date.now() > p.e) return null;
+    return { userId: p.u, groupId: p.g, dayKey: p.d };
+  } catch {
+    return null; // bozuk token
+  }
 }

@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Mobil uygulama ayrı bir projedir; sınıf taramasına dahil etme */
+@source not "../../mobile";
+
 @custom-variant dark (&:is(.dark *));
 
 :root {

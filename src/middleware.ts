@@ -1,18 +1,7 @@
-import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { clerkMiddleware } from "@clerk/nextjs/server";
 
-const isPublic = createRouteMatcher([
-  "/",
-  "/sign-in(.*)",
-  "/sign-up(.*)",
-  "/bildir(.*)", // bildirimden gelen hızlı bildirim sayfası (imzalı token ile)
-  "/api/cron",
-  "/api/quick-report",
-  "/manifest.webmanifest",
-]);
-
-export default clerkMiddleware(async (auth, req) => {
-  if (!isPublic(req)) await auth.protect();
-});
+// Oturum bilgisi her istekte çözülür; yetki kontrolü her sayfa (requireUser) ve API route'unda (auth/withUser) yapılır.
+export default clerkMiddleware();
 
 export const config = {
   matcher: [
