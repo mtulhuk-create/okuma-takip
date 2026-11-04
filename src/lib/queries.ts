@@ -1,6 +1,9 @@
 import "server-only";
 import { getDb } from "./db";
-import { currentPeriod, openPeriod } from "./schedule";
+
+// Diğer kullanıcılar hakkında dışarıya yalnızca bu alanlar verilir
+const publicUser = { select: { id: true, name: true, username: true, imageUrl: true } } as const;
+import { currentPeriod, openPeriod, periodFor, shiftDayKey } from "./schedule";
 
 export async function myGroupsToday(userId: string) {
   const db = getDb();
@@ -34,4 +37,114 @@ export async function myMoney(userId: string) {
     }),
   ]);
   return { unpaidTotal: unpaid._sum.amount ?? 0, dues };
+}
+
+/** Grup sayfası verisi. Üye değilse yalnızca davet/istek bilgisi döner. */
+export async function getGroupDetail(id: string, userId: string) {
+  const db = getDb();
+  const group = await db.group.findUnique({
+    where: { id },
+    include: {
+      owner: { select: { name: true } },
+      members: { where: { status: "ACTIVE" }, include: { user: publicUser }, orderBy: { joinedAt: "asc" } },
+    },
+  });
+  if (!group) return null;
+  const me = group.members.find((m) => m.userId === userId) ?? null;
+  if (!me) {
+    const [invite, request] = await Promise.all([
+      db.invitation.findFirst({ where: { groupId: id, inviteeId: userId, status: "PENDING" }, include: { inviter: publicUser } }),
+      db.joinRequest.findFirst({ where: { groupId: id, userId, status: "PENDING" } }),
+    ]);
+    return { group, me, invite, request, board: null };
+  }
+  const now = new Date();
+  const period = currentPeriod(now, group);
+  const open = openPeriod(now, group);
+  const days = Array.from({ length: 7 }, (_, i) => shiftDayKey(period.dayKey, i - 6));
+  const [logs, penalties, dues] = await Promise.all([
+    db.readingLog.findMany({ where: { groupId: id, dayKey: { in: days } } }),
+    db.penalty.findMany({ where: { groupId: id, userId }, orderBy: { dayKey: "desc" }, take: 30 }),
+    db.paymentDue.findMany({ where: { groupId: id, userId }, orderBy: { createdAt: "desc" }, take: 10 }),
+  ]);
+  const dayStarts = Object.fromEntries(days.map((d) => [d, periodFor(d, group).start]));
+  return { group, me, invite: null, request: null, board: { period, open, days, dayStarts, logs, penalties, dues } };
+}
+
+/** Yönetim sayfası verisi; kullanıcı yönetici değilse null. */
+export async function getAdminData(id: string, userId: string) {
+  const db = getDb();
+  const [group, me] = await Promise.all([
+    db.group.findUnique({ where: { id } }),
+    db.groupMember.findUnique({ where: { groupId_userId: { groupId: id, userId } } }),
+  ]);
+  if (!group || !me || me.status !== "ACTIVE" || me.role !== "ADMIN") return null;
+  const [members, requests, invites, dues, unpaidPenalties] = await Promise.all([
+    db.groupMember.findMany({ where: { groupId: id, status: "ACTIVE" }, include: { user: publicUser }, orderBy: { joinedAt: "asc" } }),
+    db.joinRequest.findMany({ where: { groupId: id, status: "PENDING" }, include: { user: publicUser }, orderBy: { createdAt: "asc" } }),
+    db.invitation.findMany({ where: { groupId: id, status: "PENDING" }, include: { invitee: publicUser } }),
+    db.paymentDue.findMany({ where: { groupId: id }, include: { user: publicUser }, orderBy: [{ status: "asc" }, { dueAt: "asc" }], take: 50 }),
+    db.penalty.findMany({ where: { groupId: id, status: { in: ["UNPAID", "IN_DUE"] } }, include: { user: publicUser }, orderBy: { dayKey: "desc" } }),
+  ]);
+  const money: Record<string, { unpaid: number; inDue: number }> = {};
+  for (const p of unpaidPenalties) {
+    const e = (money[p.userId] ??= { unpaid: 0, inDue: 0 });
+    if (p.status === "UNPAID") e.unpaid += p.amount;
+    else e.inDue += p.amount;
+  }
+  return { group, members, requests, invites, dues, unpaidPenalties, money };
+}
+
+export async function getGroupsOverview(userId: string, q: string) {
+  const db = getDb();
+  const [mine, publicGroups, myRequests] = await Promise.all([
+    db.groupMember.findMany({
+      where: { userId, status: "ACTIVE" },
+      include: { group: { include: { _count: { select: { members: { where: { status: "ACTIVE" } } } } } } },
+    }),
+    db.group.findMany({
+      where: {
+        visibility: "PUBLIC",
+        ...(q ? { OR: [{ name: { contains: q, mode: "insensitive" as const } }, { description: { contains: q, mode: "insensitive" as const } }] } : {}),
+      },
+      include: { _count: { select: { members: { where: { status: "ACTIVE" } } } }, owner: { select: { name: true } } },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+    }),
+    db.joinRequest.findMany({ where: { userId, status: "PENDING" }, select: { groupId: true } }),
+  ]);
+  return { mine, publicGroups, requestedIds: myRequests.map((r) => r.groupId) };
+}
+
+export async function getNotificationsData(userId: string) {
+  const db = getDb();
+  const [invites, notes] = await Promise.all([
+    db.invitation.findMany({
+      where: { inviteeId: userId, status: "PENDING" },
+      include: { group: { include: { _count: { select: { members: { where: { status: "ACTIVE" } } } } } }, inviter: publicUser },
+      orderBy: { createdAt: "desc" },
+    }),
+    db.notification.findMany({ where: { userId }, orderBy: { createdAt: "desc" }, take: 50 }),
+  ]);
+  return { invites, notes };
+}
+
+export async function getProfileStats(userId: string) {
+  const db = getDb();
+  const [pages, days, penalties, groups] = await Promise.all([
+    db.readingLog.aggregate({ where: { userId }, _sum: { pages: true } }),
+    db.readingLog.count({ where: { userId, pages: { gt: 0 } } }),
+    db.penalty.aggregate({ where: { userId, status: { in: ["PAID", "UNPAID", "IN_DUE"] } }, _sum: { amount: true } }),
+    db.groupMember.count({ where: { userId, status: "ACTIVE" } }),
+  ]);
+  return { totalPages: pages._sum.pages ?? 0, readDays: days, totalPenalty: penalties._sum.amount ?? 0, activeGroups: groups };
+}
+
+export async function getBadgeCounts(userId: string) {
+  const db = getDb();
+  const [unread, invites] = await Promise.all([
+    db.notification.count({ where: { userId, read: false } }),
+    db.invitation.count({ where: { inviteeId: userId, status: "PENDING" } }),
+  ]);
+  return unread + invites;
 }

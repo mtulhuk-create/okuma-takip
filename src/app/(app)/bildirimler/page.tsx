@@ -2,22 +2,14 @@ import Link from "next/link";
 import { markAllRead, respondInvite } from "@/app/actions";
 import { ActionForm, SubmitButton } from "@/components/action-form";
 import { requireUser } from "@/lib/auth";
-import { getDb } from "@/lib/db";
+import { getNotificationsData } from "@/lib/queries";
 import { formatDateTime } from "@/lib/schedule";
 
 export const metadata = { title: "Bildirimler" };
 
 export default async function NotificationsPage() {
   const user = await requireUser();
-  const db = getDb();
-  const [invites, notes] = await Promise.all([
-    db.invitation.findMany({
-      where: { inviteeId: user.id, status: "PENDING" },
-      include: { group: { include: { _count: { select: { members: { where: { status: "ACTIVE" } } } } } }, inviter: true },
-      orderBy: { createdAt: "desc" },
-    }),
-    db.notification.findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" }, take: 50 }),
-  ]);
+  const { invites, notes } = await getNotificationsData(user.id);
   const unread = notes.some((n) => !n.read);
 
   return (

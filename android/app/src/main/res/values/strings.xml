@@ -1,7 +1,0 @@
-<?xml version='1.0' encoding='utf-8'?>
-<resources>
-    <string name="app_name">Okuma Takip</string>
-    <string name="title_activity_main">Okuma Takip</string>
-    <string name="package_name">com.okumatakip.app</string>
-    <string name="custom_url_scheme">com.okumatakip.app</string>
-</resources>

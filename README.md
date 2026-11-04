@@ -1,6 +1,7 @@
 # 📚 Okuma Takip
 
-Next.js 16 · Clerk · Prisma 7 + Neon · Cloudflare Workers (OpenNext) · Capacitor (Android APK) · PWA
+Web: Next.js 16 · Clerk · Prisma 7 + Neon · Cloudflare Workers (OpenNext) · PWA
+Mobil: React Native (Expo SDK 58) · Clerk Expo · expo-notifications — `mobile/` klasöründe
 
 ## Özellikler
 - Her üye gruptaki **günlük sayfa hedefini** belirler (grubun alt sınırından az olamaz). Hedefin altında kalınan her gün için **TL cezası** yazılır (gün başına sabit ya da eksik sayfa başına).
@@ -15,7 +16,7 @@ Next.js 16 · Clerk · Prisma 7 + Neon · Cloudflare Workers (OpenNext) · Capac
 | Platform | Yöntem |
 |---|---|
 | Web / mobil web (PWA) | Web Push (VAPID). Sunucudaki dakikalık Cloudflare Cron gönderir. iPhone'da önce "Ana Ekrana Ekle" gerekir. |
-| Android APK | Cihazda planlanan yerel bildirimler (internet/Firebase gerekmez). Uygulama her açıldığında plan tazelenir. |
+| Android (React Native) | Cihazda planlanan native bildirimler (Firebase gerekmez). Butonlar uygulama kapalıyken de çalışır. Plan her açılışta ve her bildirimden sonra tazelenir. |
 
 ## Kurulum
 ```bash
@@ -38,14 +39,19 @@ done
 npm run deploy   # NEXT_PUBLIC_* değerleri build sırasında .env'den okunur
 ```
 
-## Android APK
+## Mobil uygulama (React Native / Expo)
 ```bash
-CAP_SERVER_URL=https://okuma-takip.<subdomain>.workers.dev npx cap sync android
-cd android && ./gradlew assembleRelease   # JDK 21 + Android SDK gerekir
+cd mobile
+npm install
+cp .env.example .env        # EXPO_PUBLIC_API_URL ve EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY
+npx expo prebuild -p android --clean
+cd android && ./gradlew assembleRelease   # JDK 21 + Android SDK
 ```
-APK: `android/app/build/outputs/apk/release/app-release.apk`
+APK: `mobile/android/app/build/outputs/apk/release/app-release.apk`
+
+Mobil uygulama sunucuyla `/api/m/*` JSON uç noktaları üzerinden konuşur (Clerk oturum token'ı ile); değişiklikler web'deki server action'ların aynısını çalıştırır.
 
 ## Notlar
 - Clerk **geliştirme** anahtarları workers.dev alan adında çalışır. Clerk **production** örneği kendi alan adınızı ister.
-- APK içinde Google ile giriş WebView kısıtlaması nedeniyle çalışmaz; e-posta ile giriş/kayıt kullanın.
+- Mobil giriş Clerk'in hazır ekranıyla (Account Portal) yapılır; e-posta ve Google desteklenir.
 - Saatler Türkiye saatine (UTC+3) göredir.

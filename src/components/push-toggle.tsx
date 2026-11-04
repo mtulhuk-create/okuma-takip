@@ -1,10 +1,9 @@
 "use client";
 
-import { Capacitor } from "@capacitor/core";
 import { useEffect, useState } from "react";
 import { b64urlDecode } from "@/lib/b64";
 
-type State = "loading" | "unsupported" | "native" | "denied" | "off" | "on";
+type State = "loading" | "unsupported" | "denied" | "off" | "on";
 
 export async function registerSW() {
   if (!("serviceWorker" in navigator)) return null;
@@ -17,7 +16,6 @@ export function PushToggle({ compact = false }: { compact?: boolean }) {
 
   useEffect(() => {
     (async () => {
-      if (Capacitor.isNativePlatform()) return setState("native");
       if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) return setState("unsupported");
       if (Notification.permission === "denied") return setState("denied");
       const reg = await registerSW();
@@ -57,7 +55,7 @@ export function PushToggle({ compact = false }: { compact?: boolean }) {
     setBusy(false);
   }
 
-  if (state === "loading" || state === "native") return null;
+  if (state === "loading") return null;
   if (compact && state === "on") return null;
 
   return (

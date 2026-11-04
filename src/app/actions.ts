@@ -42,8 +42,13 @@ function parseGroupForm(fd: FormData) {
 // ---------- Grup ----------
 
 export async function createGroup(_: Prev, fd: FormData) {
-  let id = "";
-  const res = await run(async () => {
+  const res = await createGroupState(fd);
+  if (res?.ok) redirect(`/gruplar/${res.id}`);
+  return res;
+}
+
+export async function createGroupState(fd: FormData) {
+  return run(async () => {
     const user = await actionUser();
     const data = parseGroupForm(fd);
     const g = await getDb().group.create({
@@ -53,13 +58,9 @@ export async function createGroup(_: Prev, fd: FormData) {
         members: { create: { userId: user.id, role: "ADMIN", dailyPages: data.minPages } },
       },
     });
-    id = g.id;
-  });
-  if (res?.ok) {
     refresh();
-    redirect(`/gruplar/${id}`);
-  }
-  return res;
+    return { id: g.id, message: "Grup oluşturuldu" };
+  });
 }
 
 export async function updateGroup(_: Prev, fd: FormData) {
@@ -77,19 +78,22 @@ export async function updateGroup(_: Prev, fd: FormData) {
 }
 
 export async function deleteGroup(_: Prev, fd: FormData) {
-  const res = await run(async () => {
+  const res = await deleteGroupState(fd);
+  if (res?.ok) redirect("/gruplar");
+  return res;
+}
+
+export async function deleteGroupState(fd: FormData) {
+  return run(async () => {
     const groupId = str(fd, "groupId");
     const { user } = await requireAdmin(groupId);
     const g = await getDb().group.findUniqueOrThrow({ where: { id: groupId } });
     if (g.ownerId !== user.id) throw new Error("Grubu yalnızca kurucusu silebilir");
     if (str(fd, "confirm") !== g.name) throw new Error("Onay için grup adını aynen yazın");
     await getDb().group.delete({ where: { id: groupId } });
-  });
-  if (res?.ok) {
     refresh();
-    redirect("/gruplar");
-  }
-  return res;
+    return "Grup silindi";
+  });
 }
 
 // ---------- Okuma ----------
@@ -120,7 +124,13 @@ export async function setDailyPages(_: Prev, fd: FormData) {
 }
 
 export async function leaveGroup(_: Prev, fd: FormData) {
-  const res = await run(async () => {
+  const res = await leaveGroupState(fd);
+  if (res?.ok) redirect("/gruplar");
+  return res;
+}
+
+export async function leaveGroupState(fd: FormData) {
+  return run(async () => {
     const user = await actionUser();
     const groupId = str(fd, "groupId");
     const db = getDb();
@@ -131,12 +141,9 @@ export async function leaveGroup(_: Prev, fd: FormData) {
       if (admins <= 1) throw new Error("Ayrılmadan önce başka bir üyeyi yönetici yapın");
     }
     await db.groupMember.update({ where: { id: m.id }, data: { status: "LEFT", leftAt: new Date() } });
-  });
-  if (res?.ok) {
     refresh();
-    redirect("/gruplar");
-  }
-  return res;
+    return "Gruptan ayrıldın";
+  });
 }
 
 // ---------- Katılım & davet ----------

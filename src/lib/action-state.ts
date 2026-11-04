@@ -1,11 +1,12 @@
 import { unstable_rethrow } from "next/navigation";
 
-export type ActionState = { ok?: boolean; error?: string; message?: string } | null;
+export type ActionState = { ok?: boolean; error?: string; message?: string; id?: string } | null;
 
-export async function run(fn: () => Promise<string | void>): Promise<ActionState> {
+export async function run(fn: () => Promise<string | { message?: string; id?: string } | void>): Promise<ActionState> {
   try {
-    const message = await fn();
-    return { ok: true, message: message || undefined };
+    const out = await fn();
+    if (out && typeof out === "object") return { ok: true, ...out };
+    return { ok: true, message: out || undefined };
   } catch (e) {
     unstable_rethrow(e);
     return { error: e instanceof Error ? e.message : "Bir hata oluştu" };

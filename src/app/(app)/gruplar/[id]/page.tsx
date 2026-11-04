@@ -7,8 +7,8 @@ import { CopyButton } from "@/components/copy-button";
 import { Countdown } from "@/components/countdown";
 import { ReportButtons } from "@/components/report-buttons";
 import { requireUser } from "@/lib/auth";
-import { getDb } from "@/lib/db";
-import { currentPeriod, formatDateTime, formatDayKey, minuteToTime, openPeriod, periodFor, shiftDayKey } from "@/lib/schedule";
+import { getGroupDetail } from "@/lib/queries";
+import { formatDateTime, formatDayKey, minuteToTime } from "@/lib/schedule";
 
 function formatIban(iban: string) {
   return iban.replace(/(.{4})/g, "$1 ").trim();
@@ -17,16 +17,9 @@ function formatIban(iban: string) {
 export default async function GroupPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const user = await requireUser();
-  const db = getDb();
-  const group = await db.group.findUnique({
-    where: { id },
-    include: {
-      owner: { select: { name: true } },
-      members: { where: { status: "ACTIVE" }, include: { user: true }, orderBy: { joinedAt: "asc" } },
-    },
-  });
-  if (!group) notFound();
-  const me = group.members.find((m) => m.userId === user.id);
+  const detail = await getGroupDetail(id, user.id);
+  if (!detail) notFound();
+  const { group, me } = detail;
   const rules = (
     <div className="grid grid-cols-2 gap-2 text-sm">
       <div className="card p-3">
@@ -52,10 +45,7 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
 
   // ---- Üye olmayan görünüm ----
   if (!me) {
-    const [invite, request] = await Promise.all([
-      db.invitation.findFirst({ where: { groupId: id, inviteeId: user.id, status: "PENDING" }, include: { inviter: true } }),
-      db.joinRequest.findFirst({ where: { groupId: id, userId: user.id, status: "PENDING" } }),
-    ]);
+    const { invite, request } = detail;
     if (group.visibility === "PRIVATE" && !invite) {
       return (
         <main className="space-y-4 pt-4 text-center">
@@ -108,15 +98,7 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
   }
 
   // ---- Üye görünümü ----
-  const now = new Date();
-  const period = currentPeriod(now, group);
-  const open = openPeriod(now, group);
-  const days = Array.from({ length: 7 }, (_, i) => shiftDayKey(period.dayKey, i - 6));
-  const [logs, penalties, dues] = await Promise.all([
-    db.readingLog.findMany({ where: { groupId: id, dayKey: { in: days } } }),
-    db.penalty.findMany({ where: { groupId: id, userId: user.id }, orderBy: { dayKey: "desc" }, take: 30 }),
-    db.paymentDue.findMany({ where: { groupId: id, userId: user.id }, orderBy: { createdAt: "desc" }, take: 10 }),
-  ]);
+  const { period, open, days, dayStarts, logs, penalties, dues } = detail.board!;
   const logMap = new Map(logs.map((l) => [`${l.userId}:${l.dayKey}`, l]));
   const myToday = logMap.get(`${user.id}:${period.dayKey}`);
   const unpaid = penalties.filter((p) => p.status === "UNPAID" || p.status === "IN_DUE");
@@ -218,7 +200,7 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
                   {days.map((d) => {
                     const l = logMap.get(`${m.userId}:${d}`);
                     const isToday = d === period.dayKey;
-                    const eligible = m.joinedAt <= periodFor(d, group).start;
+                    const eligible = m.joinedAt <= dayStarts[d];
                     const closed = !(isToday && open);
                     let cell = <span className="text-muted-foreground">·</span>;
                     if (l) {

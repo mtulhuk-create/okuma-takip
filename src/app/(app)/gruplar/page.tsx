@@ -2,7 +2,7 @@ import Link from "next/link";
 import { cancelJoinRequest, requestJoin } from "@/app/actions";
 import { ActionForm, SubmitButton } from "@/components/action-form";
 import { requireUser } from "@/lib/auth";
-import { getDb } from "@/lib/db";
+import { getGroupsOverview } from "@/lib/queries";
 import { minuteToTime } from "@/lib/schedule";
 
 export const metadata = { title: "Gruplar" };
@@ -10,25 +10,9 @@ export const metadata = { title: "Gruplar" };
 export default async function GroupsPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const user = await requireUser();
   const { q = "" } = await searchParams;
-  const db = getDb();
-  const [mine, publicGroups, myRequests] = await Promise.all([
-    db.groupMember.findMany({
-      where: { userId: user.id, status: "ACTIVE" },
-      include: { group: { include: { _count: { select: { members: { where: { status: "ACTIVE" } } } } } } },
-    }),
-    db.group.findMany({
-      where: {
-        visibility: "PUBLIC",
-        ...(q ? { OR: [{ name: { contains: q, mode: "insensitive" } }, { description: { contains: q, mode: "insensitive" } }] } : {}),
-      },
-      include: { _count: { select: { members: { where: { status: "ACTIVE" } } } }, owner: { select: { name: true } } },
-      orderBy: { createdAt: "desc" },
-      take: 50,
-    }),
-    db.joinRequest.findMany({ where: { userId: user.id, status: "PENDING" }, select: { groupId: true } }),
-  ]);
+  const { mine, publicGroups, requestedIds } = await getGroupsOverview(user.id, q);
   const myIds = new Set(mine.map((m) => m.groupId));
-  const requested = new Set(myRequests.map((r) => r.groupId));
+  const requested = new Set(requestedIds);
 
   return (
     <main className="space-y-6 pt-4">

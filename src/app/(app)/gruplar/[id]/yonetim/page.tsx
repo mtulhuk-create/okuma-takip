@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import {
   cancelInvite,
   createDue,
@@ -15,7 +15,7 @@ import { Avatar } from "@/components/avatar";
 import { GroupForm } from "@/components/group-form";
 import { UserSearch } from "@/components/user-search";
 import { requireUser } from "@/lib/auth";
-import { getDb } from "@/lib/db";
+import { getAdminData } from "@/lib/queries";
 import { DAY, MIN, formatDateTime, formatDayKey } from "@/lib/schedule";
 
 export const metadata = { title: "Grup yönetimi" };
@@ -35,26 +35,9 @@ const dueStatus: Record<string, [string, string]> = {
 export default async function AdminPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const user = await requireUser();
-  const db = getDb();
-  const group = await db.group.findUnique({ where: { id } });
-  if (!group) notFound();
-  const me = await db.groupMember.findUnique({ where: { groupId_userId: { groupId: id, userId: user.id } } });
-  if (!me || me.status !== "ACTIVE" || me.role !== "ADMIN") redirect(`/gruplar/${id}`);
-
-  const [members, requests, invites, dues, unpaidPenalties] = await Promise.all([
-    db.groupMember.findMany({ where: { groupId: id, status: "ACTIVE" }, include: { user: true }, orderBy: { joinedAt: "asc" } }),
-    db.joinRequest.findMany({ where: { groupId: id, status: "PENDING" }, include: { user: true }, orderBy: { createdAt: "asc" } }),
-    db.invitation.findMany({ where: { groupId: id, status: "PENDING" }, include: { invitee: true } }),
-    db.paymentDue.findMany({ where: { groupId: id }, include: { user: true }, orderBy: [{ status: "asc" }, { dueAt: "asc" }], take: 50 }),
-    db.penalty.findMany({ where: { groupId: id, status: { in: ["UNPAID", "IN_DUE"] } }, include: { user: true }, orderBy: { dayKey: "desc" } }),
-  ]);
-  const byUser = new Map<string, { unpaid: number; inDue: number }>();
-  for (const p of unpaidPenalties) {
-    const e = byUser.get(p.userId) ?? { unpaid: 0, inDue: 0 };
-    if (p.status === "UNPAID") e.unpaid += p.amount;
-    else e.inDue += p.amount;
-    byUser.set(p.userId, e);
-  }
+  const data = await getAdminData(id, user.id);
+  if (!data) redirect(`/gruplar/${id}`);
+  const { group, members, requests, invites, dues, unpaidPenalties, money: byUser } = data;
   const defaultDue = localInputValue(new Date(Date.now() + 3 * DAY), group.tzOffset);
   const openDues = dues.filter((d) => d.status === "PENDING" || d.status === "SUBMITTED");
   const pastDues = dues.filter((d) => d.status !== "PENDING" && d.status !== "SUBMITTED");
@@ -125,7 +108,7 @@ export default async function AdminPage({ params }: { params: Promise<{ id: stri
       <section className="card space-y-3">
         <h2 className="font-bold">👥 Üyeler ({members.length})</h2>
         {members.map((m) => {
-          const money = byUser.get(m.userId);
+          const money = byUser[m.userId];
           return (
             <div key={m.id} className="space-y-2 border-t border-border pt-3 first:border-0 first:pt-0">
               <div className="flex items-center gap-3">

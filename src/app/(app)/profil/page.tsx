@@ -1,19 +1,13 @@
 import { SignOutButton, UserButton } from "@clerk/nextjs";
 import { PushToggle } from "@/components/push-toggle";
 import { requireUser } from "@/lib/auth";
-import { getDb } from "@/lib/db";
+import { getProfileStats } from "@/lib/queries";
 
 export const metadata = { title: "Profil" };
 
 export default async function ProfilePage() {
   const user = await requireUser();
-  const db = getDb();
-  const [pages, days, penalties, groups] = await Promise.all([
-    db.readingLog.aggregate({ where: { userId: user.id }, _sum: { pages: true } }),
-    db.readingLog.count({ where: { userId: user.id, pages: { gt: 0 } } }),
-    db.penalty.aggregate({ where: { userId: user.id, status: { in: ["PAID", "UNPAID", "IN_DUE"] } }, _sum: { amount: true } }),
-    db.groupMember.count({ where: { userId: user.id, status: "ACTIVE" } }),
-  ]);
+  const stats = await getProfileStats(user.id);
   return (
     <main className="space-y-5 pt-4">
       <header className="flex items-center gap-3">
@@ -26,10 +20,10 @@ export default async function ProfilePage() {
 
       <div className="grid grid-cols-2 gap-3">
         {[
-          ["Toplam sayfa", pages._sum.pages ?? 0],
-          ["Okunan gün", days],
-          ["Toplam ceza", `${penalties._sum.amount ?? 0} TL`],
-          ["Aktif grup", groups],
+          ["Toplam sayfa", stats.totalPages],
+          ["Okunan gün", stats.readDays],
+          ["Toplam ceza", `${stats.totalPenalty} TL`],
+          ["Aktif grup", stats.activeGroups],
         ].map(([l, v]) => (
           <div key={l} className="card">
             <p className="label">{l}</p>

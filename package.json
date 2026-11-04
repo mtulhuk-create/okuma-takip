@@ -11,14 +11,9 @@
     "db:dev": "prisma migrate dev",
     "cf:build": "opennextjs-cloudflare build",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
-    "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
-    "cap:sync": "cap sync android",
-    "apk": "cap sync android && cd android && ./gradlew assembleRelease"
+    "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy"
   },
   "dependencies": {
-    "@capacitor/app": "^8.1.2",
-    "@capacitor/core": "^8.6.0",
-    "@capacitor/local-notifications": "^8.3.1",
     "@clerk/localizations": "^4.24.5",
     "@clerk/nextjs": "^7.9.24",
     "@neondatabase/serverless": "^1.2.0",
@@ -29,8 +24,6 @@
     "react-dom": "19.3.0"
   },
   "devDependencies": {
-    "@capacitor/android": "^8.6.0",
-    "@capacitor/cli": "^8.6.0",
     "@opennextjs/cloudflare": "^1.20.16",
     "@tailwindcss/postcss": "^4.3.4",
     "@tailwindcss/turbopack": "^4",
