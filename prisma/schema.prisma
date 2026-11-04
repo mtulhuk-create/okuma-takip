@@ -1,0 +1,243 @@
+generator client {
+  provider      = "prisma-client-js"
+  // Workers free plan (3 MB) sınırı için küçük sorgu derleyicisi
+  compilerBuild = "small"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Visibility {
+  PUBLIC
+  PRIVATE
+}
+
+enum MemberRole {
+  ADMIN
+  MEMBER
+}
+
+enum MemberStatus {
+  ACTIVE
+  LEFT
+  REMOVED
+  KICKED
+}
+
+enum PenaltyMode {
+  FIXED // gün başına sabit tutar
+  PER_PAGE // eksik sayfa başına tutar
+}
+
+enum PenaltyStatus {
+  UNPAID
+  IN_DUE
+  PAID
+  WAIVED
+}
+
+enum DueStatus {
+  PENDING // ödeme bekleniyor
+  SUBMITTED // üye "ödedim" dedi, admin onayı bekleniyor
+  CONFIRMED // admin onayladı
+  EXPIRED // vade geçti, üye gruptan atıldı
+  CANCELLED
+}
+
+enum RequestStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELLED
+}
+
+model User {
+  id        String   @id // Clerk user id
+  username  String?  @unique
+  name      String
+  email     String?
+  imageUrl  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships       GroupMember[]
+  ownedGroups       Group[]            @relation("GroupOwner")
+  readingLogs       ReadingLog[]
+  penalties         Penalty[]
+  dues              PaymentDue[]
+  invitesReceived   Invitation[]       @relation("Invitee")
+  invitesSent       Invitation[]       @relation("Inviter")
+  joinRequests      JoinRequest[]
+  pushSubscriptions PushSubscription[]
+  notifications     Notification[]
+
+  @@index([name])
+}
+
+model Group {
+  id            String      @id @default(cuid())
+  name          String
+  description   String?
+  visibility    Visibility  @default(PRIVATE)
+  ownerId       String
+  owner         User        @relation("GroupOwner", fields: [ownerId], references: [id])
+  // Okuma kuralları
+  minPages      Int         @default(10) // üyelerin seçebileceği en düşük günlük sayfa
+  penaltyMode   PenaltyMode @default(FIXED)
+  penaltyAmount Int         @default(20) // TL
+  iban          String      @default("")
+  ibanName      String      @default("")
+  // Zamanlama (yerel saat, gece yarısından itibaren dakika)
+  startMinute   Int         @default(0) // yeni okuma gününün başlangıcı
+  deadlineMinute Int        @default(1439) // son bildirim saati
+  reminderHours Int         @default(2) // son saatten kaç saat önce uyarı
+  tzOffset      Int         @default(180) // dakika, Türkiye = UTC+3
+  lastSettledDay String? // ceza hesaplaması yapılan son okuma günü (YYYY-MM-DD)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  members      GroupMember[]
+  readingLogs  ReadingLog[]
+  penalties    Penalty[]
+  dues         PaymentDue[]
+  invitations  Invitation[]
+  joinRequests JoinRequest[]
+
+  @@index([visibility])
+}
+
+model GroupMember {
+  id         String       @id @default(cuid())
+  groupId    String
+  group      Group        @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role       MemberRole   @default(MEMBER)
+  status     MemberStatus @default(ACTIVE)
+  dailyPages Int // üyenin belirlediği günlük sayfa (alt sınır)
+  joinedAt   DateTime     @default(now())
+  leftAt     DateTime?
+
+  @@unique([groupId, userId])
+  @@index([userId, status])
+}
+
+model ReadingLog {
+  id            String   @id @default(cuid())
+  groupId       String
+  group         Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dayKey        String // okuma günü (YYYY-MM-DD)
+  pages         Int
+  requiredPages Int
+  note          String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([groupId, userId, dayKey])
+  @@index([groupId, dayKey])
+}
+
+model Penalty {
+  id            String        @id @default(cuid())
+  groupId       String
+  group         Group         @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dayKey        String
+  amount        Int // TL
+  pagesRead     Int
+  requiredPages Int
+  status        PenaltyStatus @default(UNPAID)
+  dueId         String?
+  due           PaymentDue?   @relation(fields: [dueId], references: [id], onDelete: SetNull)
+  createdAt     DateTime      @default(now())
+
+  @@unique([groupId, userId, dayKey])
+  @@index([groupId, userId, status])
+}
+
+model PaymentDue {
+  id          String    @id @default(cuid())
+  groupId     String
+  group       Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount      Int
+  dueAt       DateTime
+  status      DueStatus @default(PENDING)
+  paymentNote String? // üyenin dekont/açıklama notu
+  submittedAt DateTime?
+  resolvedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  penalties Penalty[]
+
+  @@index([status, dueAt])
+  @@index([groupId, userId])
+}
+
+model Invitation {
+  id        String        @id @default(cuid())
+  groupId   String
+  group     Group         @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  inviterId String
+  inviter   User          @relation("Inviter", fields: [inviterId], references: [id], onDelete: Cascade)
+  inviteeId String
+  invitee   User          @relation("Invitee", fields: [inviteeId], references: [id], onDelete: Cascade)
+  status    RequestStatus @default(PENDING)
+  createdAt DateTime      @default(now())
+
+  @@index([inviteeId, status])
+}
+
+model JoinRequest {
+  id        String        @id @default(cuid())
+  groupId   String
+  group     Group         @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message   String?
+  status    RequestStatus @default(PENDING)
+  createdAt DateTime      @default(now())
+
+  @@index([groupId, status])
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  body      String
+  url       String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, read])
+}
+
+// Aynı hatırlatmanın iki kez gönderilmesini engeller
+model NotificationLog {
+  id        String   @id @default(cuid())
+  groupId   String
+  userId    String
+  key       String // gün ya da vade id'si
+  kind      String // REMINDER, CD10..CD1, DUE24 ...
+  createdAt DateTime @default(now())
+
+  @@unique([groupId, userId, key, kind])
+  @@index([createdAt])
+}

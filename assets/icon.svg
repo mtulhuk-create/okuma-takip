@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="cover" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#d23a3a"/>
+      <stop offset="0.55" stop-color="#b91c1c"/>
+      <stop offset="1" stop-color="#8f1d1d"/>
+    </linearGradient>
+    <linearGradient id="spine" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#7f1d1d"/>
+      <stop offset="0.6" stop-color="#a32222"/>
+      <stop offset="1" stop-color="#b91c1c"/>
+    </linearGradient>
+    <linearGradient id="pages" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fffdf8"/>
+      <stop offset="1" stop-color="#eadfcf"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.28"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="blur" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="14"/>
+    </filter>
+  </defs>
+  <rect width="512" height="512" fill="#ffffff"/>
+  <!-- yumuşak zemin gölgesi -->
+  <ellipse cx="278" cy="424" rx="160" ry="24" fill="#3b0a0a" opacity="0.22" filter="url(#blur)"/>
+  <g transform="translate(266 248) scale(1.1) translate(-256 -256) rotate(-18 256 256)">
+    <!-- arka kapak -->
+    <rect x="176" y="126" width="184" height="276" rx="12" fill="#7f1d1d"/>
+    <!-- sayfa bloğu (sağ ve alt kenar) -->
+    <path d="M338 112 L356 126 L356 388 Q356 394 350 394 L176 394 L160 380 L338 380 Z" fill="url(#pages)"/>
+    <g stroke="#d9cbb5" stroke-width="1.6" opacity="0.9">
+      <path d="M342 120 L342 384"/><path d="M347 124 L347 388"/><path d="M352 128 L352 390"/>
+      <path d="M168 384 L344 384"/><path d="M172 388 L349 388"/>
+    </g>
+    <!-- ön kapak -->
+    <rect x="152" y="108" width="190" height="276" rx="12" fill="url(#cover)"/>
+    <!-- sırt -->
+    <path d="M164 108 L186 108 L186 384 L164 384 Q152 384 152 372 L152 120 Q152 108 164 108 Z" fill="url(#spine)"/>
+    <path d="M188 112 L188 380" stroke="#e25555" stroke-width="2" opacity="0.6"/>
+    <!-- parlama -->
+    <rect x="152" y="108" width="190" height="276" rx="12" fill="url(#shine)"/>
+    <!-- minimal kapak detayı -->
+    <rect x="214" y="162" width="96" height="10" rx="5" fill="#fff" opacity="0.85"/>
+    <rect x="228" y="184" width="68" height="7" rx="3.5" fill="#fff" opacity="0.5"/>
+    <!-- kurdele ayraç -->
+    <path d="M300 384 L300 432 L311 422 L322 432 L322 384 Z" fill="#7f1d1d"/>
+  </g>
+</svg>
