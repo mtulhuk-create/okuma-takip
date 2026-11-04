@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "KitapKurdu — Okuma Takip",
-    short_name: "KitapKurdu",
+    name: "Okuma Takip",
+    short_name: "Okuma Takip",
     description: "Okuma grubu kur, her gün sayfanı bildir.",
     start_url: "/panel",
     display: "standalone",

@@ -1,4 +1,4 @@
-# 📚 KitapKurdu — Okuma Takip
+# 📚 Okuma Takip
 
 Next.js 16 · Clerk · Prisma 7 + Neon · Cloudflare Workers (OpenNext) · Capacitor (Android APK) · PWA
 
@@ -40,7 +40,7 @@ npm run deploy   # NEXT_PUBLIC_* değerleri build sırasında .env'den okunur
 
 ## Android APK
 ```bash
-CAP_SERVER_URL=https://kitapkurdu.<subdomain>.workers.dev npx cap sync android
+CAP_SERVER_URL=https://okuma-takip.<subdomain>.workers.dev npx cap sync android
 cd android && ./gradlew assembleRelease   # JDK 21 + Android SDK gerekir
 ```
 APK: `android/app/build/outputs/apk/release/app-release.apk`

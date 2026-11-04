@@ -1,4 +1,4 @@
-package com.kitapkurdu.app;
+package com.okumatakip.app;
 
 import com.getcapacitor.BridgeActivity;
 

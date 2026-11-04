@@ -157,7 +157,7 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
               <CopyButton text={group.iban} />
             </div>
             <p className="mt-1 text-sm">{group.ibanName}</p>
-            <p className="mt-1 text-xs text-muted-foreground">Açıklama: {user.name} — KitapKurdu cezası</p>
+            <p className="mt-1 text-xs text-muted-foreground">Açıklama: {user.name} — Okuma Takip cezası</p>
           </div>
           {d.status === "SUBMITTED" ? (
             <p className="text-sm font-semibold text-amber-600">⏳ Ödeme bildirdin, yönetici onayı bekleniyor.</p>

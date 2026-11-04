@@ -1,15 +1,15 @@
 apply plugin: 'com.android.application'
 
-// İmzalama bilgileri depoya girmez: KEYSTORE_PROPERTIES ya da ~/android-build/kitapkurdu-keystore.properties
-def keystorePropsFile = file(System.getenv("KEYSTORE_PROPERTIES") ?: "${System.getProperty('user.home')}/android-build/kitapkurdu-keystore.properties")
+// İmzalama bilgileri depoya girmez: KEYSTORE_PROPERTIES ya da ~/android-build/okuma-takip-keystore.properties
+def keystorePropsFile = file(System.getenv("KEYSTORE_PROPERTIES") ?: "${System.getProperty('user.home')}/android-build/okuma-takip-keystore.properties")
 def keystoreProps = new Properties()
 if (keystorePropsFile.exists()) keystorePropsFile.withInputStream { keystoreProps.load(it) }
 
 android {
-    namespace = "com.kitapkurdu.app"
+    namespace = "com.okumatakip.app"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.kitapkurdu.app"
+        applicationId "com.okumatakip.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

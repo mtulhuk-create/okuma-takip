@@ -1,4 +1,4 @@
-// KitapKurdu servis worker'ı: push bildirimleri ve hızlı bildirim butonları
+// Okuma Takip servis worker'ı: push bildirimleri ve hızlı bildirim butonları
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
 
@@ -7,10 +7,10 @@ self.addEventListener("push", (event) => {
   try {
     data = event.data ? event.data.json() : {};
   } catch {
-    data = { title: "KitapKurdu", body: event.data ? event.data.text() : "" };
+    data = { title: "Okuma Takip", body: event.data ? event.data.text() : "" };
   }
   event.waitUntil(
-    self.registration.showNotification(data.title || "KitapKurdu", {
+    self.registration.showNotification(data.title || "Okuma Takip", {
       body: data.body || "",
       icon: "/icons/icon-192.png",
       badge: "/icons/badge-96.png",

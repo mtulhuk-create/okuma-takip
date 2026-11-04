@@ -12,9 +12,9 @@ const plexMono = IBM_Plex_Mono({ subsets: ["latin", "latin-ext"], weight: ["400"
 const themeScript = `(function(){var m=window.matchMedia("(prefers-color-scheme: dark)");function a(){document.documentElement.classList.toggle("dark",m.matches)}a();m.addEventListener("change",a)})()`;
 
 export const metadata: Metadata = {
-  title: { default: "KitapKurdu — Okuma Takip", template: "%s · KitapKurdu" },
+  title: { default: "Okuma Takip", template: "%s · Okuma Takip" },
   description: "Arkadaşlarınla okuma grubu kur, her gün sayfanı bildir, okumayana ceza!",
-  appleWebApp: { capable: true, title: "KitapKurdu", statusBarStyle: "default" },
+  appleWebApp: { capable: true, title: "Okuma Takip", statusBarStyle: "default" },
   icons: { icon: "/icons/icon-192.png", apple: "/icons/apple-touch-icon.png" },
 };
 
