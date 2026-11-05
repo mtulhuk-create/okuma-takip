@@ -1,8 +1,8 @@
-import { CalendarX2, Check, CheckCheck, FileMinus2, Minus, Plus, X } from "lucide-react-native";
+import { BookOpen, CalendarX2, Check, CheckCheck, FileMinus2, Minus, Plus, Trash2, X } from "lucide-react-native";
 import { Pressable, Text, TextInput, View } from "react-native";
 import { fonts, radius, useColors } from "@/lib/theme";
-import { penaltyFor, type Rules } from "@/lib/types";
-import { Label, Muted, Row, Segmented } from "./ui";
+import { penaltyFor, type Book, type Rules } from "@/lib/types";
+import { Button, Label, Muted, Row, Segmented } from "./ui";
 
 export function Stepper({ label, hint, value, onChange, min, max, step = 1, unit, presets }: { label: string; hint?: string; value: number; onChange: (v: number) => void; min: number; max: number; step?: number; unit: string; presets: number[] }) {
   const c = useColors();
@@ -40,6 +40,62 @@ export function Stepper({ label, hint, value, onChange, min, max, step = 1, unit
   );
 }
 
+function NumberField({ label, value, onChange, min, max }: { label: string; value: number; onChange: (v: number) => void; min: number; max: number }) {
+  const c = useColors();
+  const clamp = (n: number) => Math.min(max, Math.max(min, Number.isFinite(n) ? Math.round(n) : min));
+  return (
+    <View style={{ flex: 1 }}>
+      <Muted style={{ marginBottom: 4, fontFamily: fonts.semibold }}>{label}</Muted>
+      <Row gap={0} style={{ height: 42, borderWidth: 1, borderColor: c.border, borderRadius: radius + 2, backgroundColor: c.card }}>
+        <Pressable onPress={() => onChange(clamp(value - 1))} style={{ width: 36, height: "100%", alignItems: "center", justifyContent: "center" }}>
+          <Minus size={16} color={c.mutedForeground} />
+        </Pressable>
+        <TextInput value={String(value)} onChangeText={(t) => onChange(clamp(Number(t.replace(/\D/g, "")) || 0))} keyboardType="number-pad" style={{ flex: 1, textAlign: "center", fontFamily: fonts.bold, fontSize: 16, color: c.foreground, padding: 0 }} />
+        <Pressable onPress={() => onChange(clamp(value + 1))} style={{ width: 36, height: "100%", alignItems: "center", justifyContent: "center" }}>
+          <Plus size={16} color={c.mutedForeground} />
+        </Pressable>
+      </Row>
+    </View>
+  );
+}
+
+const newBook = (): Book => ({ id: Math.random().toString(36).slice(2, 10), title: "", targetPages: 20, minPages: 10 });
+
+function BooksEditor({ books, onChange }: { books: Book[]; onChange: (b: Book[]) => void }) {
+  const c = useColors();
+  const update = (id: string, patch: Partial<Book>) =>
+    onChange(books.map((b) => (b.id === id ? (() => { const n = { ...b, ...patch }; if (n.minPages > n.targetPages) n.minPages = n.targetPages; return n; })() : b)));
+  return (
+    <View style={{ gap: 8 }}>
+      {books.map((b, i) => (
+        <View key={b.id} style={{ borderWidth: 1, borderColor: c.border, borderRadius: 12, padding: 10, gap: 8 }}>
+          <Row>
+            <BookOpen size={16} color={c.primary} />
+            <TextInput
+              value={b.title}
+              onChangeText={(title) => update(b.id, { title })}
+              placeholder={i === 0 ? "Kitap adı (örn. Suç ve Ceza)" : `${i + 1}. kitap adı`}
+              placeholderTextColor={c.mutedForeground}
+              maxLength={80}
+              style={{ flex: 1, height: 40, borderWidth: 1, borderColor: b.title.trim() ? c.border : "#f59e0b", borderRadius: radius + 2, paddingHorizontal: 10, fontFamily: fonts.regular, fontSize: 14, color: c.foreground, backgroundColor: c.card }}
+            />
+            {books.length > 1 && (
+              <Pressable onPress={() => onChange(books.filter((x) => x.id !== b.id))} hitSlop={8}>
+                <Trash2 size={18} color={c.mutedForeground} />
+              </Pressable>
+            )}
+          </Row>
+          <Row>
+            <NumberField label="Günlük hedef" value={b.targetPages} onChange={(targetPages) => update(b.id, { targetPages })} min={1} max={2000} />
+            <NumberField label="Alt sınır" value={b.minPages} onChange={(minPages) => update(b.id, { minPages })} min={0} max={b.targetPages} />
+          </Row>
+        </View>
+      ))}
+      {books.length < 10 && <Button title="Eser ekle" icon={Plus} small variant="ghost" style={{ alignSelf: "flex-start" }} onPress={() => onChange([...books, newBook()])} />}
+    </View>
+  );
+}
+
 function Step({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
   const c = useColors();
   return (
@@ -59,7 +115,8 @@ export function RulesEditor({ value, onChange }: { value: Rules; onChange: (r: R
   const c = useColors();
   const set = (patch: Partial<Rules>) => {
     const next = { ...value, ...patch };
-    if (next.minPages > next.targetPages) next.minPages = next.targetPages;
+    next.targetPages = next.books.reduce((s, b) => s + b.targetPages, 0);
+    next.minPages = next.books.reduce((s, b) => s + b.minPages, 0);
     onChange(next);
   };
   const fixed = value.penaltyMode === "FIXED";
@@ -81,26 +138,17 @@ export function RulesEditor({ value, onChange }: { value: Rules; onChange: (r: R
           ]}
         />
       </Step>
-      <Step n={2} title="Günlük okuma hedefi">
-        <Stepper label="Her gün okunacak sayfa" value={t} onChange={(targetPages) => set({ targetPages })} min={1} max={2000} unit="sayfa" presets={[10, 20, 30, 50, 100]} />
+      <Step n={2} title="Okunacak eserler">
+        <BooksEditor books={value.books} onChange={(books) => set({ books })} />
+        <Muted>
+          Günlük toplam: hedef {t} sayfa · alt sınır {value.minPages} sayfa. {fixed ? "Alt sınırı okuyan indirimli, altında kalan tam ceza öder." : "Hedefe eksik kalan her sayfa için ceza yazılır."}
+        </Muted>
       </Step>
-      <Step n={3} title="Alt sınır">
-        <Stepper
-          label="Hedefe ulaşamayanın en az okuması gereken"
-          hint={fixed ? "Alt sınırı okuyan indirimli, altında kalan tam ceza öder." : "“Alt sınırı okudum” butonu bu sayıyı bildirir."}
-          value={value.minPages}
-          onChange={(minPages) => set({ minPages })}
-          min={0}
-          max={t}
-          unit="sayfa"
-          presets={[Math.round(t * 0.25), Math.round(t * 0.5), Math.round(t * 0.75)]}
-        />
-      </Step>
-      <Step n={4} title={fixed ? "Günlük ceza" : "Eksik sayfa başına ceza"}>
+      <Step n={3} title={fixed ? "Günlük ceza" : "Eksik sayfa başına ceza"}>
         <Stepper label={fixed ? "Hedefi tutmayan öder" : "Eksik her sayfa için"} value={value.penaltyAmount} onChange={(penaltyAmount) => set({ penaltyAmount })} min={0} max={100000} step={fixed ? 5 : 1} unit="TL" presets={fixed ? [10, 20, 50, 100] : [1, 2, 5, 10]} />
       </Step>
       {fixed && (
-        <Step n={5} title="Alt sınırı okuyana indirim">
+        <Step n={4} title="Alt sınırı okuyana indirim">
           <Stepper label="Cezadan indirim" value={value.minDiscount} onChange={(minDiscount) => set({ minDiscount })} min={0} max={100} step={5} unit="%" presets={[0, 25, 50, 75]} />
         </Step>
       )}

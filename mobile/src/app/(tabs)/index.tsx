@@ -2,7 +2,8 @@ import { router } from "expo-router";
 import { CalendarDays, Plus, Receipt, Search, Wallet } from "lucide-react-native";
 import { Pressable, Text, View } from "react-native";
 import { Countdown } from "@/components/countdown";
-import { DayCardMini, WeekTable } from "@/components/day-card";
+import { DayCardMini } from "@/components/day-card";
+import { MyHistorySection } from "@/components/history";
 import { Avatar, Button, Card, ErrorView, H1, Loading, Muted, Row, Screen, Title } from "@/components/ui";
 import { useApi } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
@@ -26,6 +27,8 @@ export default function TodayScreen() {
           <Avatar name={data.user.name} uri={data.user.imageUrl} size={42} />
         </Pressable>
       </Row>
+
+      <MyHistorySection />
 
       {data.money.dues.map((d) => (
         <Pressable key={d.id} onPress={() => router.push(`/group/${d.groupId}/info`)}>
@@ -65,15 +68,6 @@ export default function TodayScreen() {
           <Muted style={{ fontFamily: fonts.bold }}>Bugünün okumaları</Muted>
           {data.groups.map((g) => (
             <DayCardMini key={g.group.id} card={g.card} groupId={g.group.id} groupName={g.group.name} />
-          ))}
-          {data.groups.map((g) => (
-            <Card key={`w-${g.group.id}`}>
-              <Row style={{ justifyContent: "space-between" }}>
-                <Title style={{ fontSize: 14 }}>Son 7 gün</Title>
-                {data.groups.length > 1 && <Muted numberOfLines={1}>{g.group.name}</Muted>}
-              </Row>
-              <WeekTable days={g.week.days} rows={g.week.rows} />
-            </Card>
           ))}
         </>
       )}

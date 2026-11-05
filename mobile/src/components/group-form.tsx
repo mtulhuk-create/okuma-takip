@@ -2,15 +2,18 @@ import { AlarmClock, BookOpen, ChevronDown, Globe, Landmark, Lock, PencilLine, P
 import { useState } from "react";
 import { Pressable, Switch, Text, View } from "react-native";
 import { fonts, useColors } from "@/lib/theme";
-import type { Group, Rules } from "@/lib/types";
+import { booksOf, type Group, type Rules } from "@/lib/types";
 import { TimeField } from "./pickers";
 import { RulesEditor } from "./rules-editor";
 import { Button, Card, Input, Muted, Row, Segmented } from "./ui";
 
 export type GroupFormValues = Record<string, string | number>;
 type TeamDraft = Rules & { id?: string; name: string; key: string };
-const DEFAULT_RULES: Rules = { penaltyMode: "FIXED", targetPages: 20, minPages: 10, penaltyAmount: 20, minDiscount: 50 };
-const pick = (r: Rules): Rules => ({ penaltyMode: r.penaltyMode, targetPages: r.targetPages, minPages: r.minPages, penaltyAmount: r.penaltyAmount, minDiscount: r.minDiscount });
+const DEFAULT_RULES: Rules = { penaltyMode: "FIXED", targetPages: 20, minPages: 10, penaltyAmount: 20, minDiscount: 50, books: [{ id: "kitap1", title: "", targetPages: 20, minPages: 10 }] };
+const pick = (r: Omit<Rules, "books"> & { books?: unknown }): Rules => {
+  const books = booksOf(r);
+  return { penaltyMode: r.penaltyMode, targetPages: books.reduce((s, b) => s + b.targetPages, 0), minPages: books.reduce((s, b) => s + b.minPages, 0), penaltyAmount: r.penaltyAmount, minDiscount: r.minDiscount, books };
+};
 
 function Section({ icon: Icon, title, hint, children }: { icon: LucideIcon; title: string; hint?: string; children: React.ReactNode }) {
   const c = useColors();
@@ -53,7 +56,7 @@ function TeamCard({ team, index, canRemove, onChange, onRemove }: { team: TeamDr
         <RulesEditor value={team} onChange={(r) => onChange({ ...team, ...r })} />
       ) : (
         <Muted>
-          Günde {team.targetPages} sayfa · alt sınır {team.minPages} · {team.penaltyMode === "FIXED" ? `${team.penaltyAmount} TL (%${team.minDiscount} indirim)` : `${team.penaltyAmount} TL/eksik sayfa`}
+          {team.books.length} eser · günde {team.targetPages} sayfa · alt sınır {team.minPages} · {team.penaltyMode === "FIXED" ? `${team.penaltyAmount} TL (%${team.minDiscount} indirim)` : `${team.penaltyAmount} TL/eksik sayfa`}
         </Muted>
       )}
     </View>
@@ -66,6 +69,7 @@ export function GroupForm({ group, onSubmit, submitting, submitLabel }: { group?
   const [description, setDescription] = useState(group?.description ?? "");
   const [visibility, setVisibility] = useState<"PRIVATE" | "PUBLIC">(group?.visibility ?? "PRIVATE");
   const [chatPolicy, setChatPolicy] = useState<"ALL" | "ADMINS">(group?.chatPolicy ?? "ALL");
+  const [shareProgress, setShareProgress] = useState(group?.shareProgress ?? false);
   const [rules, setRules] = useState<Rules>(group ? pick(group) : DEFAULT_RULES);
   const [teamsEnabled, setTeamsEnabled] = useState(group?.teamsEnabled ?? false);
   const [teams, setTeams] = useState<TeamDraft[]>(group?.teams?.map((t) => ({ ...pick(t), id: t.id, name: t.name, key: t.id })) ?? []);
@@ -75,7 +79,7 @@ export function GroupForm({ group, onSubmit, submitting, submitLabel }: { group?
   const [iban, setIban] = useState(group?.iban ?? "");
   const [ibanName, setIbanName] = useState(group?.ibanName ?? "");
   const time = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
-  const newTeam = (n: number): TeamDraft => ({ ...rules, name: `${String.fromCharCode(65 + n)} Ekibi`, key: `new-${Date.now()}-${n}` });
+  const newTeam = (n: number): TeamDraft => ({ ...rules, books: rules.books.map((b) => ({ ...b, id: `${b.id}-${n}` })), name: `${String.fromCharCode(65 + n)} Ekibi`, key: `new-${Date.now()}-${n}` });
 
   function toggleTeams(on: boolean) {
     setTeamsEnabled(on);
@@ -109,6 +113,13 @@ export function GroupForm({ group, onSubmit, submitting, submitLabel }: { group?
             { value: "ADMINS", label: "Yöneticiler", hint: "Üyeler okur", icon: ShieldCheck },
           ]}
         />
+        <Row style={{ justifyContent: "space-between" }}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontFamily: fonts.semibold, fontSize: 14, color: c.foreground }}>Okuyucular birbirinin geçmişini görsün</Text>
+            <Muted>Kapalıyken üyeler geçmiş tablosunda yalnızca kendilerini görür.</Muted>
+          </View>
+          <Switch value={shareProgress} onValueChange={setShareProgress} trackColor={{ true: c.primary, false: c.muted }} thumbColor="#fff" />
+        </Row>
       </Section>
 
       <Section icon={Shield} title="Ekipler" hint="Her ekibin kendi okuma ve ceza kuralları olur.">
@@ -178,7 +189,9 @@ export function GroupForm({ group, onSubmit, submitting, submitLabel }: { group?
             description,
             visibility,
             chatPolicy,
+            shareProgress: shareProgress ? "1" : "0",
             ...rules,
+            books: JSON.stringify(rules.books),
             teamsEnabled: teamsEnabled ? "1" : "0",
             teams: JSON.stringify(teams.map(({ key: _k, ...t }) => t)),
             startTime: time(startMinute),

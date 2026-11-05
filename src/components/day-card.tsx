@@ -58,7 +58,8 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
 
   const total = me.pages ?? 0;
   const status = me.pages == null ? null : total >= me.target ? "Hedef tamam" : total >= me.min ? "Alt sınır tamam" : "Alt sınırın altında";
-  const btn = compact ? "btn-sm h-9 px-2" : "";
+  // Dar ekranda sığsın: ikon üstte, yazı altta (gerekirse iki satır)
+  const btn = "h-auto min-h-11 flex-col gap-0.5 whitespace-normal px-1.5 py-2 text-center text-xs leading-tight";
 
   return (
     <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
@@ -178,7 +179,7 @@ export function DayCardFull({ card, groupId, onReported }: { card: Card; groupId
             <span className="bg-rose-500" style={{ width: `${(card.none.length / total) * 100}%` }} />
           </div>
           <p className="text-xs text-muted-foreground">
-            {done}/{total} kişi hedefini tuttu
+            {done}/{total} kişi en az alt sınırı okudu
           </p>
         </div>
       )}

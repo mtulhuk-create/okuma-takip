@@ -1,13 +1,13 @@
 import { router } from "expo-router";
-import { BookOpenCheck, Check, CheckCheck, ChevronRight, Clock, Lock, Pencil, X, type LucideIcon } from "lucide-react-native";
+import { BookOpen, Check, CheckCheck, ChevronRight, Clock, Lock, X, type LucideIcon } from "lucide-react-native";
 import { useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import { useAction } from "@/lib/api";
 import { formatDayLong, formatClock } from "@/lib/format";
 import { fonts, radius, useColors } from "@/lib/theme";
 import type { DayCard as Card, DayPerson } from "@/lib/types";
 import { Countdown } from "./countdown";
-import { Avatar, Body, Button, Input, Muted, Row } from "./ui";
+import { Avatar, Body, Muted, Row } from "./ui";
 
 type Cat = { key: "read" | "min" | "none" | "pending"; label: string; Icon: LucideIcon; color: (c: ReturnType<typeof useColors>) => string };
 const CATS: Cat[] = [
@@ -36,55 +36,110 @@ export function AvatarStack({ people, size = 26, max = 5 }: { people: { id: stri
   );
 }
 
+type BookChoice = "read" | "min" | "none";
+function bookState(b: { pages: number | null; target: number; min: number }): BookChoice | "partial" | null {
+  if (b.pages == null) return null;
+  if (b.pages >= b.target) return "read";
+  if (b.pages === 0) return "none";
+  return b.pages >= b.min ? "min" : "partial";
+}
+
+/** Eser satırları (sağda ikonlu butonlar) + altta yan yana tümü için butonlar */
 export function ReportControls({ groupId, card, compact, onDone }: { groupId: string; card: Card; compact?: boolean; onDone?: () => void }) {
   const c = useColors();
   const action = useAction();
   const me = card.me!;
-  const [editing, setEditing] = useState(false);
-  const [pages, setPages] = useState(String(me.pages ?? me.target));
-  const busy = (choice: string) => action.isPending && action.variables?.body?.choice === choice;
-  const send = (choice: "pages" | "min" | "none") =>
-    action.mutate(
-      { name: "reportReading", body: { groupId, choice, pages: choice === "pages" ? pages : undefined } },
-      {
-        onSuccess: () => {
-          setEditing(false);
-          onDone?.();
-        },
-      },
-    );
-
-  if (me.pages != null && !editing) {
-    const ok = me.pages >= me.min;
-    const col = ok ? c.success : c.destructive;
-    return (
-      <Row style={{ justifyContent: "space-between", backgroundColor: (ok ? c.successBg : c.dangerBg), borderRadius: radius + 2, paddingHorizontal: 12, paddingVertical: 8 }}>
-        <Row gap={6}>
-          {ok ? <CheckCheck size={16} color={col} /> : <X size={16} color={col} />}
-          <Text style={{ fontFamily: fonts.semibold, fontSize: 13, color: col }}>
-            {me.pages} sayfa {me.pages >= me.target ? "· hedef tamam" : me.pages >= me.min ? "· alt sınır" : ""}
-          </Text>
-        </Row>
-        <Button title="Değiştir" icon={Pencil} small variant="ghost" onPress={() => setEditing(true)} />
-      </Row>
-    );
-  }
-  if (editing) {
-    return (
-      <Row>
-        <Input value={pages} onChangeText={setPages} keyboardType="number-pad" autoFocus placeholder="Kaç sayfa?" />
-        <Button title="Kaydet" icon={Check} variant="success" loading={busy("pages")} onPress={() => send("pages")} />
-        <Button title="" icon={X} variant="ghost" onPress={() => setEditing(false)} />
-      </Row>
-    );
-  }
+  const single = me.books.length === 1;
+  const busy = (key: string) => action.isPending && action.variables?.body?.key === key;
+  const send = (body: Record<string, unknown>, key: string) => action.mutate({ name: "reportReading", body: { groupId, ...body, key } }, { onSuccess: () => onDone?.() });
+  const BTNS: { key: BookChoice; Icon: LucideIcon; color: string }[] = [
+    { key: "read", Icon: CheckCheck, color: c.success },
+    { key: "min", Icon: Check, color: c.warning },
+    { key: "none", Icon: X, color: c.destructive },
+  ];
+  const total = me.pages ?? 0;
+  const status = me.pages == null ? null : total >= me.target ? "Hedef tamam" : total >= me.min ? "Alt sınır tamam" : "Alt sınırın altında";
+  const bottom: { key: string; label: string; Icon: LucideIcon; variant: "success" | "primary" | "ghost"; body: Record<string, unknown> }[] = [
+    { key: "all", label: single ? "Okudum" : "Hepsini okudum", Icon: CheckCheck, variant: "success", body: { choice: "all" } },
+    { key: "min", label: "Alt sınırı okudum", Icon: Check, variant: "primary", body: { choice: "min" } },
+    { key: "none", label: "Okuyamadım", Icon: X, variant: "ghost", body: { choice: "none" } },
+  ];
   return (
     <View style={{ gap: 8 }}>
-      <Row>
-        <Button title="Okudum" icon={BookOpenCheck} variant="success" small={compact} style={{ flex: 1 }} onPress={() => setEditing(true)} />
-        <Button title="Okumadım" icon={X} variant="ghost" small={compact} style={{ flex: 1 }} loading={busy("none")} onPress={() => send("none")} />
+      <View style={{ borderWidth: 1, borderColor: c.border, borderRadius: 12 }}>
+        {me.books.map((b, i) => {
+          const st = bookState(b);
+          return (
+            <Row key={b.id} style={{ paddingHorizontal: 10, paddingVertical: 8, borderTopWidth: i ? 1 : 0, borderTopColor: c.border }}>
+              <BookOpen size={16} color={c.primary} />
+              <View style={{ flex: 1 }}>
+                <Text numberOfLines={1} style={{ fontFamily: fonts.semibold, fontSize: 13, color: c.foreground }}>
+                  {b.title}
+                </Text>
+                <Muted>
+                  Hedef {b.target} · alt sınır {b.min}
+                  {b.pages != null ? ` · ${b.pages} sf` : ""}
+                </Muted>
+              </View>
+              {BTNS.map(({ key, Icon, color }) => {
+                const on = st === key;
+                const k = `${b.id}-${key}`;
+                return (
+                  <Pressable
+                    key={key}
+                    accessibilityLabel={`${b.title}: ${key === "read" ? "Okudum" : key === "min" ? "Alt sınırı okudum" : "Okumadım"}`}
+                    disabled={action.isPending}
+                    onPress={() => send({ bookId: b.id, bookChoice: key }, k)}
+                    style={{ width: 34, height: 34, borderRadius: 8, borderWidth: 1, borderColor: on ? color : c.border, backgroundColor: on ? color : c.card, alignItems: "center", justifyContent: "center" }}
+                  >
+                    {busy(k) ? <ActivityIndicator size="small" color={on ? "#fff" : color} /> : <Icon size={16} color={on ? "#fff" : c.mutedForeground} strokeWidth={2.6} />}
+                  </Pressable>
+                );
+              })}
+            </Row>
+          );
+        })}
+      </View>
+      <Row gap={6}>
+        {bottom.map((b) => (
+          <Pressable
+            key={b.key}
+            disabled={action.isPending}
+            onPress={() => send(b.body, b.key)}
+            style={({ pressed }) => [
+              {
+                flex: 1,
+                minHeight: compact ? 50 : 56,
+                borderRadius: radius + 2,
+                borderWidth: 1,
+                borderColor: b.variant === "ghost" ? c.border : "transparent",
+                backgroundColor: b.variant === "success" ? c.success : b.variant === "primary" ? c.primary : c.card,
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 3,
+                paddingHorizontal: 4,
+                opacity: pressed ? 0.85 : 1,
+              },
+            ]}
+          >
+            {busy(b.key) ? (
+              <ActivityIndicator size="small" color={b.variant === "ghost" ? c.foreground : "#fff"} />
+            ) : (
+              <>
+                <b.Icon size={16} color={b.variant === "ghost" ? c.foreground : "#fff"} />
+                <Text numberOfLines={2} style={{ fontFamily: fonts.semibold, fontSize: 11, textAlign: "center", color: b.variant === "ghost" ? c.foreground : "#fff" }}>
+                  {b.label}
+                </Text>
+              </>
+            )}
+          </Pressable>
+        ))}
       </Row>
-      <Button title={`Alt sınırı okudum (${me.min})`} icon={Check} small={compact} loading={busy("min")} onPress={() => send("min")} />
+      {status && (
+        <Muted style={{ textAlign: "center" }}>
+          Bugün {total}/{me.target} sayfa · {status}
+        </Muted>
+      )}
     </View>
   );
 }
@@ -184,10 +239,13 @@ export function DayCardFull({ card, groupId, onReported, highlight }: { card: Ca
       </View>
       {card.open && card.me && (
         <View style={{ gap: 8, borderTopWidth: 1, borderTopColor: c.border, paddingTop: 10 }}>
-          <Muted>
-            {card.me.teamName ? `${card.me.teamName} · ` : ""}Hedef {card.me.target} sayfa · alt sınır {card.me.min}
-            {!card.me.eligible ? " · bugün katıldığın için ceza yazılmaz" : ""}
-          </Muted>
+          {(card.me.teamName || !card.me.eligible) && (
+            <Muted>
+              {card.me.teamName ? `${card.me.teamName} ekibi` : ""}
+              {card.me.teamName && !card.me.eligible ? " · " : ""}
+              {!card.me.eligible ? "bugün katıldığın için ceza yazılmaz" : ""}
+            </Muted>
+          )}
           <ReportControls groupId={groupId} card={card} onDone={onReported} />
         </View>
       )}
@@ -233,65 +291,10 @@ export function DayCardMini({ card, groupId, groupName }: { card: Card; groupId:
       </Row>
       {card.open && card.me && (
         <>
-          <Muted>
-            Hedef {card.me.target} · alt sınır {card.me.min}
-            {!card.me.eligible ? " · bugün ceza yok" : ""}
-          </Muted>
+          {!card.me.eligible && <Muted>Bugün katıldığın için ceza yazılmaz</Muted>}
           <ReportControls groupId={groupId} card={card} compact />
         </>
       )}
     </Pressable>
-  );
-}
-
-export function WeekTable({ days, rows }: { days: string[]; rows: { user: { id: string; name: string; imageUrl: string | null }; cells: string[] }[] }) {
-  const c = useColors();
-  const DOW = ["Pz", "Pt", "Sa", "Ça", "Pe", "Cu", "Ct"];
-  const cell = (k: string) => {
-    const map: Record<string, [LucideIcon, string, string]> = {
-      read: [CheckCheck, c.success, c.successBg],
-      min: [Check, c.warning, c.warningBg],
-      none: [X, c.destructive, c.dangerBg],
-      pending: [Clock, c.mutedForeground, c.muted],
-    };
-    const v = map[k];
-    if (!v) return <Text style={{ color: c.mutedForeground, opacity: 0.4 }}>–</Text>;
-    const [Icon, fg, bg] = v;
-    return (
-      <View style={{ width: 26, height: 26, borderRadius: 6, backgroundColor: bg, alignItems: "center", justifyContent: "center" }}>
-        <Icon size={13} color={fg} strokeWidth={2.6} />
-      </View>
-    );
-  };
-  return (
-    <View style={{ gap: 6 }}>
-      <Row gap={0}>
-        <View style={{ flex: 1 }} />
-        {days.map((d, i) => {
-          const [y, m, day] = d.split("-").map(Number);
-          return (
-            <View key={d} style={{ width: 32, alignItems: "center" }}>
-              <Text style={{ fontFamily: fonts.semibold, fontSize: 10, color: i === days.length - 1 ? c.primary : c.mutedForeground }}>{DOW[new Date(Date.UTC(y, m - 1, day)).getUTCDay()]}</Text>
-              <Text style={{ fontFamily: fonts.regular, fontSize: 10, color: c.mutedForeground }}>{day}</Text>
-            </View>
-          );
-        })}
-      </Row>
-      {rows.map((r) => (
-        <Row key={r.user.id} gap={0}>
-          <Row style={{ flex: 1 }} gap={6}>
-            <Avatar name={r.user.name} uri={r.user.imageUrl} size={24} />
-            <Body numberOfLines={1} style={{ flex: 1, fontSize: 12 }}>
-              {r.user.name.split(" ")[0]}
-            </Body>
-          </Row>
-          {r.cells.map((k, i) => (
-            <View key={i} style={{ width: 32, alignItems: "center" }}>
-              {cell(k)}
-            </View>
-          ))}
-        </Row>
-      ))}
-    </View>
   );
 }

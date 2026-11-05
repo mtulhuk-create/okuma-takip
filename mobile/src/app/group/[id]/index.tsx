@@ -1,12 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { router, Stack, useFocusEffect, useLocalSearchParams } from "expo-router";
-import { BarChart3, Info, Lock, Receipt, SendHorizontal, Settings } from "lucide-react-native";
+import { BarChart3, CalendarRange, Info, Lock, Receipt, SendHorizontal, Settings } from "lucide-react-native";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppState, FlatList, KeyboardAvoidingView, Platform, Pressable, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MessageBubble } from "@/components/chat/message";
 import { PollModal } from "@/components/chat/poll-modal";
 import { DayCardFull } from "@/components/day-card";
+import { GroupHistoryModal } from "@/components/history";
 import { JoinView } from "@/components/join-view";
 import { ErrorView, Loading, Row } from "@/components/ui";
 import { ApiError, useAction, useApi, useApiFetch } from "@/lib/api";
@@ -34,6 +35,7 @@ export default function ChatScreen() {
   const [hasMoreOlder, setHasMoreOlder] = useState<boolean | null>(null);
   const [text, setText] = useState("");
   const [pollOpen, setPollOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const list = useRef<FlatList<ChatMessage>>(null);
   const cursor = useRef(0);
   const scrolledToDay = useRef(false);
@@ -129,6 +131,9 @@ export default function ChatScreen() {
           ),
           headerRight: () => (
             <Row gap={16}>
+              <Pressable onPress={() => setHistoryOpen(true)} hitSlop={10} accessibilityLabel="Okuma geçmişi">
+                <CalendarRange size={22} color={c.foreground} />
+              </Pressable>
               <Pressable onPress={() => router.push(`/group/${id}/info`)} hitSlop={10}>
                 <Info size={22} color={c.foreground} />
               </Pressable>
@@ -202,6 +207,7 @@ export default function ChatScreen() {
         )}
       </View>
       <PollModal groupId={id} visible={pollOpen} onClose={() => setPollOpen(false)} />
+      <GroupHistoryModal groupId={id} visible={historyOpen} onClose={() => setHistoryOpen(false)} />
     </KeyboardAvoidingView>
   );
 }

@@ -2,7 +2,15 @@ export type PublicUser = { id: string; name: string; username: string | null; im
 export type Period = { dayKey: string; start: string; deadline: string; nextStart: string };
 export type PenaltyMode = "FIXED" | "PER_PAGE";
 
-export type Rules = { penaltyMode: PenaltyMode; targetPages: number; minPages: number; penaltyAmount: number; minDiscount: number };
+export type Book = { id: string; title: string; targetPages: number; minPages: number };
+export type Rules = { penaltyMode: PenaltyMode; targetPages: number; minPages: number; penaltyAmount: number; minDiscount: number; books: Book[] };
+export type BookLog = { id: string; title: string; pages: number | null; target: number; min: number };
+
+/** Eser listesi yoksa (eski gruplar) toplam hedef tek eser sayılır */
+export function booksOf(r: { targetPages: number; minPages: number; books?: unknown }): Book[] {
+  const b = Array.isArray(r.books) ? (r.books as Book[]) : [];
+  return b.length ? b : [{ id: "genel", title: "Günlük okuma", targetPages: r.targetPages, minPages: r.minPages }];
+}
 export type Team = Rules & { id: string; name: string; position: number };
 
 export type Group = Rules & {
@@ -12,6 +20,7 @@ export type Group = Rules & {
   visibility: "PUBLIC" | "PRIVATE";
   chatPolicy: "ALL" | "ADMINS";
   teamsEnabled: boolean;
+  shareProgress: boolean;
   teams: Team[];
   ownerId: string;
   iban: string;
@@ -44,9 +53,14 @@ export type DayCard = {
   min: DayPerson[];
   none: DayPerson[];
   pending: DayPerson[];
-  me: { eligible: boolean; pages: number | null; target: number; min: number; teamName: string | null } | null;
+  me: { eligible: boolean; pages: number | null; target: number; min: number; teamName: string | null; books: BookLog[] } | null;
 };
-export type WeekCell = "read" | "min" | "none" | "pending" | "na";
+
+export type Stats = { read: number; min: number; none: number; pages: number };
+export type HistoryRow = { start: string; cells: string; stats: Stats };
+export type HistoryRange = "7d" | "1m" | "3m" | "1y" | "all";
+export type MyHistory = { all: HistoryRow | null; groups: (HistoryRow & { group: { id: string; name: string } })[] };
+export type GroupHistory = { limited: boolean; rows: (HistoryRow & { user: PublicUser; me: boolean })[] };
 export type PenaltyStatus = "UNPAID" | "IN_DUE" | "PAID" | "WAIVED";
 export type Penalty = { id: string; userId: string; dayKey: string; amount: number; pagesRead: number; requiredPages: number; status: PenaltyStatus; user?: PublicUser };
 export type DueStatus = "PENDING" | "SUBMITTED" | "CONFIRMED" | "EXPIRED" | "CANCELLED";
@@ -63,7 +77,6 @@ export type MeResponse = {
     period: Period;
     open: Period | null;
     card: DayCard;
-    week: { days: string[]; rows: { user: PublicUser; cells: WeekCell[] }[] };
   }[];
 };
 
@@ -146,7 +159,7 @@ export function penaltyFor(r: Rules, pages: number) {
   return pages >= r.minPages ? Math.round((r.penaltyAmount * (100 - r.minDiscount)) / 100) : r.penaltyAmount;
 }
 
-export function describePenalty(r: Rules) {
+export function describePenalty(r: Pick<Rules, "penaltyMode" | "penaltyAmount" | "minDiscount">) {
   if (r.penaltyMode === "PER_PAGE") return `Eksik sayfa başına ${r.penaltyAmount} TL`;
   return r.minDiscount > 0 ? `${r.penaltyAmount} TL · alt sınırda %${r.minDiscount} indirim` : `${r.penaltyAmount} TL / gün`;
 }
