@@ -12,7 +12,6 @@ const ACTIONS: Record<string, Fn> = {
   deleteGroup: actions.deleteGroupState,
   leaveGroup: actions.leaveGroupState,
   reportReading: wrap(actions.reportReading),
-  setDailyPages: wrap(actions.setDailyPages),
   requestJoin: wrap(actions.requestJoin),
   cancelJoinRequest: wrap(actions.cancelJoinRequest),
   respondJoinRequest: wrap(actions.respondJoinRequest),
@@ -26,6 +25,13 @@ const ACTIONS: Record<string, Fn> = {
   resolvePayment: wrap(actions.resolvePayment),
   waivePenalty: wrap(actions.waivePenalty),
   markAllRead: wrap(actions.markAllRead),
+  sendMessage: wrap(actions.sendMessage),
+  createPoll: wrap(actions.createPoll),
+  votePoll: wrap(actions.votePoll),
+  deleteMessage: wrap(actions.deleteMessage),
+  requestTeamChange: wrap(actions.requestTeamChange),
+  respondTeamChange: wrap(actions.respondTeamChange),
+  setMemberTeam: wrap(actions.setMemberTeam),
 };
 
 export const POST = withUser(async (_user, req, ctx: { params: Promise<{ name: string }> }) => {

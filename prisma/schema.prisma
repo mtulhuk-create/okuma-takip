@@ -1,7 +1,5 @@
 generator client {
-  provider      = "prisma-client-js"
-  // Workers free plan (3 MB) sınırı için küçük sorgu derleyicisi
-  compilerBuild = "small"
+  provider = "prisma-client-js"
 }
 
 datasource db {
@@ -45,6 +43,17 @@ enum DueStatus {
   CANCELLED
 }
 
+enum ChatPolicy {
+  ALL // tüm üyeler yazabilir
+  ADMINS // yalnızca yöneticiler yazabilir
+}
+
+enum MessageKind {
+  TEXT
+  DAY // her okuma günü için otomatik gün kartı
+  POLL
+}
+
 enum RequestStatus {
   PENDING
   ACCEPTED
@@ -62,6 +71,7 @@ model User {
   updatedAt DateTime @updatedAt
 
   memberships       GroupMember[]
+  teamChanges       TeamChangeRequest[]
   ownedGroups       Group[]            @relation("GroupOwner")
   readingLogs       ReadingLog[]
   penalties         Penalty[]
@@ -71,6 +81,8 @@ model User {
   joinRequests      JoinRequest[]
   pushSubscriptions PushSubscription[]
   notifications     Notification[]
+  messages          Message[]
+  pollVotes         PollVote[]
 
   @@index([name])
 }
@@ -83,9 +95,13 @@ model Group {
   ownerId       String
   owner         User        @relation("GroupOwner", fields: [ownerId], references: [id])
   // Okuma kuralları
-  minPages      Int         @default(10) // üyelerin seçebileceği en düşük günlük sayfa
+  // Okuma kuralları (ekipler kapalıyken tüm grup için geçerli)
   penaltyMode   PenaltyMode @default(FIXED)
-  penaltyAmount Int         @default(20) // TL
+  targetPages   Int         @default(20) // günlük okuma hedefi
+  minPages      Int         @default(10) // alt sınır
+  penaltyAmount Int         @default(20) // TL (sabit) ya da eksik sayfa başına TL
+  minDiscount   Int         @default(50) // alt sınırı okuyanlara cezada % indirim (sabit cezada)
+  teamsEnabled  Boolean     @default(false)
   iban          String      @default("")
   ibanName      String      @default("")
   // Zamanlama (yerel saat, gece yarısından itibaren dakika)
@@ -93,6 +109,7 @@ model Group {
   deadlineMinute Int        @default(1439) // son bildirim saati
   reminderHours Int         @default(2) // son saatten kaç saat önce uyarı
   tzOffset      Int         @default(180) // dakika, Türkiye = UTC+3
+  chatPolicy    ChatPolicy  @default(ALL)
   lastSettledDay String? // ceza hesaplaması yapılan son okuma günü (YYYY-MM-DD)
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
@@ -103,6 +120,10 @@ model Group {
   dues         PaymentDue[]
   invitations  Invitation[]
   joinRequests JoinRequest[]
+  messages     Message[]
+  teams        Team[]
+  events       GroupEvent[]
+  teamChanges  TeamChangeRequest[]
 
   @@index([visibility])
 }
@@ -115,7 +136,8 @@ model GroupMember {
   user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   role       MemberRole   @default(MEMBER)
   status     MemberStatus @default(ACTIVE)
-  dailyPages Int // üyenin belirlediği günlük sayfa (alt sınır)
+  teamId     String?
+  team       Team?        @relation(fields: [teamId], references: [id], onDelete: SetNull)
   joinedAt   DateTime     @default(now())
   leftAt     DateTime?
 
@@ -131,7 +153,8 @@ model ReadingLog {
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   dayKey        String // okuma günü (YYYY-MM-DD)
   pages         Int
-  requiredPages Int
+  requiredPages Int // o günkü hedef
+  minPages      Int      @default(0) // o günkü alt sınır
   note          String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -199,6 +222,7 @@ model JoinRequest {
   group     Group         @relation(fields: [groupId], references: [id], onDelete: Cascade)
   userId    String
   user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  teamId    String? // ekipli gruplarda seçilen ekip
   message   String?
   status    RequestStatus @default(PENDING)
   createdAt DateTime      @default(now())
@@ -239,5 +263,100 @@ model NotificationLog {
   createdAt DateTime @default(now())
 
   @@unique([groupId, userId, key, kind])
+  @@index([createdAt])
+}
+
+model Message {
+  id        String      @id @default(cuid())
+  groupId   String
+  group     Group       @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  userId    String? // gün kartlarında boş
+  user      User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  kind      MessageKind @default(TEXT)
+  text      String?
+  dayKey    String? // DAY mesajları için okuma günü
+  createdAt DateTime    @default(now())
+  poll      Poll?
+
+  @@unique([groupId, kind, dayKey])
+  @@index([groupId, createdAt])
+}
+
+model Poll {
+  id        String       @id @default(cuid())
+  messageId String       @unique
+  message   Message      @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  question  String
+  multiple  Boolean      @default(false)
+  options   PollOption[]
+  votes     PollVote[]
+}
+
+model PollOption {
+  id       String     @id @default(cuid())
+  pollId   String
+  poll     Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  text     String
+  position Int
+  votes    PollVote[]
+
+  @@index([pollId])
+}
+
+model PollVote {
+  id        String     @id @default(cuid())
+  pollId    String
+  poll      Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  optionId  String
+  option    PollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime   @default(now())
+
+  @@unique([optionId, userId])
+  @@index([pollId, userId])
+}
+
+model Team {
+  id            String      @id @default(cuid())
+  groupId       String
+  group         Group       @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  name          String
+  position      Int         @default(0)
+  penaltyMode   PenaltyMode @default(FIXED)
+  targetPages   Int         @default(20)
+  minPages      Int         @default(10)
+  penaltyAmount Int         @default(20)
+  minDiscount   Int         @default(50)
+  members       GroupMember[]
+  changes       TeamChangeRequest[]
+
+  @@index([groupId])
+}
+
+model TeamChangeRequest {
+  id        String        @id @default(cuid())
+  groupId   String
+  group     Group         @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  teamId    String
+  team      Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  status    RequestStatus @default(PENDING)
+  createdAt DateTime      @default(now())
+
+  @@index([groupId, status])
+}
+
+// Gerçek zamanlı sohbet olayları (SSE ile istemcilere akar; eski kayıtlar cron ile silinir)
+model GroupEvent {
+  id        Int      @id @default(autoincrement())
+  groupId   String
+  group     Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  type      String
+  payload   String?
+  createdAt DateTime @default(now())
+
+  @@index([groupId, id])
   @@index([createdAt])
 }

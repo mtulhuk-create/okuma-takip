@@ -7,15 +7,6 @@ export const GET = withUser(async (user) => {
     user: { id: user.id, name: user.name, username: user.username, imageUrl: user.imageUrl },
     badge,
     money,
-    groups: groups.map(({ group, membership, period, open, myLog, reportedCount, memberCount }) => ({
-      group: { id: group.id, name: group.name, startMinute: group.startMinute, deadlineMinute: group.deadlineMinute, visibility: group.visibility },
-      dailyPages: membership.dailyPages,
-      role: membership.role,
-      period,
-      open,
-      myPages: myLog?.pages ?? null,
-      reportedCount,
-      memberCount,
-    })),
+    groups,
   };
 });

@@ -1,6 +1,7 @@
 // Mobil uygulamanın (APK) cihazda yerel bildirim planlaması için kullandığı uç nokta.
 import { auth } from "@clerk/nextjs/server";
 import { getDb } from "@/lib/db";
+import { rulesFor } from "@/lib/rules";
 import { currentPeriod, periodFor, shiftDayKey } from "@/lib/schedule";
 import { signQuickToken } from "@/lib/token";
 
@@ -10,7 +11,7 @@ export async function GET() {
   const db = getDb();
   const memberships = await db.groupMember.findMany({
     where: { userId, status: "ACTIVE" },
-    include: { group: true },
+    include: { group: { include: { teams: true } } },
   });
   const now = new Date();
   const result = [];
@@ -36,7 +37,7 @@ export async function GET() {
     result.push({
       groupId: g.id,
       name: g.name,
-      dailyPages: m.dailyPages,
+      dailyPages: rulesFor(g, m).targetPages,
       reminderHours: g.reminderHours,
       eligibleFrom: m.joinedAt.toISOString(),
       periods,

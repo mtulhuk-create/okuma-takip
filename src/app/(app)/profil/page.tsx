@@ -1,5 +1,7 @@
 import { SignOutButton, UserButton } from "@clerk/nextjs";
+import { Bell, BookOpen, CalendarCheck, LogOut, Palette, Users, Wallet } from "lucide-react";
 import { PushToggle } from "@/components/push-toggle";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { requireUser } from "@/lib/auth";
 import { getProfileStats } from "@/lib/queries";
 
@@ -8,45 +10,52 @@ export const metadata = { title: "Profil" };
 export default async function ProfilePage() {
   const user = await requireUser();
   const stats = await getProfileStats(user.id);
+  const items = [
+    { Icon: BookOpen, label: "Toplam sayfa", value: stats.totalPages },
+    { Icon: CalendarCheck, label: "Okunan gün", value: stats.readDays },
+    { Icon: Wallet, label: "Toplam ceza", value: `${stats.totalPenalty} TL` },
+    { Icon: Users, label: "Aktif grup", value: stats.activeGroups },
+  ];
   return (
     <main className="space-y-5 pt-4">
       <header className="flex items-center gap-3">
-        <UserButton />
-        <div>
-          <h1 className="font-serif text-2xl font-bold">{user.name}</h1>
+        <UserButton appearance={{ elements: { avatarBox: { width: 52, height: 52 } } }} />
+        <div className="min-w-0">
+          <h1 className="truncate font-serif text-2xl font-bold">{user.name}</h1>
           {user.username && <p className="text-sm text-muted-foreground">@{user.username}</p>}
         </div>
       </header>
 
       <div className="grid grid-cols-2 gap-3">
-        {[
-          ["Toplam sayfa", stats.totalPages],
-          ["Okunan gün", stats.readDays],
-          ["Toplam ceza", `${stats.totalPenalty} TL`],
-          ["Aktif grup", stats.activeGroups],
-        ].map(([l, v]) => (
-          <div key={l} className="card">
-            <p className="label">{l}</p>
-            <p className="text-2xl font-bold">{v}</p>
+        {items.map(({ Icon, label, value }) => (
+          <div key={label} className="card">
+            <Icon className="mb-2 size-5 text-primary" />
+            <p className="text-2xl font-bold">{value}</p>
+            <p className="text-xs text-muted-foreground">{label}</p>
           </div>
         ))}
       </div>
 
-      <section className="card space-y-2">
-        <h2 className="font-bold">🔔 Bildirimler</h2>
-        <PushToggle />
-        <p className="text-xs text-muted-foreground">
-          Uyarılar grubun belirlediği saatte, geri sayım ise son bildirim saatinden 10 dakika önce başlar. Bildirimdeki butonlarla uygulamayı açmadan bildirim
-          yapabilirsin.
-        </p>
+      <section className="card space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <span className="flex items-center gap-2 text-sm font-semibold">
+            <Palette className="size-4 text-primary" /> Görünüm
+          </span>
+          <ThemeToggle />
+        </div>
+        <div className="border-t border-border pt-4">
+          <p className="mb-2 flex items-center gap-2 text-sm font-semibold">
+            <Bell className="size-4 text-primary" /> Bildirimler
+          </p>
+          <PushToggle />
+          <p className="mt-2 text-xs text-muted-foreground">Uyarı grubun belirlediği saatte, geri sayım son 10 dakikada gelir. Butonlarla uygulamayı açmadan bildirebilirsin.</p>
+        </div>
       </section>
 
-      <p className="text-xs text-muted-foreground">
-        Diğer kullanıcılar seni davet etmek için adınla ya da kullanıcı adınla arayabilir. Adını değiştirmek için sağ üstteki profil resmine dokun.
-      </p>
-
       <SignOutButton redirectUrl="/">
-        <button className="btn-ghost w-full text-destructive">Çıkış yap</button>
+        <button className="btn-quiet w-full text-destructive">
+          <LogOut /> Çıkış yap
+        </button>
       </SignOutButton>
     </main>
   );

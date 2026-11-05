@@ -8,8 +8,8 @@ const poppins = Poppins({ subsets: ["latin", "latin-ext"], weight: ["400", "500"
 const baskerville = Libre_Baskerville({ subsets: ["latin", "latin-ext"], weight: ["400", "700"], variable: "--font-libre-baskerville" });
 const plexMono = IBM_Plex_Mono({ subsets: ["latin", "latin-ext"], weight: ["400", "600"], variable: "--font-ibm-plex-mono" });
 
-// Sistem karanlık moduna göre .dark sınıfını ayarlar (tema .dark sınıfıyla çalışır)
-const themeScript = `(function(){var m=window.matchMedia("(prefers-color-scheme: dark)");function a(){document.documentElement.classList.toggle("dark",m.matches)}a();m.addEventListener("change",a)})()`;
+// Kullanıcının seçimine (açık/koyu/sistem) göre .dark sınıfını ilk boyamadan önce ayarlar
+const themeScript = `(function(){var m=window.matchMedia("(prefers-color-scheme: dark)");function a(){var t=localStorage.getItem("theme")||"system";document.documentElement.classList.toggle("dark",t==="dark"||(t==="system"&&m.matches))}a();m.addEventListener("change",a);window.__applyTheme=a})()`;
 
 export const metadata: Metadata = {
   title: { default: "Okuma Takip", template: "%s · Okuma Takip" },

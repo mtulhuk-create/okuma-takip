@@ -1,5 +1,6 @@
 "use client";
 
+import { BookOpenCheck, Check, X } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -43,14 +44,14 @@ export function QuickReport({ token }: { token: string }) {
           onChange={(e) => setPages(e.target.value)}
         />
         <button className="btn-success shrink-0" disabled={busy || pages === ""} onClick={() => send("pages")}>
-          📖 Okudum
+          <BookOpenCheck /> Okudum
         </button>
       </div>
       <button className="btn-primary w-full py-3" disabled={busy} onClick={() => send("min")}>
-        ✅ Alt sınırı okudum
+        <Check /> Alt sınırı okudum
       </button>
       <button className="btn-ghost w-full py-3" disabled={busy} onClick={() => send("none")}>
-        ❌ Okumadım
+        <X /> Okumadım
       </button>
       {result && !result.ok && <p className="text-center text-sm text-destructive">{result.text}</p>}
     </div>

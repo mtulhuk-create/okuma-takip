@@ -1,5 +1,6 @@
 "use client";
 
+import { BellOff, BellRing } from "lucide-react";
 import { useEffect, useState } from "react";
 import { b64urlDecode } from "@/lib/b64";
 
@@ -59,16 +60,16 @@ export function PushToggle({ compact = false }: { compact?: boolean }) {
   if (compact && state === "on") return null;
 
   return (
-    <div className={compact ? "card border-primary/30 bg-accent/50" : ""}>
+    <div className={compact ? "card border-primary/30 bg-primary/5" : ""}>
       {state === "unsupported" && (
         <p className="text-sm text-muted-foreground">
           Bu tarayıcı bildirimleri desteklemiyor. iPhone&apos;da önce Paylaş → <b>Ana Ekrana Ekle</b> ile uygulamayı yükleyin, oradan açın.
         </p>
       )}
-      {state === "denied" && <p className="text-sm text-destructive">Bildirim izni engellenmiş. Tarayıcı ayarlarından bu site için bildirimlere izin verin.</p>}
+      {state === "denied" && <p className="flex items-center gap-2 text-sm text-destructive"><BellOff className="size-4 shrink-0" /> Bildirim izni engellenmiş. Tarayıcı ayarlarından bu site için bildirimlere izin verin.</p>}
       {state === "off" && (
         <div className="flex items-center justify-between gap-3">
-          <p className="text-sm">🔔 Hatırlatma ve geri sayım bildirimlerini aç</p>
+          <p className="flex items-center gap-2 text-sm"><BellRing className="size-4 shrink-0 text-primary" /> Hatırlatma ve geri sayım bildirimlerini aç</p>
           <button className="btn-primary btn-sm" onClick={enable} disabled={busy}>
             Aç
           </button>
@@ -76,7 +77,7 @@ export function PushToggle({ compact = false }: { compact?: boolean }) {
       )}
       {state === "on" && (
         <div className="flex items-center justify-between gap-3">
-          <p className="text-sm text-emerald-600">🔔 Bu cihazda bildirimler açık</p>
+          <p className="flex items-center gap-2 text-sm text-emerald-600"><BellRing className="size-4" /> Bu cihazda bildirimler açık</p>
           <button className="btn-ghost btn-sm" onClick={disable} disabled={busy}>
             Kapat
           </button>

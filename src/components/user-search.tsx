@@ -1,5 +1,6 @@
 "use client";
 
+import { Search, UserPlus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { inviteUser } from "@/app/actions";
 import { ActionForm, SubmitButton } from "./action-form";
@@ -36,7 +37,10 @@ export function UserSearch({ groupId }: { groupId: string }) {
 
   return (
     <div className="space-y-3">
-      <input className="input" placeholder="🔍 İsim veya kullanıcı adı ara..." value={q} onChange={(e) => setQ(e.target.value)} />
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        <input className="input pl-9" placeholder="İsim veya kullanıcı adı ara" value={q} onChange={(e) => setQ(e.target.value)} />
+      </div>
       {loading && <p className="text-xs text-muted-foreground">Aranıyor...</p>}
       {!loading && q.trim().length >= 2 && users.length === 0 && <p className="text-xs text-muted-foreground">Kullanıcı bulunamadı. Kişinin uygulamaya en az bir kez giriş yapmış olması gerekir.</p>}
       <ul className="divide-y divide-border">
@@ -55,7 +59,9 @@ export function UserSearch({ groupId }: { groupId: string }) {
               <ActionForm action={inviteUser} onSuccess={() => setTick((t) => t + 1)}>
                 <input type="hidden" name="groupId" value={groupId} />
                 <input type="hidden" name="userId" value={u.id} />
-                <SubmitButton className="btn-primary btn-sm">Davet et</SubmitButton>
+                <SubmitButton className="btn-primary btn-sm">
+                  <UserPlus /> Davet et
+                </SubmitButton>
               </ActionForm>
             )}
           </li>

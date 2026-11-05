@@ -1,3 +1,4 @@
+import { publish } from "@/lib/realtime";
 import { submitReading, type ReportChoice } from "@/lib/reading";
 import { verifyQuickToken } from "@/lib/token";
 
@@ -9,8 +10,9 @@ export async function POST(req: Request) {
   const t = await verifyQuickToken(body.token);
   if (!t) return Response.json({ error: "Bildirimin süresi dolmuş" }, { status: 401 });
   try {
-    const { log, member } = await submitReading(t.userId, t.groupId, body.choice, body.pages, t.dayKey);
-    return Response.json({ ok: true, pages: log.pages, required: member.dailyPages });
+    const { log, rules } = await submitReading(t.userId, t.groupId, body.choice, body.pages, t.dayKey);
+    await publish(t.groupId, { type: "refresh", reason: "day" });
+    return Response.json({ ok: true, pages: log.pages, required: rules.targetPages });
   } catch (e) {
     return Response.json({ error: (e as Error).message }, { status: 400 });
   }

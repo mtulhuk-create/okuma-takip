@@ -1,27 +1,58 @@
 import "server-only";
+import { ensureDayCard } from "./chat";
+import { getDayCards } from "./day";
+import { maintainLater } from "./maintenance";
+import { rulesFor } from "./rules";
 import { getDb } from "./db";
 
 // Diğer kullanıcılar hakkında dışarıya yalnızca bu alanlar verilir
 const publicUser = { select: { id: true, name: true, username: true, imageUrl: true } } as const;
 import { currentPeriod, openPeriod, periodFor, shiftDayKey } from "./schedule";
 
+export type WeekCell = "read" | "min" | "none" | "pending" | "na";
+
+/** Bugün sayfası: her grup için güncel gün kartı ve son 7 günün özeti. */
 export async function myGroupsToday(userId: string) {
   const db = getDb();
   const memberships = await db.groupMember.findMany({
     where: { userId, status: "ACTIVE" },
-    include: { group: { include: { _count: { select: { members: { where: { status: "ACTIVE" } } } } } } },
+    include: {
+      group: {
+        include: {
+          teams: { orderBy: { position: "asc" } },
+          members: { where: { status: "ACTIVE" }, include: { user: publicUser }, orderBy: { joinedAt: "asc" } },
+        },
+      },
+    },
     orderBy: { joinedAt: "asc" },
   });
   const now = new Date();
+  await Promise.all(memberships.map((m) => ensureDayCard(m.group, now)));
+  maintainLater(memberships.map((m) => m.groupId));
   return Promise.all(
     memberships.map(async (m) => {
-      const period = currentPeriod(now, m.group);
-      const open = openPeriod(now, m.group);
-      const [myLog, reportedCount] = await Promise.all([
-        db.readingLog.findUnique({ where: { groupId_userId_dayKey: { groupId: m.groupId, userId, dayKey: period.dayKey } } }),
-        db.readingLog.count({ where: { groupId: m.groupId, dayKey: period.dayKey } }),
-      ]);
-      return { membership: m, group: m.group, period, open, myLog, reportedCount, memberCount: m.group._count.members };
+      const { members, ...group } = m.group;
+      const rules = rulesFor(group, m);
+      const period = currentPeriod(now, group);
+      const days = Array.from({ length: 7 }, (_, i) => shiftDayKey(period.dayKey, i - 6));
+      const cards = await getDayCards(group, members, days, userId);
+      const status = (dayKey: string, uid: string): WeekCell => {
+        const c = cards[dayKey];
+        for (const k of ["read", "min", "none", "pending"] as const) if (c[k].some((p) => p.id === uid)) return k;
+        return "na";
+      };
+      return {
+        group: { id: group.id, name: group.name, startMinute: group.startMinute, deadlineMinute: group.deadlineMinute, visibility: group.visibility },
+        role: m.role,
+        rules,
+        period,
+        open: openPeriod(now, group),
+        card: cards[period.dayKey],
+        week: {
+          days,
+          rows: members.map((mm) => ({ user: mm.user, cells: days.map((d) => status(d, mm.userId)) })),
+        },
+      };
     }),
   );
 }
@@ -46,45 +77,49 @@ export async function getGroupDetail(id: string, userId: string) {
     where: { id },
     include: {
       owner: { select: { name: true } },
+      teams: { orderBy: { position: "asc" } },
       members: { where: { status: "ACTIVE" }, include: { user: publicUser }, orderBy: { joinedAt: "asc" } },
     },
   });
   if (!group) return null;
   const me = group.members.find((m) => m.userId === userId) ?? null;
+  const myRules = me ? rulesFor(group, me) : null;
   if (!me) {
     const [invite, request] = await Promise.all([
       db.invitation.findFirst({ where: { groupId: id, inviteeId: userId, status: "PENDING" }, include: { inviter: publicUser } }),
       db.joinRequest.findFirst({ where: { groupId: id, userId, status: "PENDING" } }),
     ]);
-    return { group, me, invite, request, board: null };
+    return { group, me, myRules, invite, request, teamChange: null, board: null };
   }
   const now = new Date();
   const period = currentPeriod(now, group);
   const open = openPeriod(now, group);
   const days = Array.from({ length: 7 }, (_, i) => shiftDayKey(period.dayKey, i - 6));
-  const [logs, penalties, dues] = await Promise.all([
+  const [logs, penalties, dues, teamChange] = await Promise.all([
     db.readingLog.findMany({ where: { groupId: id, dayKey: { in: days } } }),
     db.penalty.findMany({ where: { groupId: id, userId }, orderBy: { dayKey: "desc" }, take: 30 }),
     db.paymentDue.findMany({ where: { groupId: id, userId }, orderBy: { createdAt: "desc" }, take: 10 }),
+    db.teamChangeRequest.findFirst({ where: { groupId: id, userId, status: "PENDING" }, include: { team: { select: { name: true } } } }),
   ]);
   const dayStarts = Object.fromEntries(days.map((d) => [d, periodFor(d, group).start]));
-  return { group, me, invite: null, request: null, board: { period, open, days, dayStarts, logs, penalties, dues } };
+  return { group, me, myRules, invite: null, request: null, teamChange, board: { period, open, days, dayStarts, logs, penalties, dues } };
 }
 
 /** Yönetim sayfası verisi; kullanıcı yönetici değilse null. */
 export async function getAdminData(id: string, userId: string) {
   const db = getDb();
   const [group, me] = await Promise.all([
-    db.group.findUnique({ where: { id } }),
+    db.group.findUnique({ where: { id }, include: { teams: { orderBy: { position: "asc" } } } }),
     db.groupMember.findUnique({ where: { groupId_userId: { groupId: id, userId } } }),
   ]);
   if (!group || !me || me.status !== "ACTIVE" || me.role !== "ADMIN") return null;
-  const [members, requests, invites, dues, unpaidPenalties] = await Promise.all([
+  const [members, requests, invites, dues, unpaidPenalties, teamChanges] = await Promise.all([
     db.groupMember.findMany({ where: { groupId: id, status: "ACTIVE" }, include: { user: publicUser }, orderBy: { joinedAt: "asc" } }),
     db.joinRequest.findMany({ where: { groupId: id, status: "PENDING" }, include: { user: publicUser }, orderBy: { createdAt: "asc" } }),
     db.invitation.findMany({ where: { groupId: id, status: "PENDING" }, include: { invitee: publicUser } }),
     db.paymentDue.findMany({ where: { groupId: id }, include: { user: publicUser }, orderBy: [{ status: "asc" }, { dueAt: "asc" }], take: 50 }),
     db.penalty.findMany({ where: { groupId: id, status: { in: ["UNPAID", "IN_DUE"] } }, include: { user: publicUser }, orderBy: { dayKey: "desc" } }),
+    db.teamChangeRequest.findMany({ where: { groupId: id, status: "PENDING" }, include: { user: publicUser, team: { select: { name: true } } }, orderBy: { createdAt: "asc" } }),
   ]);
   const money: Record<string, { unpaid: number; inDue: number }> = {};
   for (const p of unpaidPenalties) {
@@ -92,7 +127,7 @@ export async function getAdminData(id: string, userId: string) {
     if (p.status === "UNPAID") e.unpaid += p.amount;
     else e.inDue += p.amount;
   }
-  return { group, members, requests, invites, dues, unpaidPenalties, money };
+  return { group, members, requests, invites, dues, unpaidPenalties, money, teamChanges };
 }
 
 export async function getGroupsOverview(userId: string, q: string) {
@@ -107,7 +142,11 @@ export async function getGroupsOverview(userId: string, q: string) {
         visibility: "PUBLIC",
         ...(q ? { OR: [{ name: { contains: q, mode: "insensitive" as const } }, { description: { contains: q, mode: "insensitive" as const } }] } : {}),
       },
-      include: { _count: { select: { members: { where: { status: "ACTIVE" } } } }, owner: { select: { name: true } } },
+      include: {
+        _count: { select: { members: { where: { status: "ACTIVE" } } } },
+        owner: { select: { name: true } },
+        teams: { select: { id: true, name: true }, orderBy: { position: "asc" } },
+      },
       orderBy: { createdAt: "desc" },
       take: 50,
     }),
@@ -121,7 +160,10 @@ export async function getNotificationsData(userId: string) {
   const [invites, notes] = await Promise.all([
     db.invitation.findMany({
       where: { inviteeId: userId, status: "PENDING" },
-      include: { group: { include: { _count: { select: { members: { where: { status: "ACTIVE" } } } } } }, inviter: publicUser },
+      include: {
+        group: { include: { _count: { select: { members: { where: { status: "ACTIVE" } } } }, teams: { select: { id: true, name: true }, orderBy: { position: "asc" } } } },
+        inviter: publicUser,
+      },
       orderBy: { createdAt: "desc" },
     }),
     db.notification.findMany({ where: { userId }, orderBy: { createdAt: "desc" }, take: 50 }),

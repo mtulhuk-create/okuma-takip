@@ -1,8 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Prisma istemcisi paketlenmez; OpenNext Workers için "workerd" sürümünü kopyalar.
   serverExternalPackages: ["@prisma/client", ".prisma/client"],
+  experimental: { optimizePackageImports: ["lucide-react"] },
   turbopack: {
     rules: {
       "*.css": {
@@ -14,6 +14,3 @@ const nextConfig: NextConfig = {
 };
 
 export default nextConfig;
-
-import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
-initOpenNextCloudflareForDev();

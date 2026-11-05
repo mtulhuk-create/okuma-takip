@@ -1,0 +1,17 @@
+# Okuma hatırlatmaları, geri sayım bildirimleri, ceza hesaplama ve vade kontrolü.
+# Vercel Hobby planında cron günde bir kez çalıştığı için 5 dakikada bir buradan tetiklenir.
+name: Zamanlanmış görevler
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+jobs:
+  cron:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: /api/cron çağır
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: curl -fsS --max-time 90 -H "Authorization: Bearer $CRON_SECRET" "$APP_URL/api/cron"

@@ -6,6 +6,9 @@ import { actionUser, getMembership, requireAdmin } from "@/lib/auth";
 import { run, str, int, type ActionState } from "@/lib/action-state";
 import { getDb } from "@/lib/db";
 import { groupAdminIds, notifyUsers } from "@/lib/notify";
+import { canPost } from "@/lib/chat";
+import { teamsActive } from "@/lib/rules";
+import { publish } from "@/lib/realtime";
 import { submitReading, type ReportChoice } from "@/lib/reading";
 import { DAY, MIN, formatDateTime, timeToMinute } from "@/lib/schedule";
 
@@ -13,6 +16,57 @@ type Prev = ActionState;
 
 function refresh() {
   revalidatePath("/", "layout");
+}
+
+type RulesInput = { penaltyMode: "FIXED" | "PER_PAGE"; targetPages: number; minPages: number; penaltyAmount: number; minDiscount: number };
+
+function validateRules(r: Record<string, unknown>, label = ""): RulesInput {
+  const num = (v: unknown, min: number, max: number, name: string) => {
+    const n = Number(v);
+    if (!Number.isInteger(n) || n < min || n > max) throw new Error(`${label}${name} ${min}-${max} arasında olmalı`);
+    return n;
+  };
+  const penaltyMode = r.penaltyMode === "PER_PAGE" ? ("PER_PAGE" as const) : ("FIXED" as const);
+  const targetPages = num(r.targetPages, 1, 2000, "Günlük hedef");
+  const minPages = num(r.minPages, 0, 2000, "Alt sınır");
+  if (minPages > targetPages) throw new Error(`${label}Alt sınır günlük hedeften büyük olamaz`);
+  return {
+    penaltyMode,
+    targetPages,
+    minPages,
+    penaltyAmount: num(r.penaltyAmount, 0, 100000, "Ceza tutarı"),
+    minDiscount: penaltyMode === "FIXED" ? num(r.minDiscount ?? 0, 0, 100, "İndirim oranı") : 0,
+  };
+}
+
+type TeamInput = RulesInput & { id?: string; name: string };
+
+function parseTeams(fd: FormData): { enabled: boolean; teams: TeamInput[] } {
+  const enabled = str(fd, "teamsEnabled") === "1";
+  let raw: Record<string, unknown>[] = [];
+  try {
+    raw = JSON.parse(String(fd.get("teams") ?? "[]"));
+  } catch {}
+  const teams = raw.slice(0, 20).map((t, i) => {
+    const name = String(t.name ?? "").trim().slice(0, 40);
+    if (enabled && !name) throw new Error(`${i + 1}. ekibin adını yazın`);
+    return { id: typeof t.id === "string" ? t.id : undefined, name, ...validateRules(t, `${name || `${i + 1}. ekip`}: `) };
+  });
+  if (enabled && teams.length < 2) throw new Error("Ekiplere bölmek için en az 2 ekip oluşturun");
+  return { enabled, teams };
+}
+
+/** Ekipleri ekler/günceller/siler (silinen ekibin üyeleri ekipsiz kalır) */
+async function saveTeams(groupId: string, teams: TeamInput[]) {
+  const db = getDb();
+  const existing = await db.team.findMany({ where: { groupId }, select: { id: true } });
+  const keep = new Set(teams.map((t) => t.id).filter(Boolean));
+  const removed = existing.filter((t) => !keep.has(t.id)).map((t) => t.id);
+  if (removed.length) await db.team.deleteMany({ where: { id: { in: removed } } });
+  for (const [position, { id, ...t }] of teams.entries()) {
+    if (id && existing.some((e) => e.id === id)) await db.team.update({ where: { id }, data: { ...t, position } });
+    else await db.team.create({ data: { ...t, position, groupId } });
+  }
 }
 
 function parseGroupForm(fd: FormData) {
@@ -28,9 +82,14 @@ function parseGroupForm(fd: FormData) {
     name,
     description: str(fd, "description", 500) || null,
     visibility: str(fd, "visibility") === "PUBLIC" ? ("PUBLIC" as const) : ("PRIVATE" as const),
-    minPages: int(fd, "minPages", 1, 1000, "Alt sınır"),
-    penaltyMode,
-    penaltyAmount: int(fd, "penaltyAmount", 0, 100000, "Ceza tutarı"),
+    chatPolicy: str(fd, "chatPolicy") === "ADMINS" ? ("ADMINS" as const) : ("ALL" as const),
+    ...validateRules({
+      penaltyMode,
+      targetPages: fd.get("targetPages"),
+      minPages: fd.get("minPages"),
+      penaltyAmount: fd.get("penaltyAmount"),
+      minDiscount: fd.get("minDiscount"),
+    }),
     iban,
     ibanName: str(fd, "ibanName", 80),
     startMinute,
@@ -51,13 +110,12 @@ export async function createGroupState(fd: FormData) {
   return run(async () => {
     const user = await actionUser();
     const data = parseGroupForm(fd);
-    const g = await getDb().group.create({
-      data: {
-        ...data,
-        ownerId: user.id,
-        members: { create: { userId: user.id, role: "ADMIN", dailyPages: data.minPages } },
-      },
-    });
+    const { enabled, teams } = parseTeams(fd);
+    const db = getDb();
+    const g = await db.group.create({ data: { ...data, teamsEnabled: enabled, ownerId: user.id } });
+    if (teams.length) await saveTeams(g.id, teams);
+    const firstTeam = enabled ? (await db.team.findFirst({ where: { groupId: g.id }, orderBy: { position: "asc" } }))?.id : null;
+    await db.groupMember.create({ data: { groupId: g.id, userId: user.id, role: "ADMIN", teamId: firstTeam ?? null } });
     refresh();
     return { id: g.id, message: "Grup oluşturuldu" };
   });
@@ -68,10 +126,10 @@ export async function updateGroup(_: Prev, fd: FormData) {
     const groupId = str(fd, "groupId");
     await requireAdmin(groupId);
     const data = parseGroupForm(fd);
+    const { enabled, teams } = parseTeams(fd);
     const db = getDb();
-    await db.group.update({ where: { id: groupId }, data });
-    // alt sınırın altında kalan üyeleri yükselt
-    await db.groupMember.updateMany({ where: { groupId, dailyPages: { lt: data.minPages } }, data: { dailyPages: data.minPages } });
+    await db.group.update({ where: { id: groupId }, data: { ...data, teamsEnabled: enabled } });
+    if (enabled || teams.length) await saveTeams(groupId, teams);
     refresh();
     return "Ayarlar kaydedildi";
   });
@@ -103,23 +161,12 @@ export async function reportReading(_: Prev, fd: FormData) {
     const user = await actionUser();
     const choice = str(fd, "choice") as ReportChoice;
     if (!["min", "none", "pages"].includes(choice)) throw new Error("Geçersiz seçim");
-    const { log, member } = await submitReading(user.id, str(fd, "groupId"), choice, Number(fd.get("pages")));
-    refresh();
-    if (log.pages >= member.dailyPages) return `Harika! ${log.pages} sayfa bildirildi 🎉`;
-    return `${log.pages} sayfa bildirildi. Hedefin ${member.dailyPages} sayfa — son saate kadar güncelleyebilirsin.`;
-  });
-}
-
-export async function setDailyPages(_: Prev, fd: FormData) {
-  return run(async () => {
-    const user = await actionUser();
     const groupId = str(fd, "groupId");
-    const m = await getDb().groupMember.findUnique({ where: { groupId_userId: { groupId, userId: user.id } }, include: { group: true } });
-    if (!m || m.status !== "ACTIVE") throw new Error("Bu grubun üyesi değilsiniz");
-    const pages = int(fd, "dailyPages", m.group.minPages, 1000, "Günlük sayfa");
-    await getDb().groupMember.update({ where: { id: m.id }, data: { dailyPages: pages } });
+    const { log, rules } = await submitReading(user.id, groupId, choice, Number(fd.get("pages")));
+    await publish(groupId, { type: "refresh", reason: "day" });
     refresh();
-    return "Günlük hedefin güncellendi";
+    if (log.pages >= rules.targetPages) return `Harika! ${log.pages} sayfa bildirildi`;
+    return `${log.pages} sayfa bildirildi. Hedef ${rules.targetPages} sayfa — son saate kadar güncelleyebilirsin.`;
   });
 }
 
@@ -148,13 +195,20 @@ export async function leaveGroupState(fd: FormData) {
 
 // ---------- Katılım & davet ----------
 
-async function addMember(groupId: string, userId: string) {
-  const db = getDb();
-  const g = await db.group.findUniqueOrThrow({ where: { id: groupId } });
-  await db.groupMember.upsert({
+/** Ekipli gruplarda seçilen ekibin gruba ait olduğunu doğrular */
+async function resolveTeam(groupId: string, teamId: string | null | undefined) {
+  const g = await getDb().group.findUniqueOrThrow({ where: { id: groupId }, include: { teams: true } });
+  if (!teamsActive(g)) return { g, teamId: null };
+  if (!teamId || !g.teams.some((t) => t.id === teamId)) throw new Error("Lütfen katılmak istediğin ekibi seç");
+  return { g, teamId };
+}
+
+async function addMember(groupId: string, userId: string, teamId: string | null) {
+  const { g, teamId: team } = await resolveTeam(groupId, teamId);
+  await getDb().groupMember.upsert({
     where: { groupId_userId: { groupId, userId } },
-    create: { groupId, userId, dailyPages: g.minPages },
-    update: { status: "ACTIVE", role: "MEMBER", joinedAt: new Date(), leftAt: null },
+    create: { groupId, userId, teamId: team },
+    update: { status: "ACTIVE", role: "MEMBER", joinedAt: new Date(), leftAt: null, teamId: team },
   });
   return g;
 }
@@ -170,7 +224,8 @@ export async function requestJoin(_: Prev, fd: FormData) {
     if (m?.status === "ACTIVE") throw new Error("Zaten üyesiniz");
     const pending = await db.joinRequest.findFirst({ where: { groupId, userId: user.id, status: "PENDING" } });
     if (pending) throw new Error("İsteğiniz zaten beklemede");
-    await db.joinRequest.create({ data: { groupId, userId: user.id, message: str(fd, "message", 300) || null } });
+    const { teamId } = await resolveTeam(groupId, str(fd, "teamId") || null);
+    await db.joinRequest.create({ data: { groupId, userId: user.id, teamId, message: str(fd, "message", 300) || null } });
     await notifyUsers(
       await groupAdminIds(groupId),
       { title: `🙋 ${g.name}: katılım isteği`, body: `${user.name} gruba katılmak istiyor.`, url: `/gruplar/${groupId}/yonetim` },
@@ -199,12 +254,12 @@ export async function respondJoinRequest(_: Prev, fd: FormData) {
     await requireAdmin(req.groupId);
     if (req.status !== "PENDING") throw new Error("İstek zaten yanıtlanmış");
     const accept = str(fd, "accept") === "1";
+    const g = accept ? await addMember(req.groupId, req.userId, req.teamId) : await db.group.findUniqueOrThrow({ where: { id: req.groupId } });
     await db.joinRequest.update({ where: { id: req.id }, data: { status: accept ? "ACCEPTED" : "DECLINED" } });
-    const g = accept ? await addMember(req.groupId, req.userId) : await db.group.findUniqueOrThrow({ where: { id: req.groupId } });
     await notifyUsers(
       [req.userId],
       accept
-        ? { title: `🎉 ${g.name} grubuna kabul edildin`, body: `Günlük hedefin ${g.minPages} sayfa. Grubun sayfasından değiştirebilirsin.`, url: `/gruplar/${g.id}` }
+        ? { title: `🎉 ${g.name} grubuna kabul edildin`, body: "Okuma gününü sohbetteki gün kartından bildirebilirsin.", url: `/gruplar/${g.id}` }
         : { title: `${g.name}`, body: "Katılım isteğin reddedildi.", url: "/gruplar" },
       { inApp: true },
     );
@@ -254,12 +309,12 @@ export async function respondInvite(_: Prev, fd: FormData) {
     const inv = await db.invitation.findUniqueOrThrow({ where: { id: str(fd, "inviteId") } });
     if (inv.inviteeId !== user.id || inv.status !== "PENDING") throw new Error("Davet geçerli değil");
     const accept = str(fd, "accept") === "1";
-    await db.invitation.update({ where: { id: inv.id }, data: { status: accept ? "ACCEPTED" : "DECLINED" } });
     if (accept) {
-      const g = await addMember(inv.groupId, user.id);
+      const g = await addMember(inv.groupId, user.id, str(fd, "teamId") || null);
       await db.joinRequest.updateMany({ where: { groupId: g.id, userId: user.id, status: "PENDING" }, data: { status: "ACCEPTED" } });
       await notifyUsers(await groupAdminIds(g.id), { title: `${g.name}`, body: `${user.name} davetini kabul etti.`, url: `/gruplar/${g.id}` }, { inApp: true });
     }
+    await db.invitation.update({ where: { id: inv.id }, data: { status: accept ? "ACCEPTED" : "DECLINED" } });
     refresh();
     return accept ? "Gruba katıldın 🎉" : "Davet reddedildi";
   });
@@ -412,5 +467,151 @@ export async function markAllRead(_: Prev, _fd: FormData) {
     const user = await actionUser();
     await getDb().notification.updateMany({ where: { userId: user.id, read: false }, data: { read: true } });
     refresh();
+  });
+}
+
+// ---------- Sohbet ----------
+
+async function chatMember(groupId: string, needPost = true) {
+  const user = await actionUser();
+  const m = await getDb().groupMember.findUnique({ where: { groupId_userId: { groupId, userId: user.id } }, include: { group: true } });
+  if (!m || m.status !== "ACTIVE") throw new Error("Bu grubun üyesi değilsiniz");
+  if (needPost && !canPost(m.group, m.role)) throw new Error("Bu grupta yalnızca yöneticiler mesaj gönderebilir");
+  return { user, member: m };
+}
+
+export async function sendMessage(_: Prev, fd: FormData) {
+  return run(async () => {
+    const groupId = str(fd, "groupId");
+    const text = str(fd, "text", 2000);
+    if (!text) throw new Error("Mesaj boş olamaz");
+    const { user } = await chatMember(groupId);
+    const m = await getDb().message.create({ data: { groupId, userId: user.id, kind: "TEXT", text } });
+    await publish(groupId, {
+      type: "message",
+      message: {
+        id: m.id,
+        kind: "TEXT",
+        text,
+        createdAt: m.createdAt.toISOString(),
+        user: { id: user.id, name: user.name, imageUrl: user.imageUrl },
+        day: null,
+        poll: null,
+      },
+    });
+    return { id: m.id };
+  });
+}
+
+export async function createPoll(_: Prev, fd: FormData) {
+  return run(async () => {
+    const groupId = str(fd, "groupId");
+    const question = str(fd, "question", 300);
+    let options: string[] = [];
+    try {
+      options = (JSON.parse(String(fd.get("options") ?? "[]")) as unknown[]).map((o) => String(o).trim().slice(0, 100)).filter(Boolean);
+    } catch {}
+    options = [...new Set(options)];
+    if (question.length < 2) throw new Error("Anket sorusunu yazın");
+    if (options.length < 2 || options.length > 10) throw new Error("2 ile 10 arasında seçenek girin");
+    const { user } = await chatMember(groupId);
+    const db = getDb();
+    const m = await db.message.create({ data: { groupId, userId: user.id, kind: "POLL" } });
+    const poll = await db.poll.create({ data: { messageId: m.id, question, multiple: str(fd, "multiple") === "1" } });
+    await db.pollOption.createMany({ data: options.map((text, position) => ({ pollId: poll.id, text, position })) });
+    await publish(groupId, { type: "refresh", reason: "poll" });
+    return { id: m.id, message: "Anket gönderildi" };
+  });
+}
+
+export async function votePoll(_: Prev, fd: FormData) {
+  return run(async () => {
+    const db = getDb();
+    const option = await db.pollOption.findUniqueOrThrow({ where: { id: str(fd, "optionId") }, include: { poll: { include: { message: true } } } });
+    const { user } = await chatMember(option.poll.message.groupId, false);
+    const existing = await db.pollVote.findUnique({ where: { optionId_userId: { optionId: option.id, userId: user.id } } });
+    if (existing) {
+      await db.pollVote.delete({ where: { id: existing.id } }); // oyu geri al
+    } else {
+      if (!option.poll.multiple) await db.pollVote.deleteMany({ where: { pollId: option.pollId, userId: user.id } });
+      await db.pollVote.create({ data: { pollId: option.pollId, optionId: option.id, userId: user.id } });
+    }
+    await publish(option.poll.message.groupId, { type: "refresh", reason: "poll" });
+  });
+}
+
+export async function deleteMessage(_: Prev, fd: FormData) {
+  return run(async () => {
+    const db = getDb();
+    const msg = await db.message.findUniqueOrThrow({ where: { id: str(fd, "messageId") } });
+    if (msg.kind === "DAY") throw new Error("Gün kartları silinemez");
+    const { user, member } = await chatMember(msg.groupId, false);
+    if (msg.userId !== user.id && member.role !== "ADMIN") throw new Error("Bu mesajı silemezsiniz");
+    await db.message.delete({ where: { id: msg.id } });
+    await publish(msg.groupId, { type: "refresh", reason: "delete" });
+    return "Mesaj silindi";
+  });
+}
+
+// ---------- Ekipler ----------
+
+/** Üye ekip seçer; zaten bir ekibi varsa değişiklik yönetici onayına gider. */
+export async function requestTeamChange(_: Prev, fd: FormData) {
+  return run(async () => {
+    const user = await actionUser();
+    const groupId = str(fd, "groupId");
+    const db = getDb();
+    const m = await db.groupMember.findUnique({ where: { groupId_userId: { groupId, userId: user.id } }, include: { group: { include: { teams: true } } } });
+    if (!m || m.status !== "ACTIVE") throw new Error("Bu grubun üyesi değilsiniz");
+    const { teamId } = await resolveTeam(groupId, str(fd, "teamId"));
+    if (!teamId || teamId === m.teamId) throw new Error("Zaten bu ekiptesin");
+    const team = m.group.teams.find((t) => t.id === teamId)!;
+    if (!m.teamId || m.role === "ADMIN") {
+      await db.groupMember.update({ where: { id: m.id }, data: { teamId } });
+      refresh();
+      return `${team.name} ekibine geçtin`;
+    }
+    await db.teamChangeRequest.updateMany({ where: { groupId, userId: user.id, status: "PENDING" }, data: { status: "CANCELLED" } });
+    await db.teamChangeRequest.create({ data: { groupId, userId: user.id, teamId } });
+    await notifyUsers(
+      await groupAdminIds(groupId),
+      { title: `${m.group.name}: ekip değişikliği isteği`, body: `${user.name} ${team.name} ekibine geçmek istiyor.`, url: `/gruplar/${groupId}/yonetim?tab=davet` },
+      { inApp: true },
+    );
+    refresh();
+    return "İsteğin yöneticiye gönderildi";
+  });
+}
+
+export async function respondTeamChange(_: Prev, fd: FormData) {
+  return run(async () => {
+    const db = getDb();
+    const req = await db.teamChangeRequest.findUniqueOrThrow({ where: { id: str(fd, "requestId") }, include: { team: true, group: true } });
+    await requireAdmin(req.groupId);
+    if (req.status !== "PENDING") throw new Error("İstek zaten yanıtlanmış");
+    const accept = str(fd, "accept") === "1";
+    await db.teamChangeRequest.update({ where: { id: req.id }, data: { status: accept ? "ACCEPTED" : "DECLINED" } });
+    if (accept) await db.groupMember.updateMany({ where: { groupId: req.groupId, userId: req.userId, status: "ACTIVE" }, data: { teamId: req.teamId } });
+    await notifyUsers(
+      [req.userId],
+      { title: req.group.name, body: accept ? `${req.team.name} ekibine geçişin onaylandı.` : `${req.team.name} ekibine geçiş isteğin reddedildi.`, url: `/gruplar/${req.groupId}/bilgi` },
+      { inApp: true },
+    );
+    refresh();
+    return accept ? "Ekip değişikliği onaylandı" : "İstek reddedildi";
+  });
+}
+
+/** Yönetici üyeyi doğrudan bir ekibe atar */
+export async function setMemberTeam(_: Prev, fd: FormData) {
+  return run(async () => {
+    const db = getDb();
+    const m = await db.groupMember.findUniqueOrThrow({ where: { id: str(fd, "memberId") } });
+    await requireAdmin(m.groupId);
+    const { teamId } = await resolveTeam(m.groupId, str(fd, "teamId"));
+    await db.groupMember.update({ where: { id: m.id }, data: { teamId } });
+    await db.teamChangeRequest.updateMany({ where: { groupId: m.groupId, userId: m.userId, status: "PENDING" }, data: { status: "CANCELLED" } });
+    refresh();
+    return "Ekip güncellendi";
   });
 }

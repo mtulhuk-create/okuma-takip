@@ -94,11 +94,18 @@ export function formatDateTime(date: Date, tzOffset = 180) {
   return `${pad(d.getUTCDate())}.${pad(d.getUTCMonth() + 1)}.${d.getUTCFullYear()} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
 }
 
-export function penaltyFor(
-  g: { penaltyMode: "FIXED" | "PER_PAGE"; penaltyAmount: number },
-  pagesRead: number,
-  requiredPages: number,
-) {
-  if (pagesRead >= requiredPages) return 0;
-  return g.penaltyMode === "FIXED" ? g.penaltyAmount : g.penaltyAmount * (requiredPages - pagesRead);
+
+const DAYS_TR = ["Pazar", "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi"];
+const MONTHS_TR = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
+
+/** "4 Kasım Çarşamba" */
+export function formatDayLong(dayKey: string) {
+  const [y, m, d] = dayKey.split("-").map(Number);
+  return `${d} ${MONTHS_TR[m - 1]} ${DAYS_TR[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]}`;
+}
+
+/** Saat (Türkiye) — "23:59" */
+export function formatClock(iso: string | Date, tzOffset = 180) {
+  const d = new Date(new Date(iso).getTime() + tzOffset * MIN);
+  return `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
 }

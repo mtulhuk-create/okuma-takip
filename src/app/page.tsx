@@ -1,4 +1,5 @@
 import { auth } from "@clerk/nextjs/server";
+import { AlarmClock, Coins, Target, Users } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
@@ -17,16 +18,21 @@ export default async function Home() {
       </div>
       <ul className="space-y-3 text-sm">
         {[
-          ["🎯", "Günlük sayfa hedefini sen belirle"],
-          ["👥", "Herkese açık ya da özel gruplar kur, davet et"],
-          ["⏰", "Son saatten önce hatırlatma ve 10 dakikalık geri sayım"],
-          ["💸", "Okumayana TL cinsinden ceza, vadesinde ödemeyen gruptan çıkar"],
-        ].map(([i, t]) => (
-          <li key={t} className="card flex items-center gap-3">
-            <span className="text-2xl">{i}</span>
-            {t}
-          </li>
-        ))}
+          [Target, "Günlük sayfa hedefini sen belirle"],
+          [Users, "Herkese açık ya da özel gruplar kur, sohbet et"],
+          [AlarmClock, "Son saatten önce hatırlatma ve 10 dakikalık geri sayım"],
+          [Coins, "Okumayana TL ceza, vadesinde ödemeyen gruptan çıkar"],
+        ].map(([Icon, t]) => {
+          const I = Icon as typeof Target;
+          return (
+            <li key={t as string} className="card flex items-center gap-3">
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <I className="size-5" />
+              </span>
+              {t as string}
+            </li>
+          );
+        })}
       </ul>
       <div className="flex flex-col gap-3">
         <Link href="/sign-up" className="btn-primary py-3 text-base">
