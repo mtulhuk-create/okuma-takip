@@ -1,4 +1,5 @@
 export type PublicUser = { id: string; name: string; username: string | null; imageUrl: string | null };
+export type Me = PublicUser & { nameConfirmed: boolean };
 export type Period = { dayKey: string; start: string; deadline: string; nextStart: string };
 export type PenaltyMode = "FIXED" | "PER_PAGE";
 
@@ -59,7 +60,8 @@ export type DayCard = {
 export type Stats = { read: number; min: number; none: number; pages: number };
 export type HistoryRow = { start: string; cells: string; stats: Stats };
 export type HistoryRange = "7d" | "1m" | "3m" | "1y" | "all";
-export type MyHistory = { all: HistoryRow | null; groups: (HistoryRow & { group: { id: string; name: string } })[] };
+/** streak: bugünden geriye kesintisiz okunan gün sayısı */
+export type MyHistory = { all: (HistoryRow & { streak?: number }) | null; groups: (HistoryRow & { streak?: number; group: { id: string; name: string } })[] };
 export type GroupHistory = { limited: boolean; rows: (HistoryRow & { user: PublicUser; me: boolean })[] };
 export type PenaltyStatus = "UNPAID" | "IN_DUE" | "PAID" | "WAIVED";
 export type Penalty = { id: string; userId: string; dayKey: string; amount: number; pagesRead: number; requiredPages: number; status: PenaltyStatus; user?: PublicUser };
@@ -67,7 +69,7 @@ export type DueStatus = "PENDING" | "SUBMITTED" | "CONFIRMED" | "EXPIRED" | "CAN
 export type Due = { id: string; userId: string; amount: number; dueAt: string; status: DueStatus; paymentNote: string | null; user?: PublicUser };
 
 export type MeResponse = {
-  user: PublicUser;
+  user: Me;
   badge: number;
   money: { unpaidTotal: number; dues: (Due & { groupId: string; group: { name: string; tzOffset: number } })[] };
   groups: {
@@ -125,7 +127,7 @@ export type NotificationsResponse = {
 };
 
 export type ProfileResponse = {
-  user: PublicUser & { email: string | null };
+  user: Me & { email: string | null };
   stats: { totalPages: number; readDays: number; totalPenalty: number; activeGroups: number };
 };
 

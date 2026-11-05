@@ -218,7 +218,7 @@ export default function AdminScreen() {
                 .map((p) => (
                   <Row key={p.id}>
                     <Body numberOfLines={1} style={{ flex: 1 }}>
-                      {p.user?.name.split(" ")[0]} · {formatDayKey(p.dayKey)}
+                      {p.user?.name} · {formatDayKey(p.dayKey)}
                     </Body>
                     <Body style={{ fontFamily: fonts.bold }}>{p.amount} TL</Body>
                     <Button title="Affet" small variant="ghost" onPress={() => run("waivePenalty", { penaltyId: p.id })} />

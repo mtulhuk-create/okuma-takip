@@ -1,8 +1,9 @@
 "use server";
 
+import { clerkClient } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { actionUser, getMembership, requireAdmin } from "@/lib/auth";
+import { actionUser, cleanNamePart, getMembership, requireAdmin } from "@/lib/auth";
 import { run, str, int, type ActionState } from "@/lib/action-state";
 import { getDb } from "@/lib/db";
 import { groupAdminIds, notifyUsers } from "@/lib/notify";
@@ -112,6 +113,28 @@ function parseGroupForm(fd: FormData) {
     deadlineMinute,
     reminderHours: int(fd, "reminderHours", 0, 23, "Uyarı süresi"),
   };
+}
+
+// ---------- Profil ----------
+
+/** Ad ve soyadı kaydeder: hem Clerk hesabına hem uygulamadaki kullanıcıya yazılır. */
+export async function saveFullName(_: Prev, fd: FormData) {
+  return run(async () => {
+    const user = await actionUser();
+    const firstName = cleanNamePart(fd.get("firstName"), "Ad");
+    const lastName = cleanNamePart(fd.get("lastName"), "Soyad");
+    const name = `${firstName} ${lastName}`;
+    try {
+      const clerk = await clerkClient();
+      await clerk.users.updateUser(user.id, { firstName, lastName });
+    } catch (e) {
+      // Clerk'e yazılamasa da uygulamadaki ad güncellenir; bir sonraki kayıtta yeniden denenir
+      console.error("Clerk ad soyad güncellenemedi", e);
+    }
+    await getDb().user.update({ where: { id: user.id }, data: { name, nameConfirmed: true } });
+    refresh();
+    return "Ad soyad kaydedildi";
+  });
 }
 
 // ---------- Grup ----------

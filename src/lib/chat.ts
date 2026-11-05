@@ -66,7 +66,7 @@ export async function getChatPage(groupId: string, userId: string, before?: Date
             text: o.text,
             votes: o.votes.length,
             mine: o.votes.some((v) => v.userId === userId),
-            names: o.votes.map((v) => v.user.name.split(" ")[0]),
+            names: o.votes.map((v) => v.user.name),
           })),
         }
       : null,

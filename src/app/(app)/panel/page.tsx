@@ -22,7 +22,7 @@ export default async function PanelPage() {
       <header className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm text-muted-foreground">Merhaba,</p>
-          <h1 className="truncate font-serif text-2xl font-bold">{user.name.split(" ")[0]}</h1>
+          <h1 className="truncate font-serif text-2xl font-bold">{user.name}</h1>
         </div>
         <div className="flex items-center gap-2">
           <ThemeToggle compact />

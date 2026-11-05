@@ -259,7 +259,7 @@ export default async function AdminPage({ params, searchParams }: { params: Prom
                   .map((p) => (
                     <li key={p.id} className="flex items-center gap-2 py-2 text-sm">
                       <span className="min-w-0 flex-1 truncate">
-                        {p.user.name.split(" ")[0]} <span className="text-muted-foreground">· {formatDayKey(p.dayKey)}</span>
+                        {p.user.name} <span className="text-muted-foreground">· {formatDayKey(p.dayKey)}</span>
                       </span>
                       <b>{p.amount} TL</b>
                       <ActionForm action={waivePenalty}>
@@ -281,7 +281,7 @@ export default async function AdminPage({ params, searchParams }: { params: Prom
                   .map((d) => (
                     <li key={d.id} className="flex items-center justify-between py-2">
                       <span>
-                        {d.user.name.split(" ")[0]} · {d.amount} TL
+                        {d.user.name} · {d.amount} TL
                       </span>
                       <span className={`badge ${DUE[d.status][1]}`}>{DUE[d.status][0]}</span>
                     </li>

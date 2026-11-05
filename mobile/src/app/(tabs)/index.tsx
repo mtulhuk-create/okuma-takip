@@ -19,9 +19,9 @@ export default function TodayScreen() {
   return (
     <Screen refreshing={isRefetching} onRefresh={refetch}>
       <Row style={{ justifyContent: "space-between" }}>
-        <View>
+        <View style={{ flex: 1 }}>
           <Muted>Merhaba,</Muted>
-          <H1>{data.user.name.split(" ")[0]}</H1>
+          <H1 numberOfLines={1}>{data.user.name}</H1>
         </View>
         <Pressable onPress={() => router.push("/profile")}>
           <Avatar name={data.user.name} uri={data.user.imageUrl} size={42} />

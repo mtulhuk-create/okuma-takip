@@ -62,9 +62,13 @@ export function Card({ children, style, tone }: { children: ReactNode; style?: S
 
 type TextProps = { children: ReactNode; style?: StyleProp<TextStyle>; numberOfLines?: number };
 
-export function H1({ children, style }: TextProps) {
+export function H1({ children, style, numberOfLines }: TextProps) {
   const c = useColors();
-  return <Text style={[{ fontFamily: fonts.serif, fontSize: 24, color: c.foreground }, style]}>{children}</Text>;
+  return (
+    <Text numberOfLines={numberOfLines} style={[{ fontFamily: fonts.serif, fontSize: 24, color: c.foreground }, style]}>
+      {children}
+    </Text>
+  );
 }
 
 export function Title({ children, style, numberOfLines }: TextProps) {

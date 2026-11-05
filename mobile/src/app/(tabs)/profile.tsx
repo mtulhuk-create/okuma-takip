@@ -3,11 +3,12 @@ import * as Application from "expo-application";
 import * as Notifications from "expo-notifications";
 import { useEffect, useState } from "react";
 import { Alert, Linking, View } from "react-native";
+import { NameSheet } from "@/components/name-sheet";
 import { Avatar, Body, Button, Card, ErrorView, H1, Loading, Muted, Row, Screen, Segmented, Stat, Title } from "@/components/ui";
 import { useApi } from "@/lib/api";
 import { exactAlarmsAllowed, requestExactAlarms } from "@/lib/notifications";
 import { useThemePref } from "@/lib/theme-pref";
-import { Bell, BookOpen, CalendarCheck, LogOut, Monitor, Moon, Palette, Sun, Users, Wallet } from "lucide-react-native";
+import { Bell, BookOpen, CalendarCheck, LogOut, Monitor, Moon, Palette, Pencil, Sun, Users, Wallet } from "lucide-react-native";
 import { useColors } from "@/lib/theme";
 import type { ProfileResponse } from "@/lib/types";
 
@@ -16,6 +17,7 @@ export default function ProfileScreen() {
   const { data, isLoading, error, refetch, isRefetching } = useApi<ProfileResponse>("/api/m/profile");
   const [perm, setPerm] = useState<{ notif: boolean; exact: boolean } | null>(null);
   const { pref, setPref } = useThemePref();
+  const [editName, setEditName] = useState(false);
   const c = useColors();
 
   async function checkPerms() {
@@ -46,7 +48,9 @@ export default function ProfileScreen() {
           <H1>{data.user.name}</H1>
           {data.user.username && <Muted>@{data.user.username}</Muted>}
         </View>
+        <Button title="Düzenle" icon={Pencil} variant="ghost" small onPress={() => setEditName(true)} />
       </Row>
+      <NameSheet visible={editName} name={data.user.name} onClose={() => setEditName(false)} />
       <Row gap={12}>
         <Stat icon={BookOpen} label="Toplam sayfa" value={s.totalPages} />
         <Stat icon={CalendarCheck} label="Okunan gün" value={s.readDays} />

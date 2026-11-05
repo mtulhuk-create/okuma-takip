@@ -7,6 +7,7 @@ type Fn = (fd: FormData) => Promise<ActionState>;
 const wrap = (a: (prev: ActionState, fd: FormData) => Promise<ActionState>): Fn => (fd) => a(null, fd);
 
 const ACTIONS: Record<string, Fn> = {
+  saveFullName: wrap(actions.saveFullName),
   createGroup: actions.createGroupState,
   updateGroup: wrap(actions.updateGroup),
   deleteGroup: actions.deleteGroupState,

@@ -1,5 +1,6 @@
 import { Tabs } from "expo-router/js-tabs";
 import { Bell, BookOpen, User, Users, type LucideIcon } from "lucide-react-native";
+import { NameSheet } from "@/components/name-sheet";
 import { useApi } from "@/lib/api";
 import { fonts, useColors } from "@/lib/theme";
 import type { MeResponse } from "@/lib/types";
@@ -13,6 +14,7 @@ export default function TabsLayout() {
   const c = useColors();
   const me = useApi<MeResponse>("/api/m/me");
   return (
+    <>
     <Tabs
       screenOptions={{
         headerShown: false,
@@ -28,5 +30,8 @@ export default function TabsLayout() {
       <Tabs.Screen name="notifications" options={{ title: "Bildirimler", tabBarIcon: icon(Bell), tabBarBadge: me.data?.badge || undefined }} />
       <Tabs.Screen name="profile" options={{ title: "Profil", tabBarIcon: icon(User) }} />
     </Tabs>
+      {/* Ad soyad girilmemişse uygulamayı kullanmadan önce istenir */}
+      {me.data && <NameSheet visible={me.data.user.nameConfirmed === false} name={me.data.user.name} required />}
+    </>
   );
 }
