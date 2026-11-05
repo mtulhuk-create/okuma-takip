@@ -30,6 +30,7 @@ export type Group = Rules & {
   deadlineMinute: number;
   reminderHours: number;
   dueOffsetDays?: number;
+  kickOnExpire?: boolean;
   tzOffset: number;
 };
 
@@ -68,9 +69,11 @@ export type HistoryRange = "7d" | "1m" | "3m" | "1y" | "all";
 export type MyHistory = { all: (HistoryRow & { streak?: number }) | null; groups: (HistoryRow & { streak?: number; group: { id: string; name: string } })[] };
 export type GroupHistory = { limited: boolean; rows: (HistoryRow & { user: PublicUser; me: boolean })[] };
 export type PenaltyStatus = "UNPAID" | "IN_DUE" | "PAID" | "WAIVED";
-export type Penalty = { id: string; userId: string; dayKey: string; amount: number; pagesRead: number; requiredPages: number; status: PenaltyStatus; user?: PublicUser };
-export type DueStatus = "PENDING" | "SUBMITTED" | "CONFIRMED" | "EXPIRED" | "CANCELLED";
-export type Due = { id: string; userId: string; amount: number; dueAt: string; status: DueStatus; paymentNote: string | null; user?: PublicUser };
+export type Penalty = { id: string; userId: string; dayKey: string; amount: number; originalAmount?: number | null; pagesRead: number; requiredPages: number; status: PenaltyStatus; user?: PublicUser };
+export type DueStatus = "PENDING" | "SUBMITTED" | "OVERDUE" | "CONFIRMED" | "EXPIRED" | "CANCELLED";
+/** Vade bilgisi; ek süre / karar süresi alanları eski sunucuda yok */
+export type DueInfo = { dueAt: string; status: DueStatus; originalDueAt?: string | null; extensions?: number; decisionUntil?: string | null };
+export type Due = DueInfo & { id: string; userId: string; amount: number; paymentNote: string | null; user?: PublicUser };
 
 export type MeResponse = {
   user: Me;
@@ -104,6 +107,7 @@ export type GroupToday = {
   teamName: string | null;
   penalty: string;
   debt: number;
+  due?: (DueInfo & { id: string; amount: number }) | null;
 };
 export type GroupsResponse = {
   mine: { role: Member["role"]; teamId: string | null; group: GroupWithCount & { teams?: TeamRules[] } }[];
@@ -171,11 +175,11 @@ export type ChatMessage = {
   pending?: boolean;
   failed?: boolean;
 };
-export type Debt = { group: { id: string; name: string; iban: string; ibanName: string }; amount: number; due: { id: string; amount: number; dueAt: string; status: DueStatus } | null };
+export type Debt = { group: { id: string; name: string; iban: string; ibanName: string }; amount: number; due: (DueInfo & { id: string; amount: number }) | null };
 export type GroupCash = {
   expected: number;
   myDebt: number;
-  myDue: { id: string; amount: number; dueAt: string; status: DueStatus } | null;
+  myDue: (DueInfo & { id: string; amount: number }) | null;
   defaultDueAt: string;
   iban: string;
   ibanName: string;

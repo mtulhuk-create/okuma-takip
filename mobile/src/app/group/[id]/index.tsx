@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MessageBubble } from "@/components/chat/message";
 import { PollModal } from "@/components/chat/poll-modal";
 import { DayCardFull, DayShortcut } from "@/components/day-card";
+import { DueBadge } from "@/components/due-badge";
 import { PaySheet } from "@/components/pay-sheet";
 import { GroupHistoryModal } from "@/components/history";
 import { JoinView } from "@/components/join-view";
@@ -179,6 +180,7 @@ export default function ChatScreen() {
           <Text numberOfLines={1} style={{ flex: 1, fontFamily: fonts.regular, fontSize: 12, color: c.mutedForeground }}>
             Kasaya girmesi beklenen <Text style={{ fontFamily: fonts.bold, fontSize: 13, color: c.foreground }}>{kasa.expected} TL</Text>
           </Text>
+          {kasa.myDebt > 0 && kasa.myDue && <DueBadge due={kasa.myDue} compact />}
           {kasa.myDebt > 0 ? (
             <Pressable onPress={() => setPayOpen(true)} style={({ pressed }) => ({ backgroundColor: c.destructive, borderRadius: 99, paddingHorizontal: 10, paddingVertical: 5, opacity: pressed ? 0.8 : 1 })}>
               <Text style={{ fontFamily: fonts.semibold, fontSize: 11, color: "#fff" }}>Borcunu öde · {kasa.myDebt} TL</Text>

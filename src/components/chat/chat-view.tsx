@@ -7,6 +7,7 @@ import { sendMessage } from "@/app/actions";
 import type { ChatPage } from "@/lib/chat";
 import { formatDayLong } from "@/lib/schedule";
 import { DayCardFull, DayShortcut } from "../day-card";
+import { DueBadge } from "../due-badge";
 import { PaySheet } from "../pay-sheet";
 import { Bubble, PollBody, type UiMessage } from "./message-items";
 import { GroupHistory } from "./group-history";
@@ -235,9 +236,16 @@ export function ChatView({ initial }: { initial: Page }) {
               Kasaya girmesi beklenen <b className="text-sm text-foreground">{kasa.expected} TL</b>
             </p>
             {kasa.myDebt > 0 ? (
-              <button onClick={() => setPayOpen(true)} className="btn-danger btn-sm h-7 shrink-0 rounded-full px-3">
-                Borcunu öde · {kasa.myDebt} TL
-              </button>
+              <>
+                {kasa.myDue && (
+                  <span className="hidden shrink-0 min-[420px]:inline-flex">
+                    <DueBadge due={kasa.myDue} compact />
+                  </span>
+                )}
+                <button onClick={() => setPayOpen(true)} className="btn-danger btn-sm h-7 shrink-0 rounded-full px-3">
+                  Borcunu öde · {kasa.myDebt} TL
+                </button>
+              </>
             ) : (
               <span className="shrink-0 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">Borcun yok</span>
             )}

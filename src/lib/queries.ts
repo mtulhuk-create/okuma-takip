@@ -2,6 +2,7 @@ import "server-only";
 import { ensureDayCard } from "./chat";
 import { getDayCards } from "./day";
 import { maintainLater } from "./maintenance";
+import { dueView } from "./due-view";
 import { describePenalty, rulesFor } from "./rules";
 import { getDb } from "./db";
 
@@ -50,7 +51,7 @@ export async function myMoney(userId: string) {
   const [unpaid, dues, byGroup] = await Promise.all([
     db.penalty.aggregate({ where: { userId, status: { in: ["UNPAID", "IN_DUE"] } }, _sum: { amount: true } }),
     db.paymentDue.findMany({
-      where: { userId, status: { in: ["PENDING", "SUBMITTED"] } },
+      where: { userId, status: { in: ["PENDING", "SUBMITTED", "OVERDUE"] } },
       include: { group: { select: { name: true, tzOffset: true } } },
       orderBy: { dueAt: "asc" },
     }),
@@ -64,7 +65,7 @@ export async function myMoney(userId: string) {
     .map((b) => {
       const g = groups.find((x) => x.id === b.groupId)!;
       const due = dues.find((d) => d.groupId === b.groupId);
-      return { group: g, amount: b._sum.amount ?? 0, due: due ? { id: due.id, amount: due.amount, dueAt: due.dueAt, status: due.status } : null };
+      return { group: g, amount: b._sum.amount ?? 0, due: due ? dueView(due) : null };
     })
     .filter((d) => d.group && d.amount > 0)
     .sort((a, b) => b.amount - a.amount);
@@ -164,12 +165,13 @@ export async function getGroupsOverview(userId: string, q: string) {
   const now = new Date();
   const periods = new Map(mine.map((m) => [m.groupId, currentPeriod(now, m.group)]));
   const ids = mine.map((m) => m.groupId);
-  const [logs, debts] = ids.length
+  const [logs, debts, openDues] = ids.length
     ? await Promise.all([
         db.readingLog.findMany({ where: { groupId: { in: ids }, dayKey: { in: [...new Set([...periods.values()].map((p) => p.dayKey))] } }, select: { groupId: true, userId: true, dayKey: true, pages: true, minPages: true } }),
         db.penalty.groupBy({ by: ["groupId"], where: { userId, groupId: { in: ids }, status: { in: ["UNPAID", "IN_DUE"] } }, _sum: { amount: true } }),
+        db.paymentDue.findMany({ where: { userId, groupId: { in: ids }, status: { in: ["PENDING", "SUBMITTED", "OVERDUE"] } }, orderBy: { dueAt: "asc" } }),
       ])
-    : [[], []];
+    : [[], [], []];
   const today = mine.map((m) => {
     const p = periods.get(m.groupId)!;
     const dayLogs = logs.filter((l) => l.groupId === m.groupId && l.dayKey === p.dayKey);
@@ -187,6 +189,10 @@ export async function getGroupsOverview(userId: string, q: string) {
       teamName: rules.teamName,
       penalty: describePenalty(rules),
       debt: debts.find((d) => d.groupId === m.groupId)?._sum.amount ?? 0,
+      due: (() => {
+        const d = openDues.find((x) => x.groupId === m.groupId);
+        return d ? dueView(d) : null;
+      })(),
     };
   });
   return { mine, today, publicGroups, requestedIds: myRequests.map((r) => r.groupId) };

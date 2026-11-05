@@ -5,9 +5,9 @@ import { useState } from "react";
 import { Modal, Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { toast } from "@/lib/api";
-import { formatDateTime } from "@/lib/format";
 import { fonts, useColors } from "@/lib/theme";
 import type { Debt } from "@/lib/types";
+import { DueBadge } from "./due-badge";
 import { Row } from "./ui";
 
 const formatIban = (iban: string) => iban.replace(/(.{4})/g, "$1 ").trim();
@@ -65,11 +65,7 @@ export function PaySheet({ visible, items, title, onClose }: { visible: boolean;
                   </Pressable>
                   <Text style={{ fontFamily: fonts.bold, fontSize: 16, color: c.destructive }}>{d.amount} TL</Text>
                 </Row>
-                {d.due && (
-                  <Text style={{ fontFamily: fonts.regular, fontSize: 11, color: c.mutedForeground }}>
-                    {d.due.status === "SUBMITTED" ? "Ödeme bildirildi, onay bekleniyor" : `Son ödeme ${formatDateTime(d.due.dueAt, 180)}`}
-                  </Text>
-                )}
+                {d.due ? <DueBadge due={d.due} /> : <Text style={{ fontFamily: fonts.regular, fontSize: 11, color: c.mutedForeground }}>Henüz vade verilmedi</Text>}
                 {d.group.iban ? (
                   <View style={{ backgroundColor: c.muted, borderRadius: 10, padding: 10, gap: 4 }}>
                     <Row gap={4}>

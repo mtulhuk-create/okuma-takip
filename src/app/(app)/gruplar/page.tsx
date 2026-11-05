@@ -3,6 +3,7 @@ import Link from "next/link";
 import { cancelJoinRequest, requestJoin } from "@/app/actions";
 import { ActionForm, SubmitButton } from "@/components/action-form";
 import { Countdown } from "@/components/countdown";
+import { DueBadge } from "@/components/due-badge";
 import { TeamSelect } from "@/components/team-select";
 import { requireUser } from "@/lib/auth";
 import { getGroupsOverview } from "@/lib/queries";
@@ -143,6 +144,7 @@ export default async function GroupsPage({ searchParams }: { searchParams: Promi
                       <Wallet /> borcun {t.debt} TL
                     </span>
                   )}
+                  {t.debt > 0 && t.due && <DueBadge due={t.due} compact />}
                 </div>
               </Link>
             );

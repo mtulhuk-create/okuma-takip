@@ -79,6 +79,7 @@ export function GroupForm({ group, onSubmit, submitting, submitLabel }: { group?
   const [iban, setIban] = useState(group?.iban ?? "");
   const [ibanName, setIbanName] = useState(group?.ibanName ?? "");
   const [dueOffset, setDueOffset] = useState(group?.dueOffsetDays ?? 0);
+  const [kickOnExpire, setKickOnExpire] = useState(group?.kickOnExpire ?? true);
   const time = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
   const newTeam = (n: number): TeamDraft => ({ ...rules, books: rules.books.map((b) => ({ ...b, id: `${b.id}-${n}` })), name: `${String.fromCharCode(65 + n)} Ekibi`, key: `new-${Date.now()}-${n}` });
 
@@ -191,6 +192,13 @@ export function GroupForm({ group, onSubmit, submitting, submitLabel }: { group?
             <Button title="+" variant="ghost" onPress={() => setDueOffset((d) => Math.min(25, d + 1))} style={{ width: 46 }} />
           </Row>
         </View>
+        <Row style={{ justifyContent: "space-between" }}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontFamily: fonts.semibold, fontSize: 14, color: c.foreground }}>Vadesinde ödemeyen gruptan çıkarılsın</Text>
+            <Muted>Vade dolunca önce sana sorulur: ek süre ver, indirim yap ya da çıkar. 24 saat içinde karar vermezsen çıkarılır. Kapalıysa borç açık kalır.</Muted>
+          </View>
+          <Switch value={kickOnExpire} onValueChange={setKickOnExpire} trackColor={{ true: c.primary, false: c.muted }} thumbColor="#fff" />
+        </Row>
       </Section>
 
       <Button
@@ -214,6 +222,7 @@ export function GroupForm({ group, onSubmit, submitting, submitLabel }: { group?
             iban,
             ibanName,
             dueOffsetDays: dueOffset,
+            kickOnExpire: kickOnExpire ? "1" : "0",
           })
         }
       />

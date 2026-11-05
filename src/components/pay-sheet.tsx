@@ -3,13 +3,13 @@
 import { Landmark, Wallet, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { formatDateTime } from "@/lib/schedule";
 import { CopyButton } from "./copy-button";
+import { DueBadge, type DueInfo } from "./due-badge";
 
 export type PayItem = {
   group: { id: string; name: string; iban: string; ibanName: string };
   amount: number;
-  due: { amount: number; dueAt: string | Date; status: string } | null;
+  due: (DueInfo & { amount: number }) | null;
 };
 
 const formatIban = (iban: string) => iban.replace(/(.{4})/g, "$1 ").trim();
@@ -44,11 +44,7 @@ export function PaySheet({ items, title, onClose }: { items: PayItem[]; title: s
                   </Link>
                   <span className="shrink-0 text-base font-bold text-destructive">{d.amount} TL</span>
                 </div>
-                {d.due && (
-                  <p className="text-[11px] text-muted-foreground">
-                    {d.due.status === "SUBMITTED" ? "Ödeme bildirildi, onay bekleniyor" : `Son ödeme ${formatDateTime(new Date(d.due.dueAt))}`}
-                  </p>
-                )}
+                {d.due ? <DueBadge due={d.due} /> : <p className="text-[11px] text-muted-foreground">Henüz vade verilmedi</p>}
                 {d.group.iban ? (
                   <div className="rounded-lg bg-muted/60 p-2.5">
                     <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">

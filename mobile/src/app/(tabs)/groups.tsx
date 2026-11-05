@@ -3,6 +3,7 @@ import { AlarmClock, BookOpen, Check, ChevronRight, Clock, Coins, Crown, Globe, 
 import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { Countdown } from "@/components/countdown";
+import { DueBadge } from "@/components/due-badge";
 import { TeamPicker } from "@/components/team-picker";
 import { Badge, Body, Button, Card, ErrorView, H1, Input, Label, Loading, Muted, Row, Screen } from "@/components/ui";
 import { useAction, useApi } from "@/lib/api";
@@ -119,6 +120,7 @@ export default function GroupsScreen() {
                     <Chip icon={BookOpen} text={`günde ${t.myTarget} sf · alt ${t.myMin}`} />
                     <Chip icon={Coins} text={t.penalty} />
                     {t.debt > 0 && <Chip icon={Wallet} text={`borcun ${t.debt} TL`} tone="danger" />}
+                    {t.debt > 0 && t.due && <DueBadge due={t.due} compact />}
                   </Row>
                 </>
               ) : (

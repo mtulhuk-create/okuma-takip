@@ -7,6 +7,7 @@ import { PushToggle } from "@/components/push-toggle";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { MyHistory } from "@/components/my-history";
 import { DebtButton } from "@/components/pay-sheet";
+import { DueBadge } from "@/components/due-badge";
 import { requireUser } from "@/lib/auth";
 import { getMyHistory } from "@/lib/history";
 import { myGroupsToday, myMoney } from "@/lib/queries";
@@ -45,9 +46,9 @@ export default async function PanelPage() {
             <p className="truncate text-sm font-semibold">
               {d.group.name} · {d.amount} TL ödeme
             </p>
-            <p className="text-xs text-muted-foreground">
-              {d.status === "SUBMITTED" ? "Onay bekleniyor" : `Son ödeme ${formatDateTime(d.dueAt, d.group.tzOffset)}`} · <Countdown to={d.dueAt.toISOString()} />
-            </p>
+            <div className="mt-0.5">
+              <DueBadge due={d} />
+            </div>
           </div>
         </Link>
       ))}

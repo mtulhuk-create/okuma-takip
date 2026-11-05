@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { actionUser, cleanNamePart, getMembership, requireAdmin } from "@/lib/auth";
 import { run, str, int, type ActionState } from "@/lib/action-state";
 import { getDb } from "@/lib/db";
+import { discountPenalties, ensureAdmin, extendDue, kickForDue } from "@/lib/dues";
 import { groupAdminIds, notifyUsers } from "@/lib/notify";
 import { canPost } from "@/lib/chat";
 import { teamsActive } from "@/lib/rules";
@@ -120,6 +121,7 @@ function parseGroupForm(fd: FormData, teamRules?: RulesInput) {
     reminderHours: int(fd, "reminderHours", 0, 23, "Uyarı süresi"),
     // Eski istemciler göndermezse ay sonu (0) kalır
     dueOffsetDays: fd.get("dueOffsetDays") == null || fd.get("dueOffsetDays") === "" ? undefined : int(fd, "dueOffsetDays", -25, 25, "Vade kaydırma"),
+    kickOnExpire: fd.get("kickOnExpire") == null ? undefined : str(fd, "kickOnExpire") === "1",
   };
 }
 
@@ -238,11 +240,9 @@ export async function leaveGroupState(fd: FormData) {
     const db = getDb();
     const m = await getMembership(groupId, user.id);
     if (!m || m.status !== "ACTIVE") throw new Error("Zaten üye değilsiniz");
-    if (m.role === "ADMIN") {
-      const admins = await db.groupMember.count({ where: { groupId, role: "ADMIN", status: "ACTIVE" } });
-      if (admins <= 1) throw new Error("Ayrılmadan önce başka bir üyeyi yönetici yapın");
-    }
     await db.groupMember.update({ where: { id: m.id }, data: { status: "LEFT", leftAt: new Date() } });
+    // Son yönetici ayrıldıysa kalanlardan rastgele biri yönetici olur
+    if (m.role === "ADMIN") await ensureAdmin(groupId);
     await publish(groupId, { type: "refresh", reason: "members" });
     refresh();
     return "Gruptan ayrıldın";
@@ -388,6 +388,7 @@ export async function removeMember(_: Prev, fd: FormData) {
     if (m.userId === user.id) throw new Error("Kendinizi çıkaramazsınız");
     if (m.userId === m.group.ownerId) throw new Error("Grup kurucusu çıkarılamaz");
     await db.groupMember.update({ where: { id: m.id }, data: { status: "REMOVED", leftAt: new Date() } });
+    if (m.role === "ADMIN") await ensureAdmin(m.groupId);
     await notifyUsers([m.userId], { title: m.group.name, body: "Yönetici seni gruptan çıkardı.", url: "/gruplar" }, { inApp: true });
     await publish(m.groupId, { type: "refresh", reason: "members" });
     refresh();
@@ -481,8 +482,8 @@ export async function resolvePayment(_: Prev, fd: FormData) {
     await requireAdmin(due.groupId);
     const decision = str(fd, "decision");
     if (decision === "confirm") {
-      if (!["PENDING", "SUBMITTED"].includes(due.status)) throw new Error("Bu ödeme onaylanamaz");
-      await db.paymentDue.update({ where: { id: due.id }, data: { status: "CONFIRMED", resolvedAt: new Date() } });
+      if (!["PENDING", "SUBMITTED", "OVERDUE"].includes(due.status)) throw new Error("Bu ödeme onaylanamaz");
+      await db.paymentDue.update({ where: { id: due.id }, data: { status: "CONFIRMED", resolvedAt: new Date(), decisionUntil: null } });
       await db.penalty.updateMany({ where: { dueId: due.id }, data: { status: "PAID" } });
       await notifyUsers([due.userId], { title: `✅ ${due.group.name}`, body: `${due.amount} TL ödemen onaylandı. Teşekkürler!`, url: `/gruplar/${due.groupId}` }, { inApp: true });
       await publish(due.groupId, { type: "refresh", reason: "money" });
@@ -502,8 +503,8 @@ export async function resolvePayment(_: Prev, fd: FormData) {
       return "Ödeme bildirimi reddedildi";
     }
     if (decision === "cancel") {
-      if (!["PENDING", "SUBMITTED"].includes(due.status)) throw new Error("Bu vade iptal edilemez");
-      await db.paymentDue.update({ where: { id: due.id }, data: { status: "CANCELLED", resolvedAt: new Date() } });
+      if (!["PENDING", "SUBMITTED", "OVERDUE"].includes(due.status)) throw new Error("Bu vade iptal edilemez");
+      await db.paymentDue.update({ where: { id: due.id }, data: { status: "CANCELLED", resolvedAt: new Date(), decisionUntil: null } });
       await db.penalty.updateMany({ where: { dueId: due.id }, data: { status: "UNPAID", dueId: null } });
       await notifyUsers([due.userId], { title: due.group.name, body: "Ceza ödeme vaden iptal edildi.", url: `/gruplar/${due.groupId}` }, { inApp: true });
       await publish(due.groupId, { type: "refresh", reason: "money" });
@@ -511,6 +512,47 @@ export async function resolvePayment(_: Prev, fd: FormData) {
       return "Vade iptal edildi";
     }
     throw new Error("Geçersiz işlem");
+  });
+}
+
+/** Vadeye ek süre: "days" (gün sayısı) ya da "dueAt" (yerel tarih-saat) */
+export async function extendDueAction(_: Prev, fd: FormData) {
+  return run(async () => {
+    const db = getDb();
+    const due = await db.paymentDue.findUniqueOrThrow({ where: { id: str(fd, "dueId") }, include: { group: true } });
+    await requireAdmin(due.groupId);
+    const days = Number(fd.get("days"));
+    const base = Math.max(Date.now(), due.dueAt.getTime());
+    const at = Number.isInteger(days) && days > 0 && days <= 60 ? new Date(base + days * DAY) : parseLocalDateTime(str(fd, "dueAt"), due.group.tzOffset);
+    await extendDue(due.id, at);
+    refresh();
+    return `Ek süre verildi: ${formatDateTime(at, due.group.tzOffset)}`;
+  });
+}
+
+/** Ceza indirimi: tek ceza (penaltyId), bir üye (userId) ya da tüm grup; % ya da TL */
+export async function discountAction(_: Prev, fd: FormData) {
+  return run(async () => {
+    const groupId = str(fd, "groupId");
+    await requireAdmin(groupId);
+    const mode = str(fd, "mode") === "amount" ? ("amount" as const) : ("percent" as const);
+    const value = mode === "percent" ? int(fd, "value", 1, 100, "İndirim oranı") : int(fd, "value", 1, 1_000_000, "İndirim tutarı");
+    const res = await discountPenalties({ groupId, mode, value, userId: str(fd, "userId") || undefined, penaltyId: str(fd, "penaltyId") || undefined });
+    refresh();
+    return `${res.saved} TL indirim yapıldı (${res.users} kişi)`;
+  });
+}
+
+/** Vadesi dolan üyeyi karar süresini beklemeden gruptan çıkar */
+export async function kickOverdueAction(_: Prev, fd: FormData) {
+  return run(async () => {
+    const db = getDb();
+    const due = await db.paymentDue.findUniqueOrThrow({ where: { id: str(fd, "dueId") }, include: { group: true, user: true } });
+    await requireAdmin(due.groupId);
+    if (due.status !== "OVERDUE") throw new Error("Bu ödemenin vadesi dolmamış");
+    await kickForDue(due, due.group, due.user.name);
+    refresh();
+    return `${due.user.name} gruptan çıkarıldı`;
   });
 }
 

@@ -25,6 +25,9 @@ const ACTIONS: Record<string, Fn> = {
   submitPayment: wrap(actions.submitPayment),
   resolvePayment: wrap(actions.resolvePayment),
   waivePenalty: wrap(actions.waivePenalty),
+  extendDue: wrap(actions.extendDueAction),
+  discount: wrap(actions.discountAction),
+  kickOverdue: wrap(actions.kickOverdueAction),
   markAllRead: wrap(actions.markAllRead),
   markNotificationsSeen: async () => {
     await actions.markNotificationsSeen();

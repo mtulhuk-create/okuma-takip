@@ -2,6 +2,7 @@ import "server-only";
 import type { Group } from "@prisma/client";
 import { getDb } from "./db";
 import { getDayCards } from "./day";
+import { dueView } from "./due-view";
 import { currentPeriod, defaultDueAt } from "./schedule";
 
 const PAGE = 40;
@@ -104,12 +105,12 @@ export async function getGroupCash(group: Pick<Group, "id" | "iban" | "ibanName"
   const [all, mine, due] = await Promise.all([
     db.penalty.aggregate({ where: open, _sum: { amount: true } }),
     db.penalty.aggregate({ where: { ...open, userId }, _sum: { amount: true } }),
-    db.paymentDue.findFirst({ where: { groupId: group.id, userId, status: { in: ["PENDING", "SUBMITTED"] } }, orderBy: { dueAt: "asc" }, select: { id: true, amount: true, dueAt: true, status: true } }),
+    db.paymentDue.findFirst({ where: { groupId: group.id, userId, status: { in: ["PENDING", "SUBMITTED", "OVERDUE"] } }, orderBy: { dueAt: "asc" } }),
   ]);
   return {
     expected: all._sum.amount ?? 0,
     myDebt: mine._sum.amount ?? 0,
-    myDue: due ? { ...due, dueAt: due.dueAt.toISOString() } : null,
+    myDue: due ? dueView(due) : null,
     defaultDueAt: defaultDueAt(group).toISOString(),
     iban: group.iban,
     ibanName: group.ibanName,

@@ -127,6 +127,7 @@ export function GroupForm({ group }: { group?: Group & { teams?: Team[] } }) {
   const [reminderHours, setReminderHours] = useState(group?.reminderHours ?? 2);
   const [iban, setIban] = useState(group?.iban ?? "");
   const [dueOffset, setDueOffset] = useState(group?.dueOffsetDays ?? 0);
+  const [kickOnExpire, setKickOnExpire] = useState(group?.kickOnExpire ?? true);
 
   const nextDay = deadline <= start;
   const newTeam = (n: number): TeamDraft => ({
@@ -158,6 +159,7 @@ export function GroupForm({ group }: { group?: Group & { teams?: Team[] } }) {
       <input type="hidden" name="deadlineTime" value={minuteToTime(deadline)} />
       <input type="hidden" name="reminderHours" value={reminderHours} />
       <input type="hidden" name="dueOffsetDays" value={dueOffset} />
+      <input type="hidden" name="kickOnExpire" value={kickOnExpire ? "1" : "0"} />
 
       <Section Icon={PencilLine} title="Temel bilgiler">
         <div>
@@ -292,6 +294,12 @@ export function GroupForm({ group }: { group?: Group & { teams?: Team[] } }) {
             </button>
           </div>
         </div>
+        <Toggle
+          checked={kickOnExpire}
+          onChange={setKickOnExpire}
+          title="Vadesinde ödemeyen gruptan çıkarılsın"
+          desc="Vade dolunca önce sana sorulur: ek süre ver, indirim yap ya da çıkar. 24 saat içinde karar vermezsen çıkarılır. Kapalıysa borç açık kalır."
+        />
       </Section>
 
       <div className="sticky bottom-[calc(env(safe-area-inset-bottom)+5rem)] z-10 rounded-xl bg-background/80 p-1 backdrop-blur">

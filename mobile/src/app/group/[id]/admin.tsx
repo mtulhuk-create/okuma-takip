@@ -3,6 +3,8 @@ import { Ban, Check, ChevronDown, Crown, Receipt, Trash2, UserMinus, X } from "l
 import { useState } from "react";
 import { Alert, Pressable, ScrollView, Text, View } from "react-native";
 import { GroupForm } from "@/components/group-form";
+import { DiscountControls, ExtendControls } from "@/components/due-admin";
+import { DueBadge } from "@/components/due-badge";
 import { DateTimeField } from "@/components/pickers";
 import { TeamPicker } from "@/components/team-picker";
 import { Avatar, Badge, Body, Button, Card, Divider, ErrorView, Input, Loading, Muted, Row, Screen, Title, type Tone } from "@/components/ui";
@@ -16,7 +18,8 @@ const DUE: Record<DueStatus, [string, Tone]> = {
   PENDING: ["Ödeme bekleniyor", "warning"],
   SUBMITTED: ["Onayını bekliyor", "info"],
   CONFIRMED: ["Onaylandı", "success"],
-  EXPIRED: ["Süresi doldu", "danger"],
+  OVERDUE: ["Vade doldu · karar bekliyor", "danger"],
+  EXPIRED: ["Ödemedi · çıkarıldı", "danger"],
   CANCELLED: ["İptal", "neutral"],
 };
 const TABS = [
@@ -42,8 +45,9 @@ export default function AdminScreen() {
   const hasTeams = teamsActive(group);
   const teamName = (tid: string | null) => group.teams.find((t) => t.id === tid)?.name;
   const run = (name: string, body: Record<string, unknown>) => action.mutate({ name, body });
+  const overdue = dues.filter((d) => d.status === "OVERDUE");
   const openDues = dues.filter((d) => d.status === "PENDING" || d.status === "SUBMITTED");
-  const counts: Record<string, number> = { invite: requests.length + teamChanges.length, payments: openDues.filter((d) => d.status === "SUBMITTED").length };
+  const counts: Record<string, number> = { invite: requests.length + teamChanges.length, payments: openDues.filter((d) => d.status === "SUBMITTED").length + overdue.length };
 
   return (
     <Screen padTop={false} refreshing={isRefetching} onRefresh={refetch}>
@@ -97,6 +101,7 @@ export default function AdminScreen() {
                         <Button title="Vade ver" icon={Receipt} small onPress={() => run("createDue", { groupId: id, userId: m.userId, dueAt: toLocalInput(dueAt, group.tzOffset) })} />
                       </Row>
                     ) : null}
+                    {mm?.unpaid || mm?.inDue ? <DiscountControls groupId={id} userId={m.userId} title="Bu üyenin cezalarına indirim" /> : null}
                     {removable && (
                       <Row>
                         <Button title={m.role === "ADMIN" ? "Yöneticiliği al" : "Yönetici yap"} icon={Crown} small variant="ghost" onPress={() => run("toggleAdmin", { memberId: m.id })} />
@@ -190,41 +195,114 @@ export default function AdminScreen() {
 
       {tab === "payments" && (
         <>
-          {openDues.length === 0 && unpaidPenalties.length === 0 && <Muted style={{ textAlign: "center" }}>Bekleyen ödeme ya da ceza yok.</Muted>}
-          {openDues.map((d) => (
-            <Card key={d.id}>
+          {overdue.length === 0 && openDues.length === 0 && unpaidPenalties.length === 0 && <Muted style={{ textAlign: "center" }}>Bekleyen ödeme ya da ceza yok.</Muted>}
+
+          {/* Vadesi dolanlar: gruptan çıkarılmadan önce yöneticiye sorulur */}
+          {overdue.map((d) => (
+            <Card key={d.id} tone="danger">
               <Row>
                 <Avatar name={d.user?.name ?? "?"} uri={d.user?.imageUrl} size={38} />
                 <View style={{ flex: 1 }}>
                   <Body style={{ fontFamily: fonts.semibold }}>{d.user?.name}</Body>
-                  <Muted>Vade {formatDateTime(d.dueAt, group.tzOffset)}</Muted>
+                  <Muted>
+                    Vade {formatDateTime(d.dueAt, group.tzOffset)}
+                    {d.extensions ? ` · ${d.extensions} kez ek süre` : ""}
+                  </Muted>
+                </View>
+                <Text style={{ fontFamily: fonts.bold, fontSize: 17, color: c.destructive }}>{d.amount} TL</Text>
+              </Row>
+              <DueBadge due={d} />
+              <Muted>
+                {group.kickOnExpire === false
+                  ? "Vadesi dolanı çıkarma ayarı kapalı; borç açık kalır. İstersen ek süre ya da indirim uygula."
+                  : "Ek süre verebilir, indirim yapabilir, ikisini birden ya da hiçbirini uygulayabilirsin. Karar süresi bitince gruptan çıkarılır."}
+              </Muted>
+              <ExtendControls dueId={d.id} tzOffset={group.tzOffset}  />
+              <DiscountControls groupId={id} userId={d.userId} title={`${d.user?.name.split(" ")[0] ?? "Üye"} için indirim`} />
+              <Row style={{ flexWrap: "wrap" }}>
+                <Button title="Ödedi, onayla" icon={Check} small variant="success" onPress={() => run("resolvePayment", { dueId: d.id, decision: "confirm" })} />
+                <Button
+                  title="Gruptan çıkar"
+                  icon={UserMinus}
+                  small
+                  variant="ghost"
+                  textColor={c.destructive}
+                  onPress={() =>
+                    Alert.alert("Gruptan çıkar", `${d.user?.name} gruptan çıkarılsın mı?`, [
+                      { text: "Vazgeç", style: "cancel" },
+                      { text: "Çıkar", style: "destructive", onPress: () => run("kickOverdue", { dueId: d.id }) },
+                    ])
+                  }
+                />
+              </Row>
+            </Card>
+          ))}
+
+          {openDues.map((d) => (
+            <Card key={d.id}>
+              <Row>
+                <Avatar name={d.user?.name ?? "?"} uri={d.user?.imageUrl} size={38} />
+                <View style={{ flex: 1, gap: 3 }}>
+                  <Body style={{ fontFamily: fonts.semibold }}>{d.user?.name}</Body>
+                  <DueBadge due={d} />
                 </View>
                 <Text style={{ fontFamily: fonts.bold, fontSize: 17, color: c.foreground }}>{d.amount} TL</Text>
               </Row>
-              <Badge text={DUE[d.status][0]} tone={DUE[d.status][1]} />
               {d.paymentNote && <Muted>“{d.paymentNote}”</Muted>}
               <Row style={{ flexWrap: "wrap" }}>
                 <Button title="Onayla" icon={Check} small variant="success" onPress={() => run("resolvePayment", { dueId: d.id, decision: "confirm" })} />
                 {d.status === "SUBMITTED" && <Button title="Görmedim" icon={X} small variant="ghost" onPress={() => run("resolvePayment", { dueId: d.id, decision: "reject" })} />}
                 <Button title="İptal" icon={Ban} small variant="ghost" onPress={() => run("resolvePayment", { dueId: d.id, decision: "cancel" })} />
+                <Button title={openMember === `due-${d.id}` ? "Kapat" : "Ek süre / indirim"} icon={ChevronDown} small variant="ghost" onPress={() => setOpenMember((o) => (o === `due-${d.id}` ? null : `due-${d.id}`))} />
               </Row>
+              {openMember === `due-${d.id}` && (
+                <>
+                  <ExtendControls dueId={d.id} tzOffset={group.tzOffset} from={d.dueAt} />
+                  <DiscountControls groupId={id} userId={d.userId} title={`${d.user?.name.split(" ")[0] ?? "Üye"} için indirim`} />
+                </>
+              )}
             </Card>
           ))}
-          {unpaidPenalties.some((p) => p.status === "UNPAID") && (
+
+          {unpaidPenalties.length > 0 && (
             <Card>
-              <Title>Vadesi verilmemiş cezalar</Title>
-              {unpaidPenalties
-                .filter((p) => p.status === "UNPAID")
-                .map((p) => (
-                  <Row key={p.id}>
+              <Row style={{ justifyContent: "space-between" }}>
+                <Title>Ödenmemiş cezalar</Title>
+                <Text style={{ fontFamily: fonts.bold, color: c.destructive }}>{unpaidPenalties.reduce((s, p) => s + p.amount, 0)} TL</Text>
+              </Row>
+              <DiscountControls groupId={id} title="Toplu indirim (tüm grubun ödenmemiş cezaları)" />
+              {unpaidPenalties.map((p) => (
+                <View key={p.id} style={{ gap: 4, borderTopWidth: 1, borderTopColor: c.border, paddingTop: 8 }}>
+                  <Row>
                     <Body numberOfLines={1} style={{ flex: 1 }}>
                       {p.user?.name} · {formatDayKey(p.dayKey)}
+                      {p.status === "IN_DUE" ? " · vadede" : ""}
                     </Body>
+                    {p.originalAmount != null && p.originalAmount !== p.amount && <Text style={{ fontFamily: fonts.regular, fontSize: 12, color: c.mutedForeground, textDecorationLine: "line-through" }}>{p.originalAmount}</Text>}
                     <Body style={{ fontFamily: fonts.bold }}>{p.amount} TL</Body>
-                    <Button title="Affet" small variant="ghost" onPress={() => run("waivePenalty", { penaltyId: p.id })} />
+                  </Row>
+                  <Row style={{ justifyContent: "flex-end" }}>
+                    <DiscountControls groupId={id} penaltyId={p.id} compact />
+                    {p.status === "UNPAID" && <Button title="Affet" small variant="ghost" onPress={() => run("waivePenalty", { penaltyId: p.id })} />}
+                  </Row>
+                </View>
+              ))}
+              <Muted>Bir kişinin tüm cezalarına indirim ya da vade için Üyeler sekmesinde kişiye dokun.</Muted>
+            </Card>
+          )}
+          {dues.some((d) => ["CONFIRMED", "EXPIRED", "CANCELLED"].includes(d.status)) && (
+            <Card>
+              <Title>Ödeme geçmişi</Title>
+              {dues
+                .filter((d) => ["CONFIRMED", "EXPIRED", "CANCELLED"].includes(d.status))
+                .map((d) => (
+                  <Row key={d.id} style={{ justifyContent: "space-between" }}>
+                    <Body numberOfLines={1} style={{ flex: 1 }}>
+                      {d.user?.name} · {d.amount} TL
+                    </Body>
+                    <Badge text={DUE[d.status][0]} tone={DUE[d.status][1]} />
                   </Row>
                 ))}
-              <Muted>Vade vermek için Üyeler sekmesinde kişiye dokun.</Muted>
             </Card>
           )}
         </>
