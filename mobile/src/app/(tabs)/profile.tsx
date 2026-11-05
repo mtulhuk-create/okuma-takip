@@ -2,11 +2,11 @@ import { useClerk } from "@clerk/expo";
 import * as Application from "expo-application";
 import * as Notifications from "expo-notifications";
 import { useEffect, useState } from "react";
-import { Alert, Linking, View } from "react-native";
+import { Alert, AppState, Linking, View } from "react-native";
 import { NameSheet } from "@/components/name-sheet";
 import { Avatar, Body, Button, Card, ErrorView, H1, Loading, Muted, Row, Screen, Segmented, Stat, Title } from "@/components/ui";
-import { useApi } from "@/lib/api";
-import { exactAlarmsAllowed, requestExactAlarms } from "@/lib/notifications";
+import { toast, useApi, useApiFetch } from "@/lib/api";
+import { exactAlarmsAllowed, requestExactAlarms, sendTestNotification, setupNotifications, syncSchedule } from "@/lib/notifications";
 import { useThemePref } from "@/lib/theme-pref";
 import { Bell, BookOpen, CalendarCheck, LogOut, Monitor, Moon, Palette, Pencil, Sun, Users, Wallet } from "lucide-react-native";
 import { useColors } from "@/lib/theme";
@@ -24,17 +24,39 @@ export default function ProfileScreen() {
     const n = await Notifications.getPermissionsAsync();
     setPerm({ notif: n.granted, exact: await exactAlarmsAllowed() });
   }
+  const fetcher = useApiFetch();
   useEffect(() => {
     let alive = true;
-    (async () => {
+    const check = async () => {
       const n = await Notifications.getPermissionsAsync();
       const exact = await exactAlarmsAllowed();
       if (alive) setPerm({ notif: n.granted, exact });
-    })();
+    };
+    check();
+    // Telefon ayarlarından dönünce izinleri yeniden kontrol et
+    const sub = AppState.addEventListener("change", (st) => st === "active" && check());
     return () => {
       alive = false;
+      sub.remove();
     };
   }, []);
+
+  async function enableNotifications() {
+    await setupNotifications().catch(() => {});
+    const r = await Notifications.getPermissionsAsync();
+    if (!r.granted) {
+      const asked = await Notifications.requestPermissionsAsync();
+      if (!asked.granted) {
+        Alert.alert("Bildirim izni kapalı", "Telefon ayarlarında Okuma Takip için “Bildirimlere izin ver”i aç. Sonra uygulamaya geri dön.", [
+          { text: "Vazgeç", style: "cancel" },
+          { text: "Ayarları aç", onPress: () => Linking.openSettings() },
+        ]);
+      }
+    }
+    await checkPerms();
+    // Planı hemen cihaza işle
+    syncSchedule(() => fetcher("/api/me/schedule")).catch(() => {});
+  }
 
   if (isLoading) return <Loading />;
   if (error || !data) return <ErrorView message={error?.message ?? "Yüklenemedi"} onRetry={refetch} />;
@@ -82,29 +104,32 @@ export default function ProfileScreen() {
           <Title>Bildirimler</Title>
         </Row>
         <Body>
-          Uyarılar grubun belirlediği saatte, geri sayım ise son bildirim saatinden 10 dakika önce başlar. Bildirimdeki butonlarla uygulamayı açmadan okumanı bildirebilirsin.
+          Her okuma günü başlarken gün kartı bildirimi gelir; uyarı grubun belirlediği saatte, geri sayım son 10 dakikada başlar. Bildirimdeki Okudum / Alt sınır / Okumadım butonlarıyla uygulamayı açmadan bildirebilirsin.
         </Body>
-        {perm && !perm.notif && (
-          <Button
-            title="Bildirim izni ver"
-            onPress={async () => {
-              const r = await Notifications.requestPermissionsAsync();
-              if (!r.granted && !r.canAskAgain) Linking.openSettings();
-              checkPerms();
-            }}
-          />
-        )}
+        {perm && !perm.notif && <Button title="Bildirimleri aç" onPress={enableNotifications} />}
         {perm && perm.notif && !perm.exact && (
           <Button
             title="Tam zamanlı alarm izni ver"
             variant="ghost"
             onPress={async () => {
-              await requestExactAlarms();
+              await requestExactAlarms().catch(() => Linking.openSettings());
               checkPerms();
             }}
           />
         )}
         {perm?.notif && perm.exact && <Body style={{ color: c.success }}>Bildirimler açık ve tam zamanında gelecek.</Body>}
+        {perm?.notif && (
+          <Button
+            title="Deneme bildirimi gönder"
+            variant="ghost"
+            icon={Bell}
+            onPress={async () => {
+              await setupNotifications().catch(() => {});
+              const day = await sendTestNotification(() => fetcher("/api/me/schedule"));
+              toast(day ? "Gün kartı bildirimi gönderildi" : "Deneme bildirimi gönderildi");
+            }}
+          />
+        )}
       </Card>
 
       <Muted>

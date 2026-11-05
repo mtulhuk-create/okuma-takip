@@ -96,7 +96,9 @@ export default function ChatScreen() {
   }, [dayIndex]);
 
   // Bugünün gün kartı ekranda değilse başlığın altında kısayol göster
-  const todayKey = chat.data?.group.today;
+  // Sunucu bugünün kartını göndermiyorsa (eski sürüm) sohbetteki en son gün kartı kullanılır
+  const lastDayCard = useMemo(() => reversed.find((m) => m.kind === "DAY" && m.day)?.day ?? null, [reversed]);
+  const todayKey = chat.data?.group.today ?? lastDayCard?.dayKey;
   const todayKeyRef = useRef(todayKey);
   todayKeyRef.current = todayKey;
   const onViewable = useRef(({ viewableItems }: { viewableItems: { item: ChatMessage }[] }) => {
@@ -140,6 +142,7 @@ export default function ChatScreen() {
   const data = chat.data!;
   const isAdmin = data.me.role === "ADMIN";
   const kasa = data.kasa ?? null;
+  const todayCard = data.todayCard ?? (lastDayCard?.dayKey === todayKey ? lastDayCard : null);
 
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: c.background }} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={90}>
@@ -185,7 +188,7 @@ export default function ChatScreen() {
           )}
         </View>
       )}
-      {data.todayCard && !cardVisible && <DayShortcut card={data.todayCard} groupId={id} onJump={jumpToToday} onReported={() => chat.refetch()} />}
+      {todayCard && !cardVisible && <DayShortcut card={todayCard} groupId={id} onJump={jumpToToday} onReported={() => chat.refetch()} />}
       <View style={{ flex: 1, backgroundColor: c.chatBg }}>
         {/* Hafif desenli sohbet duvar kağıdı */}
         <Svg style={StyleSheet.absoluteFill} pointerEvents="none">

@@ -12,6 +12,8 @@ type Schedule = {
     groupId: string;
     name: string;
     dailyPages: number;
+    minPages?: number;
+    books?: string[];
     reminderHours: number;
     eligibleFrom: string;
     periods: { dayKey: string; start: string; deadline: string; reported: boolean; token: string }[];
@@ -43,14 +45,10 @@ export async function setupNotifications() {
       vibrationPattern: [0, 200],
     });
   }
+  // Android en fazla 3 buton gösterir: gün kartındaki temel seçenekler
   await Notifications.setNotificationCategoryAsync(REPORT_CATEGORY, [
-    {
-      identifier: "pages",
-      buttonTitle: "📖 Okudum",
-      textInput: { submitButtonTitle: "Gönder", placeholder: "Kaç sayfa okudun?" },
-      options: { opensAppToForeground: false },
-    },
-    { identifier: "min", buttonTitle: "✅ Alt sınırı okudum", options: { opensAppToForeground: false } },
+    { identifier: "all", buttonTitle: "✅ Okudum", options: { opensAppToForeground: false } },
+    { identifier: "min", buttonTitle: "☑️ Alt sınır", options: { opensAppToForeground: false } },
     { identifier: "none", buttonTitle: "❌ Okumadım", options: { opensAppToForeground: false, isDestructive: true } },
   ]);
   const perm = await Notifications.getPermissionsAsync();
@@ -64,6 +62,39 @@ export async function exactAlarmsAllowed() {
 
 export async function requestExactAlarms() {
   if (Platform.OS === "android") await Notifications.requestExactAlarmPermissionsAsync();
+}
+
+const MONTHS = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
+const dayText = (dayKey: string) => `${Number(dayKey.slice(8))} ${MONTHS[Number(dayKey.slice(5, 7)) - 1]}`;
+
+/** Gün kartının bildirime sığan hali */
+function dayCardContent(g: Schedule["groups"][number], deadline: Date, dayKey: string) {
+  const books = g.books && g.books.length > 1 ? ` · ${g.books.length} eser` : g.books?.[0] && g.books[0] !== "Günlük okuma" ? ` · ${g.books[0]}` : "";
+  return {
+    title: `📖 ${g.name} · ${dayText(dayKey)}`,
+    body: `Hedef ${g.dailyPages} sf${g.minPages != null ? ` (alt sınır ${g.minPages})` : ""}${books}\nSon bildirim ${hhmm(deadline)} · butonlarla hemen bildir`,
+  };
+}
+
+/** Profildeki "Deneme bildirimi": açık okuma günü varsa gün kartı bildirimi, yoksa basit bir deneme */
+export async function sendTestNotification(fetchSchedule: () => Promise<Schedule>) {
+  const data = await fetchSchedule().catch(() => null);
+  const now = Date.now();
+  for (const g of data?.groups ?? []) {
+    const p = g.periods.find((x) => new Date(x.start).getTime() <= now && new Date(x.deadline).getTime() > now);
+    if (!p) continue;
+    const payload: ReportData = { token: p.token, groupId: g.groupId, dayKey: p.dayKey };
+    await Notifications.scheduleNotificationAsync({
+      content: { ...dayCardContent(g, new Date(p.deadline), p.dayKey), categoryIdentifier: REPORT_CATEGORY, data: payload },
+      trigger: Platform.OS === "android" ? { channelId: "reminders" } : null,
+    });
+    return true;
+  }
+  await Notifications.scheduleNotificationAsync({
+    content: { title: "🔔 Okuma Takip", body: "Bildirimler çalışıyor. Okuma günü başlayınca gün kartı burada butonlarıyla görünecek." },
+    trigger: Platform.OS === "android" ? { channelId: "reminders" } : null,
+  });
+  return false;
 }
 
 /** Sunucudaki okuma günlerine göre bildirimleri yeniden planlar. */
@@ -80,6 +111,17 @@ export async function syncSchedule(fetchSchedule: () => Promise<Schedule>) {
       const data: ReportData = { token: p.token, groupId: g.groupId, dayKey: p.dayKey };
       const at = (t: number, channelId: string) =>
         ({ type: Notifications.SchedulableTriggerInputTypes.DATE, date: t, channelId, delivery: "alarmClock" }) as const;
+
+      // Gün başlarken gün kartı bildirimi
+      if (start > now) {
+        jobs.push(
+          Notifications.scheduleNotificationAsync({
+            identifier: `day-${g.groupId}-${p.dayKey}`,
+            content: { ...dayCardContent(g, deadline, p.dayKey), categoryIdentifier: REPORT_CATEGORY, data },
+            trigger: at(start, "reminders"),
+          }),
+        );
+      }
 
       const remindAt = deadline.getTime() - g.reminderHours * 3_600_000;
       if (g.reminderHours > 0 && remindAt > now && remindAt >= start) {
@@ -118,7 +160,7 @@ export async function syncSchedule(fetchSchedule: () => Promise<Schedule>) {
 
 /** Bildirimdeki hızlı butona basıldığında okumayı sunucuya iletir (uygulama kapalıyken de çalışır). */
 export async function handleReportAction(actionId: string, data: ReportData, userText?: string) {
-  if (!["pages", "min", "none"].includes(actionId) || !data?.token) return false;
+  if (!["all", "pages", "min", "none"].includes(actionId) || !data?.token) return false;
   const res = await fetch(`${API_URL}/api/quick-report`, {
     method: "POST",
     headers: { "content-type": "application/json" },

@@ -9,7 +9,7 @@ export function QuickReport({ token }: { token: string }) {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
 
-  async function send(choice: "min" | "none" | "pages") {
+  async function send(choice: "all" | "min" | "none" | "pages") {
     setBusy(true);
     const res = await fetch("/api/quick-report", {
       method: "POST",
@@ -47,6 +47,9 @@ export function QuickReport({ token }: { token: string }) {
           <BookOpenCheck /> Okudum
         </button>
       </div>
+      <button className="btn-success w-full py-3" disabled={busy} onClick={() => send("all")}>
+        <BookOpenCheck /> Hedefi okudum
+      </button>
       <button className="btn-primary w-full py-3" disabled={busy} onClick={() => send("min")}>
         <Check /> Alt sınırı okudum
       </button>

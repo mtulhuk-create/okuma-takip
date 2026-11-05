@@ -38,6 +38,8 @@ export async function GET() {
       groupId: g.id,
       name: g.name,
       dailyPages: rulesFor(g, m).targetPages,
+      minPages: rulesFor(g, m).minPages,
+      books: rulesFor(g, m).books.map((b) => b.title),
       reminderHours: g.reminderHours,
       eligibleFrom: m.joinedAt.toISOString(),
       periods,

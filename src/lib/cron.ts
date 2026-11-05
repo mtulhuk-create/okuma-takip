@@ -5,12 +5,9 @@ import { groupAdminIds, notifyEach, notifyUsers } from "./notify";
 import { publish } from "./realtime";
 import { penaltyFor, rulesFor } from "./rules";
 import { DAY, MIN, currentPeriod, formatDateTime, formatDayKey, lastClosedPeriod, minuteToTime, openPeriod, periodFor, shiftDayKey } from "./schedule";
+import { DAY_ACTIONS, sendDayStart } from "./day-push";
 import { signQuickToken } from "./token";
 
-const QUICK_ACTIONS = [
-  { action: "min", title: "✅ Alt sınırı okudum" },
-  { action: "none", title: "❌ Okumadım" },
-];
 
 type G = Group & { teams: Team[] };
 
@@ -75,6 +72,8 @@ export async function runCron(now = new Date()) {
     // Hatırlatma ve geri sayım (web push)
     const open = openPeriod(now, g);
     if (!open) continue;
+    // Yeni gün başladı: gün kartı bildirimi (ilk 3 saat içinde, bir kez)
+    if (now.getTime() - open.start.getTime() < 3 * 3_600_000) await sendDayStart(g, open).catch(() => 0);
     const minsLeft = Math.ceil((open.deadline.getTime() - now.getTime()) / MIN);
     let kind: string | null = null;
     if (minsLeft <= 10 && minsLeft >= 1) kind = "CD";
@@ -98,7 +97,7 @@ export async function runCron(now = new Date()) {
           kind === "REMINDER"
             ? { title: `📚 ${g.name}: okuma hatırlatması`, body: `Bugünkü ${r.targetPages} sayfanı henüz bildirmedin. Son bildirim saati ${deadlineText}.`, tag: `rem-${g.id}` }
             : { title: `⏳ ${minsLeft} dakika kaldı · ${g.name}`, body: `Son bildirim ${deadlineText}. Okuduysan hemen bildir, yoksa ceza yazılacak!`, tag: `cd-${g.id}`, renotify: true };
-        return { userId: m.userId, msg: { ...msg, url: `/bildir/${g.id}?t=${encodeURIComponent(token)}`, token, actions: QUICK_ACTIONS } };
+        return { userId: m.userId, msg: { ...msg, url: `/bildir/${g.id}?t=${encodeURIComponent(token)}`, token, actions: DAY_ACTIONS } };
       }),
     );
     await notifyEach(items);
