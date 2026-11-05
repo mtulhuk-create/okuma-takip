@@ -51,3 +51,7 @@ next-env.d.ts
 .next
 .open-next
 .wrangler
+
+# Derlenmiş APK dosyaları (depoya eklenmez)
+/apk/
+*.apk
