@@ -80,7 +80,8 @@ export async function runCron(now = new Date()) {
     else if (g.reminderHours > 0 && minsLeft <= g.reminderHours * 60) kind = "REMINDER";
     if (!kind) continue;
 
-    const members = await db.groupMember.findMany({ where: { groupId: g.id, status: "ACTIVE", joinedAt: { lte: open.start } } });
+    // Gün başladıktan sonra katılanlar da hatırlatılır (ceza yazılmasa da bildirebilirler)
+    const members = await db.groupMember.findMany({ where: { groupId: g.id, status: "ACTIVE" } });
     if (!members.length) continue;
     const reported = new Set((await db.readingLog.findMany({ where: { groupId: g.id, dayKey: open.dayKey }, select: { userId: true } })).map((l) => l.userId));
     const sent = new Set((await db.notificationLog.findMany({ where: { groupId: g.id, key: open.dayKey, kind }, select: { userId: true } })).map((a) => a.userId));

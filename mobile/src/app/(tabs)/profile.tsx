@@ -2,14 +2,14 @@ import { useClerk } from "@clerk/expo";
 import * as Application from "expo-application";
 import * as Notifications from "expo-notifications";
 import { useEffect, useState } from "react";
-import { Alert, AppState, Linking, View } from "react-native";
+import { Alert, AppState, Linking, Switch, Text, View } from "react-native";
 import { NameSheet } from "@/components/name-sheet";
 import { Avatar, Body, Button, Card, ErrorView, H1, Loading, Muted, Row, Screen, Segmented, Stat, Title } from "@/components/ui";
 import { toast, useApi, useApiFetch } from "@/lib/api";
-import { exactAlarmsAllowed, requestExactAlarms, sendTestNotification, setupNotifications, syncSchedule } from "@/lib/notifications";
+import { exactAlarmsAllowed, getLastSync, getStickyPref, requestExactAlarms, scheduledSummary, sendTestNotification, setStickyPref, setupNotifications, syncSchedule } from "@/lib/notifications";
 import { useThemePref } from "@/lib/theme-pref";
 import { Bell, BookOpen, CalendarCheck, LogOut, Monitor, Moon, Palette, Pencil, Sun, Users, Wallet } from "lucide-react-native";
-import { useColors } from "@/lib/theme";
+import { fonts, useColors } from "@/lib/theme";
 import type { ProfileResponse } from "@/lib/types";
 
 export default function ProfileScreen() {
@@ -18,6 +18,8 @@ export default function ProfileScreen() {
   const [perm, setPerm] = useState<{ notif: boolean; exact: boolean } | null>(null);
   const { pref, setPref } = useThemePref();
   const [editName, setEditName] = useState(false);
+  const [sticky, setSticky] = useState(false);
+  const [status, setStatus] = useState<{ count: number; next: Date | null; error: string | null } | null>(null);
   const c = useColors();
 
   async function checkPerms() {
@@ -33,6 +35,8 @@ export default function ProfileScreen() {
       if (alive) setPerm({ notif: n.granted, exact });
     };
     check();
+    getStickyPref().then((v) => alive && setSticky(v));
+    refreshStatus();
     // Telefon ayarlarından dönünce izinleri yeniden kontrol et
     const sub = AppState.addEventListener("change", (st) => st === "active" && check());
     return () => {
@@ -40,6 +44,13 @@ export default function ProfileScreen() {
       sub.remove();
     };
   }, []);
+
+  /** Planı sunucudan alıp cihaza yeniden işler ve durumu gösterir */
+  async function refreshStatus(resync = false) {
+    if (resync) await syncSchedule(() => fetcher("/api/me/schedule")).catch(() => {});
+    const sum = await scheduledSummary();
+    setStatus({ ...sum, error: getLastSync()?.error ?? null });
+  }
 
   async function enableNotifications() {
     await setupNotifications().catch(() => {});
@@ -118,6 +129,38 @@ export default function ProfileScreen() {
           />
         )}
         {perm?.notif && perm.exact && <Body style={{ color: c.success }}>Bildirimler açık ve tam zamanında gelecek.</Body>}
+        {perm?.notif && (
+          <Row style={{ justifyContent: "space-between", borderTopWidth: 1, borderTopColor: c.border, paddingTop: 10 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontFamily: fonts.semibold, fontSize: 14, color: c.foreground }}>Bugünün kartı kilit ekranında</Text>
+              <Muted>Okuma günü boyunca bildirim panelinde ve kilit ekranında sabit durur; bildirince kalkar.</Muted>
+            </View>
+            <Switch
+              value={sticky}
+              onValueChange={async (v) => {
+                setSticky(v);
+                await setStickyPref(v);
+                await setupNotifications().catch(() => {});
+                await refreshStatus(true);
+              }}
+              trackColor={{ true: c.primary, false: c.muted }}
+              thumbColor="#fff"
+            />
+          </Row>
+        )}
+        {perm?.notif && status && (
+          <View style={{ backgroundColor: c.muted, borderRadius: 10, padding: 10, gap: 2 }}>
+            <Text style={{ fontFamily: fonts.semibold, fontSize: 12, color: c.foreground }}>
+              Bu cihazda planlı {status.count} bildirim
+              {status.next ? ` · sıradaki ${status.next.toLocaleString("tr-TR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}` : ""}
+            </Text>
+            {status.error ? <Text style={{ fontFamily: fonts.regular, fontSize: 11, color: c.destructive }}>{status.error}</Text> : null}
+            {status.count === 0 && !status.error ? <Muted style={{ fontSize: 11 }}>Bugün için bildirecek okuma kalmadıysa normaldir.</Muted> : null}
+            <Text onPress={() => refreshStatus(true)} style={{ fontFamily: fonts.semibold, fontSize: 12, color: c.primary, marginTop: 2 }}>
+              Yeniden planla
+            </Text>
+          </View>
+        )}
         {perm?.notif && (
           <Button
             title="Deneme bildirimi gönder"
