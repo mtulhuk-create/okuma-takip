@@ -1,6 +1,6 @@
-# Okuma hatirlatmalari, geri sayim bildirimleri, ceza hesaplama ve vade kontrolu.
-# Vercel Hobby planinda cron gunde bir kez calistigi icin 5 dakikada bir buradan tetiklenir.
-name: cron
+# Okuma hatırlatmaları, geri sayım bildirimleri, ceza hesaplama ve vade kontrolü.
+# Vercel Hobby planında cron günde bir kez çalıştığı için 5 dakikada bir buradan tetiklenir.
+name: Zamanlanmış görevler
 on:
   schedule:
     - cron: "*/5 * * * *"
@@ -14,4 +14,5 @@ jobs:
         env:
           APP_URL: ${{ secrets.APP_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
-        run: curl -fsS --max-time 90 -H "Authorization: Bearer $CRON_SECRET" "$APP_URL/api/cron"
+        run: |
+          curl -fsS --max-time 90 -H "Authorization: Bearer $CRON_SECRET" "$APP_URL/api/cron"
