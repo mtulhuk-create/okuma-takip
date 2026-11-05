@@ -1,16 +1,16 @@
-# Okuma hatırlatmaları, geri sayım bildirimleri, ceza hesaplama ve vade kontrolü.
-# Vercel Hobby planında cron günde bir kez çalıştığı için 5 dakikada bir buradan tetiklenir.
-name: Zamanlanmış görevler
+# Okuma hatirlatmalari, geri sayim bildirimleri, ceza hesaplama ve vade kontrolu.
+# Vercel Hobby planinda cron gunde bir kez calistigi icin 5 dakikada bir buradan tetiklenir.
+name: cron
 on:
   schedule:
     - cron: "*/5 * * * *"
-  workflow_dispatch:
+  workflow_dispatch: {}
 jobs:
-  cron:
+  ping:
     runs-on: ubuntu-latest
-    timeout-minutes: 2
+    timeout-minutes: 3
     steps:
-      - name: /api/cron çağır
+      - name: Call cron endpoint
         env:
           APP_URL: ${{ secrets.APP_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
