@@ -26,6 +26,10 @@ const ACTIONS: Record<string, Fn> = {
   resolvePayment: wrap(actions.resolvePayment),
   waivePenalty: wrap(actions.waivePenalty),
   markAllRead: wrap(actions.markAllRead),
+  markNotificationsSeen: async () => {
+    await actions.markNotificationsSeen();
+    return { ok: true };
+  },
   sendMessage: wrap(actions.sendMessage),
   createPoll: wrap(actions.createPoll),
   votePoll: wrap(actions.votePoll),

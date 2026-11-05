@@ -35,7 +35,7 @@ export default function AdminScreen() {
   const [openMember, setOpenMember] = useState<string | null>(null);
   const [dueDates, setDueDates] = useState<Record<string, Date>>({});
   const [deleteText, setDeleteText] = useState("");
-  const [defaultDue] = useState(() => new Date(Date.now() + 3 * 86_400_000));
+  const [fallbackDue] = useState(() => new Date(Date.now() + 3 * 86_400_000));
   if (isLoading) return <Loading />;
   if (error || !data) return <ErrorView message={error?.message ?? "Yüklenemedi"} onRetry={refetch} />;
   const { group, members, requests, invites, dues, unpaidPenalties, money, teamChanges } = data;
@@ -66,7 +66,7 @@ export default function AdminScreen() {
             const mm = money[m.userId];
             const removable = m.userId !== group.ownerId;
             const open = openMember === m.id;
-            const dueAt = dueDates[m.userId] ?? defaultDue;
+            const dueAt = dueDates[m.userId] ?? (data.defaultDueAt ? new Date(data.defaultDueAt) : fallbackDue);
             return (
               <View key={m.id} style={{ padding: 12, gap: 10, borderTopWidth: i ? 1 : 0, borderTopColor: c.border }}>
                 <Pressable onPress={() => setOpenMember(open ? null : m.id)}>

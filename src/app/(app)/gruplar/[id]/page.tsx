@@ -8,7 +8,6 @@ import { GroupRules } from "@/components/group-rules";
 import { TeamSelect } from "@/components/team-select";
 import { requireUser } from "@/lib/auth";
 import { getChatPage } from "@/lib/chat";
-import { getDb } from "@/lib/db";
 import { getGroupDetail } from "@/lib/queries";
 import { teamsActive } from "@/lib/rules";
 
@@ -18,10 +17,7 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
   const page = await getChatPage(id, user.id);
   if (!page) notFound();
 
-  if (page.me) {
-    const due = await getDb().paymentDue.findFirst({ where: { groupId: id, userId: user.id, status: "PENDING" }, select: { amount: true } });
-    return <ChatView initial={page} dueBanner={due} />;
-  }
+  if (page.me) return <ChatView initial={page} />;
 
   // ---- Üye olmayan görünüm ----
   const detail = (await getGroupDetail(id, user.id))!;

@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { BookOpen, Check, CheckCheck, ChevronRight, Clock, Lock, X, type LucideIcon } from "lucide-react-native";
+import { BookOpen, Check, CheckCheck, ChevronRight, Clock, Lock, Wallet, X, type LucideIcon } from "lucide-react-native";
 import { useState } from "react";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import { useAction } from "@/lib/api";
@@ -146,6 +146,22 @@ export function ReportControls({ groupId, card, compact, onDone }: { groupId: st
   );
 }
 
+/** O günün toplam cezası: gün kapanınca kesin, açıkken şu ana kadarki bildirimlere göre */
+function PenaltyPill({ card }: { card: Card }) {
+  const c = useColors();
+  if (card.penaltyTotal == null) return null; // eski sunucu
+  const total = card.penaltyTotal;
+  const color = total ? c.destructive : c.mutedForeground;
+  const label = card.penaltyFinal ? "toplam ceza" : card.open ? "ceza (şu ana kadar)" : "ceza (hesaplanıyor)";
+  return (
+    <Row gap={4} style={{ alignSelf: "flex-start", backgroundColor: total ? c.destructive + "1a" : c.muted, borderRadius: 99, paddingHorizontal: 8, paddingVertical: 2 }}>
+      <Wallet size={11} color={color} />
+      <Text style={{ fontFamily: fonts.bold, fontSize: 11, color }}>{total} TL</Text>
+      <Text style={{ fontFamily: fonts.regular, fontSize: 11, color }}>{label}</Text>
+    </Row>
+  );
+}
+
 /** Süre / kapandı göstergesi */
 function DeadlinePill({ card, withClock }: { card: Card; withClock?: boolean }) {
   const c = useColors();
@@ -268,6 +284,7 @@ export function DayCardFull({ card, groupId, onReported, highlight }: { card: Ca
         </Row>
       )}
       <CategoryChips card={card} interactive />
+      <PenaltyPill card={card} />
       {card.open && card.me && (
         <View style={{ gap: 6, borderTopWidth: 1, borderTopColor: c.border, paddingTop: 8 }}>
           {(card.me.teamName || !card.me.eligible) && (
@@ -302,8 +319,9 @@ export function DayCardMini({ card, groupId, groupName }: { card: Card; groupId:
         <DeadlinePill card={card} />
       </Row>
       <Row gap={6}>
-        <View style={{ flex: 1 }}>
+        <View style={{ flex: 1, gap: 6 }}>
           <CategoryChips card={card} />
+          <PenaltyPill card={card} />
         </View>
         <ChevronRight size={16} color={c.mutedForeground} />
       </Row>
@@ -314,5 +332,61 @@ export function DayCardMini({ card, groupId, groupName }: { card: Card; groupId:
         </>
       )}
     </Pressable>
+  );
+}
+
+/** Sohbette gün kartı ekranda değilken başlığın altında duran kısayol: temel bilgi + temel butonlar */
+export function DayShortcut({ card, groupId, onJump, onReported }: { card: Card; groupId: string; onJump: () => void; onReported?: () => void }) {
+  const c = useColors();
+  const action = useAction();
+  const total = card.read.length + card.min.length + card.none.length + card.pending.length;
+  const done = card.read.length + card.min.length;
+  const me = card.me;
+  const myState = me?.pages == null ? null : me.pages >= me.target ? "read" : me.pages >= me.min && me.pages > 0 ? "min" : "none";
+  const btns: { choice: string; state: string; label: string; Icon: LucideIcon; color: string }[] = [
+    { choice: "all", state: "read", label: "Okudum", Icon: CheckCheck, color: c.success },
+    { choice: "min", state: "min", label: "Alt sınır", Icon: Check, color: c.warning },
+    { choice: "none", state: "none", label: "Okumadım", Icon: X, color: c.destructive },
+  ];
+  const busy = (k: string) => action.isPending && action.variables?.body?.key === `sc-${k}`;
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: c.card, borderBottomWidth: 1, borderBottomColor: c.border, paddingHorizontal: 10, paddingVertical: 6 }}>
+      <Pressable onPress={onJump} style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 8 }} accessibilityLabel="Gün kartına git">
+        <View style={{ width: 30, height: 30, borderRadius: 8, backgroundColor: c.primary + "1a", alignItems: "center", justifyContent: "center" }}>
+          <BookOpen size={15} color={c.primary} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text numberOfLines={1} style={{ fontFamily: fonts.bold, fontSize: 12, color: c.foreground }}>
+            {formatDayLong(card.dayKey)}
+          </Text>
+          <Row gap={4}>
+            {card.open ? <Countdown to={card.deadline} style={{ fontSize: 11 }} /> : <Text style={{ fontFamily: fonts.regular, fontSize: 11, color: c.mutedForeground }}>Kapandı</Text>}
+            <Text style={{ fontFamily: fonts.regular, fontSize: 11, color: c.mutedForeground }}>
+              · {done}/{total} okudu
+            </Text>
+          </Row>
+        </View>
+      </Pressable>
+      {card.open && me ? (
+        <Row gap={4}>
+          {btns.map((b) => {
+            const on = myState === b.state;
+            return (
+              <Pressable
+                key={b.choice}
+                disabled={action.isPending}
+                accessibilityLabel={b.label}
+                onPress={() => action.mutate({ name: "reportReading", body: { groupId, choice: b.choice, key: `sc-${b.choice}` } }, { onSuccess: () => onReported?.() })}
+                style={{ height: 32, minWidth: 34, paddingHorizontal: 7, borderRadius: 8, borderWidth: 1, borderColor: on ? b.color : c.border, backgroundColor: on ? b.color : c.card, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 3 }}
+              >
+                {busy(b.choice) ? <ActivityIndicator size="small" color={on ? "#fff" : b.color} /> : <b.Icon size={14} color={on ? "#fff" : b.color} strokeWidth={2.6} />}
+              </Pressable>
+            );
+          })}
+        </Row>
+      ) : (
+        <ChevronRight size={16} color={c.mutedForeground} />
+      )}
+    </View>
   );
 }

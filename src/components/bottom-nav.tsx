@@ -3,6 +3,7 @@
 import { Bell, BookOpen, User, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 
 const items = [
   { href: "/panel", label: "Bugün", Icon: BookOpen },
@@ -16,6 +17,13 @@ const CHAT = /^\/gruplar\/(?!yeni$)[^/]+$/;
 
 export function BottomNav({ unread }: { unread: number }) {
   const pathname = usePathname();
+  // Bildirimler açılınca rozet hemen sıfırlanır (sunucu da okundu işaretler); yeni bildirim gelirse yeniden görünür
+  const onNotes = pathname.startsWith("/bildirimler");
+  const [seen, setSeen] = useState<number | null>(null);
+  useEffect(() => {
+    if (onNotes) setSeen(unread);
+  }, [onNotes, unread]);
+  const badge = onNotes || unread === seen ? 0 : unread;
   if (CHAT.test(pathname)) return null;
   return (
     <nav className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/90 backdrop-blur-lg">
@@ -35,9 +43,9 @@ export function BottomNav({ unread }: { unread: number }) {
                   <Icon className="size-5" strokeWidth={active ? 2.4 : 2} />
                 </span>
                 {label}
-                {href === "/bildirimler" && unread > 0 && (
+                {href === "/bildirimler" && badge > 0 && (
                   <span className="absolute left-1/2 top-1.5 ml-2 min-w-4 rounded-full bg-destructive px-1 text-center text-[10px] leading-4 text-white">
-                    {unread > 99 ? "99+" : unread}
+                    {badge > 99 ? "99+" : badge}
                   </span>
                 )}
               </Link>

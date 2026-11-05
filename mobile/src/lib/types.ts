@@ -29,6 +29,7 @@ export type Group = Rules & {
   startMinute: number;
   deadlineMinute: number;
   reminderHours: number;
+  dueOffsetDays?: number;
   tzOffset: number;
 };
 
@@ -55,6 +56,9 @@ export type DayCard = {
   none: DayPerson[];
   pending: DayPerson[];
   me: { eligible: boolean; pages: number | null; target: number; min: number; teamName: string | null; books: BookLog[] } | null;
+  /** O günün toplam cezası (eski sunucuda yok) */
+  penaltyTotal?: number;
+  penaltyFinal?: boolean;
 };
 
 export type Stats = { read: number; min: number; none: number; pages: number };
@@ -71,7 +75,11 @@ export type Due = { id: string; userId: string; amount: number; dueAt: string; s
 export type MeResponse = {
   user: Me;
   badge: number;
-  money: { unpaidTotal: number; dues: (Due & { groupId: string; group: { name: string; tzOffset: number } })[] };
+  money: {
+    unpaidTotal: number;
+    dues: (Due & { groupId: string; group: { name: string; tzOffset: number } })[];
+    debts?: Debt[];
+  };
   groups: {
     group: Pick<Group, "id" | "name" | "startMinute" | "deadlineMinute" | "visibility">;
     role: Member["role"];
@@ -83,9 +91,25 @@ export type MeResponse = {
 };
 
 type GroupWithCount = Group & { _count: { members: number } };
+type TeamRules = Pick<Rules, "targetPages" | "minPages" | "penaltyMode" | "penaltyAmount" | "minDiscount"> & { id: string; name: string; books?: unknown };
+export type GroupToday = {
+  groupId: string;
+  dayKey: string;
+  deadline: string;
+  open: boolean;
+  reported: number;
+  myPages: number | null;
+  myTarget: number;
+  myMin: number;
+  teamName: string | null;
+  penalty: string;
+  debt: number;
+};
 export type GroupsResponse = {
-  mine: { role: Member["role"]; teamId: string | null; group: GroupWithCount }[];
-  publicGroups: (GroupWithCount & { owner: { name: string }; teams: { id: string; name: string }[] })[];
+  mine: { role: Member["role"]; teamId: string | null; group: GroupWithCount & { teams?: TeamRules[] } }[];
+  /** Eski sunucuda yok */
+  today?: GroupToday[];
+  publicGroups: (GroupWithCount & { owner: { name: string }; teams: TeamRules[] })[];
   requestedIds: string[];
 };
 
@@ -112,6 +136,8 @@ export type GroupDetailResponse =
 
 export type AdminResponse = {
   group: Group;
+  /** Grubun varsayılan vadesi (ay sonu ± gün); eski sunucuda yok */
+  defaultDueAt?: string;
   members: Member[];
   requests: { id: string; message: string | null; teamId: string | null; user: PublicUser }[];
   teamChanges: { id: string; userId: string; user: PublicUser; team: { name: string } }[];
@@ -145,9 +171,20 @@ export type ChatMessage = {
   pending?: boolean;
   failed?: boolean;
 };
+export type Debt = { group: { id: string; name: string; iban: string; ibanName: string }; amount: number; due: { id: string; amount: number; dueAt: string; status: DueStatus } | null };
+export type GroupCash = {
+  expected: number;
+  myDebt: number;
+  myDue: { id: string; amount: number; dueAt: string; status: DueStatus } | null;
+  defaultDueAt: string;
+  iban: string;
+  ibanName: string;
+};
 export type ChatResponse = {
   cursor: number;
-  group: { id: string; name: string; chatPolicy: "ALL" | "ADMINS"; memberCount: number; deadlineMinute: number };
+  group: { id: string; name: string; chatPolicy: "ALL" | "ADMINS"; memberCount: number; deadlineMinute: number; today?: string };
+  kasa?: GroupCash | null;
+  todayCard?: DayCard | null;
   me: { userId: string; role: Member["role"]; canPost: boolean };
   messages: ChatMessage[];
   hasMore: boolean;

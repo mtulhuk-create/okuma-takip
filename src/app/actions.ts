@@ -33,9 +33,11 @@ function validateRules(r: Record<string, unknown>, label = ""): RulesInput {
   try {
     rawBooks = Array.isArray(r.books) ? r.books : typeof r.books === "string" ? JSON.parse(r.books) : [];
   } catch {}
-  const books: BookInput[] = rawBooks.slice(0, 10).map((b, i) => {
+  // Adı boş bırakılmış fazladan eser satırları yok sayılır; hiç adlı eser yoksa uyarılır
+  const named = rawBooks.filter((b) => String(b.title ?? "").trim());
+  if (rawBooks.length && !named.length) throw new Error(`${label}En az bir eserin adını yazın`);
+  const books: BookInput[] = named.slice(0, 10).map((b) => {
     const title = String(b.title ?? "").trim().slice(0, 80);
-    if (!title) throw new Error(`${label}${i + 1}. eserin adını yazın`);
     const t = num(b.targetPages, 1, 2000, `"${title}" günlük hedefi`);
     const m = num(b.minPages, 0, 2000, `"${title}" alt sınırı`);
     if (m > t) throw new Error(`${label}"${title}" için alt sınır hedeften büyük olamaz`);
@@ -55,9 +57,12 @@ function validateRules(r: Record<string, unknown>, label = ""): RulesInput {
 }
 
 type TeamInput = RulesInput & { id?: string; name: string };
+const rulesOf = ({ penaltyMode, targetPages, minPages, penaltyAmount, minDiscount, books }: RulesInput): RulesInput => ({ penaltyMode, targetPages, minPages, penaltyAmount, minDiscount, books });
 
 function parseTeams(fd: FormData): { enabled: boolean; teams: TeamInput[] } {
   const enabled = str(fd, "teamsEnabled") === "1";
+  // Ekipler kapalıyken formda kalmış ekip taslakları doğrulanmaz ve kaydedilmez
+  if (!enabled) return { enabled, teams: [] };
   let raw: Record<string, unknown>[] = [];
   try {
     raw = JSON.parse(String(fd.get("teams") ?? "[]"));
@@ -84,7 +89,8 @@ async function saveTeams(groupId: string, teams: TeamInput[]) {
   }
 }
 
-function parseGroupForm(fd: FormData) {
+/** Ekipler açıkken grup düzeyindeki kurallar formda gizlidir; ilk ekibin kuralları kullanılır. */
+function parseGroupForm(fd: FormData, teamRules?: RulesInput) {
   const name = str(fd, "name", 80);
   if (name.length < 3) throw new Error("Grup adı en az 3 karakter olmalı");
   const startMinute = timeToMinute(str(fd, "startTime"));
@@ -98,20 +104,22 @@ function parseGroupForm(fd: FormData) {
     description: str(fd, "description", 500) || null,
     visibility: str(fd, "visibility") === "PUBLIC" ? ("PUBLIC" as const) : ("PRIVATE" as const),
     chatPolicy: str(fd, "chatPolicy") === "ADMINS" ? ("ADMINS" as const) : ("ALL" as const),
-    ...validateRules({
+    ...(teamRules ?? validateRules({
       penaltyMode,
       targetPages: fd.get("targetPages"),
       minPages: fd.get("minPages"),
       penaltyAmount: fd.get("penaltyAmount"),
       minDiscount: fd.get("minDiscount"),
       books: fd.get("books"),
-    }),
+    })),
     shareProgress: str(fd, "shareProgress") === "1",
     iban,
     ibanName: str(fd, "ibanName", 80),
     startMinute,
     deadlineMinute,
     reminderHours: int(fd, "reminderHours", 0, 23, "Uyarı süresi"),
+    // Eski istemciler göndermezse ay sonu (0) kalır
+    dueOffsetDays: fd.get("dueOffsetDays") == null || fd.get("dueOffsetDays") === "" ? undefined : int(fd, "dueOffsetDays", -25, 25, "Vade kaydırma"),
   };
 }
 
@@ -148,8 +156,8 @@ export async function createGroup(_: Prev, fd: FormData) {
 export async function createGroupState(fd: FormData) {
   return run(async () => {
     const user = await actionUser();
-    const data = parseGroupForm(fd);
     const { enabled, teams } = parseTeams(fd);
+    const data = parseGroupForm(fd, enabled ? rulesOf(teams[0]) : undefined);
     const db = getDb();
     const g = await db.group.create({ data: { ...data, teamsEnabled: enabled, ownerId: user.id } });
     if (teams.length) await saveTeams(g.id, teams);
@@ -164,11 +172,13 @@ export async function updateGroup(_: Prev, fd: FormData) {
   return run(async () => {
     const groupId = str(fd, "groupId");
     await requireAdmin(groupId);
-    const data = parseGroupForm(fd);
     const { enabled, teams } = parseTeams(fd);
+    const data = parseGroupForm(fd, enabled ? rulesOf(teams[0]) : undefined);
     const db = getDb();
     await db.group.update({ where: { id: groupId }, data: { ...data, teamsEnabled: enabled } });
     if (enabled || teams.length) await saveTeams(groupId, teams);
+    // Sohbeti ve gün kartlarını açık olanlar yeni kuralları (eser adları vb.) hemen görsün
+    await publish(groupId, { type: "refresh", reason: "settings" });
     refresh();
     return "Ayarlar kaydedildi";
   });
@@ -233,6 +243,7 @@ export async function leaveGroupState(fd: FormData) {
       if (admins <= 1) throw new Error("Ayrılmadan önce başka bir üyeyi yönetici yapın");
     }
     await db.groupMember.update({ where: { id: m.id }, data: { status: "LEFT", leftAt: new Date() } });
+    await publish(groupId, { type: "refresh", reason: "members" });
     refresh();
     return "Gruptan ayrıldın";
   });
@@ -308,6 +319,7 @@ export async function respondJoinRequest(_: Prev, fd: FormData) {
         : { title: `${g.name}`, body: "Katılım isteğin reddedildi.", url: "/gruplar" },
       { inApp: true },
     );
+    await publish(req.groupId, { type: "refresh", reason: "members" });
     refresh();
     return accept ? "Üye kabul edildi" : "İstek reddedildi";
   });
@@ -360,6 +372,7 @@ export async function respondInvite(_: Prev, fd: FormData) {
       await notifyUsers(await groupAdminIds(g.id), { title: `${g.name}`, body: `${user.name} davetini kabul etti.`, url: `/gruplar/${g.id}` }, { inApp: true });
     }
     await db.invitation.update({ where: { id: inv.id }, data: { status: accept ? "ACCEPTED" : "DECLINED" } });
+    await publish(inv.groupId, { type: "refresh", reason: "members" });
     refresh();
     return accept ? "Gruba katıldın 🎉" : "Davet reddedildi";
   });
@@ -376,6 +389,7 @@ export async function removeMember(_: Prev, fd: FormData) {
     if (m.userId === m.group.ownerId) throw new Error("Grup kurucusu çıkarılamaz");
     await db.groupMember.update({ where: { id: m.id }, data: { status: "REMOVED", leftAt: new Date() } });
     await notifyUsers([m.userId], { title: m.group.name, body: "Yönetici seni gruptan çıkardı.", url: "/gruplar" }, { inApp: true });
+    await publish(m.groupId, { type: "refresh", reason: "members" });
     refresh();
     return "Üye çıkarıldı";
   });
@@ -431,6 +445,7 @@ export async function createDue(_: Prev, fd: FormData) {
       },
       { inApp: true },
     );
+    await publish(groupId, { type: "refresh", reason: "money" });
     refresh();
     return `${amount} TL için vade oluşturuldu`;
   });
@@ -453,6 +468,7 @@ export async function submitPayment(_: Prev, fd: FormData) {
       { title: `💳 ${due.group.name}: ödeme bildirimi`, body: `${user.name} ${due.amount} TL ödediğini bildirdi. Onayınız bekleniyor.`, url: `/gruplar/${due.groupId}/yonetim` },
       { inApp: true },
     );
+    await publish(due.groupId, { type: "refresh", reason: "money" });
     refresh();
     return "Ödeme bildirildi, yönetici onayı bekleniyor";
   });
@@ -469,6 +485,7 @@ export async function resolvePayment(_: Prev, fd: FormData) {
       await db.paymentDue.update({ where: { id: due.id }, data: { status: "CONFIRMED", resolvedAt: new Date() } });
       await db.penalty.updateMany({ where: { dueId: due.id }, data: { status: "PAID" } });
       await notifyUsers([due.userId], { title: `✅ ${due.group.name}`, body: `${due.amount} TL ödemen onaylandı. Teşekkürler!`, url: `/gruplar/${due.groupId}` }, { inApp: true });
+      await publish(due.groupId, { type: "refresh", reason: "money" });
       refresh();
       return "Ödeme onaylandı";
     }
@@ -480,6 +497,7 @@ export async function resolvePayment(_: Prev, fd: FormData) {
         { title: `⚠️ ${due.group.name}`, body: `Ödemen yönetici tarafından görülmedi/onaylanmadı. Vade: ${formatDateTime(due.dueAt, due.group.tzOffset)}.`, url: `/gruplar/${due.groupId}` },
         { inApp: true },
       );
+      await publish(due.groupId, { type: "refresh", reason: "money" });
       refresh();
       return "Ödeme bildirimi reddedildi";
     }
@@ -488,6 +506,7 @@ export async function resolvePayment(_: Prev, fd: FormData) {
       await db.paymentDue.update({ where: { id: due.id }, data: { status: "CANCELLED", resolvedAt: new Date() } });
       await db.penalty.updateMany({ where: { dueId: due.id }, data: { status: "UNPAID", dueId: null } });
       await notifyUsers([due.userId], { title: due.group.name, body: "Ceza ödeme vaden iptal edildi.", url: `/gruplar/${due.groupId}` }, { inApp: true });
+      await publish(due.groupId, { type: "refresh", reason: "money" });
       refresh();
       return "Vade iptal edildi";
     }
@@ -502,9 +521,16 @@ export async function waivePenalty(_: Prev, fd: FormData) {
     await requireAdmin(p.groupId);
     if (p.status !== "UNPAID") throw new Error("Yalnızca vadesi oluşturulmamış cezalar affedilebilir");
     await db.penalty.update({ where: { id: p.id }, data: { status: "WAIVED" } });
+    await publish(p.groupId, { type: "refresh", reason: "money" });
     refresh();
     return "Ceza affedildi";
   });
+}
+
+/** Bildirimler sayfası açılınca: sayfayı yeniden çizmeden okundu işaretler */
+export async function markNotificationsSeen() {
+  const user = await actionUser();
+  await getDb().notification.updateMany({ where: { userId: user.id, read: false }, data: { read: true } });
 }
 
 export async function markAllRead(_: Prev, _fd: FormData) {
@@ -642,6 +668,7 @@ export async function respondTeamChange(_: Prev, fd: FormData) {
       { title: req.group.name, body: accept ? `${req.team.name} ekibine geçişin onaylandı.` : `${req.team.name} ekibine geçiş isteğin reddedildi.`, url: `/gruplar/${req.groupId}/bilgi` },
       { inApp: true },
     );
+    await publish(req.groupId, { type: "refresh", reason: "members" });
     refresh();
     return accept ? "Ekip değişikliği onaylandı" : "İstek reddedildi";
   });
@@ -656,6 +683,7 @@ export async function setMemberTeam(_: Prev, fd: FormData) {
     const { teamId } = await resolveTeam(m.groupId, str(fd, "teamId"));
     await db.groupMember.update({ where: { id: m.id }, data: { teamId } });
     await db.teamChangeRequest.updateMany({ where: { groupId: m.groupId, userId: m.userId, status: "PENDING" }, data: { status: "CANCELLED" } });
+    await publish(m.groupId, { type: "refresh", reason: "members" });
     refresh();
     return "Ekip güncellendi";
   });

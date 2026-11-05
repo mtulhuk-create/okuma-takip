@@ -102,7 +102,7 @@ export default async function AdminPage({ params, searchParams }: { params: Prom
                             <p className="flex items-center gap-1.5 text-xs font-semibold">
                               <Receipt className="size-3.5" /> {mm.unpaid} TL için son ödeme tarihi
                             </p>
-                            <input type="datetime-local" name="dueAt" defaultValue={localInputValue(new Date(Date.now() + 3 * DAY), group.tzOffset)} className="input h-9" required />
+                            <input type="datetime-local" name="dueAt" defaultValue={localInputValue(data.defaultDueAt, group.tzOffset)} className="input h-9" required />
                             <SubmitButton className="btn-primary btn-sm w-full">Vade ver</SubmitButton>
                           </ActionForm>
                         ) : null}

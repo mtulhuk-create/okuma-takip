@@ -111,6 +111,8 @@ function TeamCard({ team, index, canRemove, onChange, onRemove }: { team: TeamDr
   );
 }
 
+const dueOffsetText = (d: number) => (d === 0 ? "Her ayın son günü" : d < 0 ? `Ay sonundan ${-d} gün önce` : `Ay sonundan ${d} gün sonra`);
+
 export function GroupForm({ group }: { group?: Group & { teams?: Team[] } }) {
   const [visibility, setVisibility] = useState<"PRIVATE" | "PUBLIC">(group?.visibility ?? "PRIVATE");
   const [chatPolicy, setChatPolicy] = useState<"ALL" | "ADMINS">(group?.chatPolicy ?? "ALL");
@@ -124,6 +126,7 @@ export function GroupForm({ group }: { group?: Group & { teams?: Team[] } }) {
   const [deadline, setDeadline] = useState(group?.deadlineMinute ?? 1439);
   const [reminderHours, setReminderHours] = useState(group?.reminderHours ?? 2);
   const [iban, setIban] = useState(group?.iban ?? "");
+  const [dueOffset, setDueOffset] = useState(group?.dueOffsetDays ?? 0);
 
   const nextDay = deadline <= start;
   const newTeam = (n: number): TeamDraft => ({
@@ -154,6 +157,7 @@ export function GroupForm({ group }: { group?: Group & { teams?: Team[] } }) {
       <input type="hidden" name="startTime" value={minuteToTime(start)} />
       <input type="hidden" name="deadlineTime" value={minuteToTime(deadline)} />
       <input type="hidden" name="reminderHours" value={reminderHours} />
+      <input type="hidden" name="dueOffsetDays" value={dueOffset} />
 
       <Section Icon={PencilLine} title="Temel bilgiler">
         <div>
@@ -272,6 +276,21 @@ export function GroupForm({ group }: { group?: Group & { teams?: Team[] } }) {
         <div>
           <label className="label">Alıcı adı soyadı</label>
           <input name="ibanName" className="input" defaultValue={group?.ibanName} />
+        </div>
+        <div>
+          <label className="label">Varsayılan ödeme vadesi</label>
+          <div className="flex items-center gap-2">
+            <button type="button" className="btn-ghost size-10 p-0 text-lg" onClick={() => setDueOffset((d) => Math.max(-25, d - 1))} aria-label="Bir gün öne al">
+              −
+            </button>
+            <div className="flex-1 rounded-lg border border-border bg-card px-3 py-2 text-center">
+              <p className="text-sm font-semibold">{dueOffsetText(dueOffset)}</p>
+              <p className="text-[11px] text-muted-foreground">Vade verirken bu tarih önerilir, istersen değiştirirsin</p>
+            </div>
+            <button type="button" className="btn-ghost size-10 p-0 text-lg" onClick={() => setDueOffset((d) => Math.min(25, d + 1))} aria-label="Bir gün ertele">
+              +
+            </button>
+          </div>
         </div>
       </Section>
 

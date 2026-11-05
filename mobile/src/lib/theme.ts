@@ -22,6 +22,11 @@ const light = {
   dangerBg: "#fee2e2",
   info: "#0369a1",
   infoBg: "#e0f2fe",
+  // Sohbet
+  chatBg: "#f1ebe4",
+  chatMine: "#f6dcd6",
+  chatMineFg: "#3b1a14",
+  chatPattern: "#a0522d14",
 };
 
 const dark: typeof light = {
@@ -45,6 +50,10 @@ const dark: typeof light = {
   dangerBg: "#450a0a",
   info: "#7dd3fc",
   infoBg: "#082f49",
+  chatBg: "#161311",
+  chatMine: "#6b2420",
+  chatMineFg: "#faf3ef",
+  chatPattern: "#ffffff0d",
 };
 
 export type Colors = typeof light;

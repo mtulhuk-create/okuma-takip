@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, Check, CheckCheck, ChevronRight, Clock, Lock, X } from "lucide-react";
+import { BookOpen, Check, CheckCheck, ChevronRight, Clock, Lock, Wallet, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { reportReading } from "@/app/actions";
@@ -120,6 +120,20 @@ function Spinner() {
   return <span className="size-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />;
 }
 
+/** O günün toplam cezası: gün kapanınca kesin, açıkken şu ana kadarki bildirimlere göre */
+function PenaltyPill({ card }: { card: Card }) {
+  const total = card.penaltyTotal ?? 0;
+  const label = card.penaltyFinal ? "toplam ceza" : card.open ? "ceza (şu ana kadar)" : "ceza (hesaplanıyor)";
+  return (
+    <span
+      title={card.open ? "Bildirmeyenler gün sonunda eklenir" : undefined}
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${total ? "bg-rose-500/10 text-rose-700 dark:text-rose-400" : "bg-muted text-muted-foreground"}`}
+    >
+      <Wallet className="size-3" /> {total} TL <span className="font-normal opacity-80">{label}</span>
+    </span>
+  );
+}
+
 /** Süre / kapandı göstergesi */
 function DeadlinePill({ card, withClock }: { card: Card; withClock?: boolean }) {
   if (!card.open)
@@ -219,6 +233,7 @@ export function DayCardFull({ card, groupId, onReported }: { card: Card; groupId
         </div>
       )}
       <CategoryChips card={card} interactive />
+      <PenaltyPill card={card} />
       {card.open && card.me && (
         <div className="space-y-1.5 border-t border-border pt-2.5">
           {(card.me.teamName || !card.me.eligible) && (
@@ -256,8 +271,9 @@ export function DayCardMini({ card, groupId, groupName }: { card: Card; groupId:
         <DeadlinePill card={card} />
       </div>
       <div className="flex items-center gap-2">
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 space-y-1.5">
           <CategoryChips card={card} />
+          <PenaltyPill card={card} />
         </div>
         <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
       </div>
@@ -266,6 +282,74 @@ export function DayCardMini({ card, groupId, groupName }: { card: Card; groupId:
           {!card.me.eligible && <p className="text-[11px] text-muted-foreground">Bugün katıldığın için ceza yazılmaz</p>}
           <ReportControls groupId={groupId} card={card} compact />
         </>
+      )}
+    </div>
+  );
+}
+
+/** Sohbette gün kartı ekranda değilken başlığın altında duran kısayol: temel bilgi + temel butonlar */
+export function DayShortcut({ card, groupId, onJump, onReported }: { card: Card; groupId: string; onJump: () => void; onReported?: () => void }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [busy, setBusy] = useState<string | null>(null);
+  const total = card.read.length + card.min.length + card.none.length + card.pending.length;
+  const done = card.read.length + card.min.length;
+  const me = card.me;
+  const myState = me?.pages == null ? null : me.pages >= me.target ? "read" : me.pages >= me.min && me.pages > 0 ? "min" : "none";
+
+  function send(choice: Choice) {
+    setBusy(choice);
+    start(async () => {
+      const fd = new FormData();
+      fd.set("groupId", groupId);
+      fd.set("choice", choice);
+      await reportReading(null, fd);
+      setBusy(null);
+      onReported ? onReported() : router.refresh();
+    });
+  }
+
+  const btns: { key: Choice; state: string; label: string; Icon: typeof Check; on: string }[] = [
+    { key: "all", state: "read", label: "Okudum", Icon: CheckCheck, on: "bg-emerald-600 text-white border-emerald-600" },
+    { key: "min", state: "min", label: "Alt sınır", Icon: Check, on: "bg-amber-500 text-white border-amber-500" },
+    { key: "none", state: "none", label: "Okumadım", Icon: X, on: "bg-rose-600 text-white border-rose-600" },
+  ];
+
+  return (
+    <div className="flex items-center gap-2 border-b border-border bg-card/95 px-3 py-1.5 backdrop-blur">
+      <button onClick={onJump} className="flex min-w-0 flex-1 items-center gap-2 text-left" aria-label="Gün kartına git">
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <BookOpen className="size-4" />
+        </span>
+        <span className="min-w-0 leading-tight">
+          <span className="block truncate text-xs font-bold">{formatDayLong(card.dayKey)}</span>
+          <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+            {card.open ? <Countdown to={card.deadline} className="font-semibold" /> : "Kapandı"}
+            <span>·</span>
+            <span>
+              {done}/{total} okudu
+            </span>
+          </span>
+        </span>
+      </button>
+      {card.open && me ? (
+        <div className="flex shrink-0 gap-1">
+          {btns.map(({ key, state, label, Icon, on }) => (
+            <button
+              key={key}
+              disabled={pending}
+              onClick={() => send(key)}
+              aria-pressed={myState === state}
+              title={label}
+              className={`flex h-8 items-center gap-1 rounded-lg border px-2 text-[11px] font-semibold transition-colors disabled:opacity-60 ${myState === state ? on : "border-border bg-card hover:bg-muted"}`}
+            >
+              {busy === key ? <Spinner /> : <Icon className="size-3.5" strokeWidth={2.5} />}
+              <span className="hidden min-[400px]:inline">{label}</span>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
       )}
     </div>
   );

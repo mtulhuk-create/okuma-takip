@@ -113,6 +113,7 @@ model Group {
   reminderHours Int         @default(2) // son saatten kaç saat önce uyarı
   tzOffset      Int         @default(180) // dakika, Türkiye = UTC+3
   chatPolicy    ChatPolicy  @default(ALL)
+  dueOffsetDays Int         @default(0) // varsayılan ödeme vadesi: ay sonundan kaç gün önce (-) / sonra (+)
   lastSettledDay String? // ceza hesaplaması yapılan son okuma günü (YYYY-MM-DD)
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt

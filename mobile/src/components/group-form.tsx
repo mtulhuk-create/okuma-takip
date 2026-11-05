@@ -78,6 +78,7 @@ export function GroupForm({ group, onSubmit, submitting, submitLabel }: { group?
   const [reminderHours, setReminderHours] = useState(group?.reminderHours ?? 2);
   const [iban, setIban] = useState(group?.iban ?? "");
   const [ibanName, setIbanName] = useState(group?.ibanName ?? "");
+  const [dueOffset, setDueOffset] = useState(group?.dueOffsetDays ?? 0);
   const time = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
   const newTeam = (n: number): TeamDraft => ({ ...rules, books: rules.books.map((b) => ({ ...b, id: `${b.id}-${n}` })), name: `${String.fromCharCode(65 + n)} Ekibi`, key: `new-${Date.now()}-${n}` });
 
@@ -177,6 +178,19 @@ export function GroupForm({ group, onSubmit, submitting, submitLabel }: { group?
       <Section icon={Landmark} title="Ceza ödemeleri" hint="Cezalar bu hesaba ödenir; yalnızca üyeler görür.">
         <Input label="IBAN" value={iban.replace(/(.{4})/g, "$1 ").trim()} onChangeText={(v) => setIban(v.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 26))} autoCapitalize="characters" placeholder="TR00 0000 0000 0000 0000 0000 00" />
         <Input label="Alıcı adı soyadı" value={ibanName} onChangeText={setIbanName} />
+        <View>
+          <Muted style={{ marginBottom: 6 }}>Varsayılan ödeme vadesi</Muted>
+          <Row gap={8}>
+            <Button title="−" variant="ghost" onPress={() => setDueOffset((d) => Math.max(-25, d - 1))} style={{ width: 46 }} />
+            <View style={{ flex: 1, alignItems: "center", borderWidth: 1, borderColor: c.border, borderRadius: 10, paddingVertical: 6, backgroundColor: c.card }}>
+              <Text style={{ fontFamily: fonts.semibold, fontSize: 14, color: c.foreground }}>
+                {dueOffset === 0 ? "Her ayın son günü" : dueOffset < 0 ? `Ay sonundan ${-dueOffset} gün önce` : `Ay sonundan ${dueOffset} gün sonra`}
+              </Text>
+              <Text style={{ fontFamily: fonts.regular, fontSize: 11, color: c.mutedForeground }}>Vade verirken bu tarih önerilir</Text>
+            </View>
+            <Button title="+" variant="ghost" onPress={() => setDueOffset((d) => Math.min(25, d + 1))} style={{ width: 46 }} />
+          </Row>
+        </View>
       </Section>
 
       <Button
@@ -199,6 +213,7 @@ export function GroupForm({ group, onSubmit, submitting, submitLabel }: { group?
             reminderHours,
             iban,
             ibanName,
+            dueOffsetDays: dueOffset,
           })
         }
       />

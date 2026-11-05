@@ -4,6 +4,7 @@ import { Pressable, Text, View } from "react-native";
 import { Countdown } from "@/components/countdown";
 import { DayCardMini } from "@/components/day-card";
 import { MyHistorySection } from "@/components/history";
+import { DebtButton } from "@/components/pay-sheet";
 import { Avatar, Button, Card, ErrorView, H1, Loading, Muted, Row, Screen, Title } from "@/components/ui";
 import { useApi } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
@@ -23,9 +24,12 @@ export default function TodayScreen() {
           <Muted>Merhaba,</Muted>
           <H1 numberOfLines={1}>{data.user.name}</H1>
         </View>
-        <Pressable onPress={() => router.push("/profile")}>
-          <Avatar name={data.user.name} uri={data.user.imageUrl} size={42} />
-        </Pressable>
+        <Row gap={8}>
+          <DebtButton total={data.money.unpaidTotal} items={data.money.debts ?? []} />
+          <Pressable onPress={() => router.push("/profile")}>
+            <Avatar name={data.user.name} uri={data.user.imageUrl} size={42} />
+          </Pressable>
+        </Row>
       </Row>
 
       <MyHistorySection />
