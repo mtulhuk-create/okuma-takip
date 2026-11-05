@@ -1,7 +1,7 @@
 import "server-only";
 import type { Group, Team } from "@prisma/client";
 import { getDb } from "./db";
-import { categoryOf, rulesFor } from "./rules";
+import { categoryOf, parseBookLogs, rulesFor, type BookLog } from "./rules";
 import { periodFor } from "./schedule";
 
 export type DayPerson = { id: string; name: string; imageUrl: string | null; pages: number | null; required: number };
@@ -15,7 +15,7 @@ export type DayCard = {
   min: DayPerson[];
   none: DayPerson[];
   pending: DayPerson[];
-  me: { eligible: boolean; pages: number | null; target: number; min: number; teamName: string | null } | null;
+  me: { eligible: boolean; pages: number | null; target: number; min: number; teamName: string | null; books: BookLog[] } | null;
 };
 
 type Member = { userId: string; teamId: string | null; joinedAt: Date; user: { id: string; name: string; imageUrl: string | null } };
@@ -37,7 +37,13 @@ export async function getDayCards(group: Group & { teams: Team[] }, members: Mem
       const r = rulesFor(group, m);
       const target = log?.requiredPages ?? r.targetPages;
       const min = log ? log.minPages : r.minPages;
-      if (m.userId === meId) card.me = { eligible, pages: log?.pages ?? null, target, min, teamName: r.teamName };
+      if (m.userId === meId) {
+        const logged = new Map(parseBookLogs(log?.books).map((b) => [b.id, b]));
+        const books = r.books.map((b) => ({ id: b.id, title: b.title, target: b.targetPages, min: b.minPages, pages: logged.get(b.id)?.pages ?? null }));
+        // Eser bazında kaydı olmayan eski bildirimler tek esere yazılır
+        if (log && !logged.size && books.length === 1) books[0].pages = log.pages;
+        card.me = { eligible, pages: log?.pages ?? null, target, min, teamName: r.teamName, books };
+      }
       if (!eligible && !log) continue;
       const person = { id: m.user.id, name: m.user.name, imageUrl: m.user.imageUrl, pages: log?.pages ?? null, required: target };
       if (!log) (open ? card.pending : card.none).push(person);

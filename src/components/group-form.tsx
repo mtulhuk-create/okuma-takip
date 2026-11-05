@@ -65,8 +65,21 @@ function Timeline({ start, deadline, reminderHours }: { start: number; deadline:
   );
 }
 
+function Toggle({ checked, onChange, title, desc }: { checked: boolean; onChange: (v: boolean) => void; title: string; desc: string }) {
+  return (
+    <label className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-border p-3">
+      <span>
+        <span className="block text-sm font-semibold">{title}</span>
+        <span className="block text-xs text-muted-foreground">{desc}</span>
+      </span>
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="peer sr-only" />
+      <span className="relative h-6 w-11 shrink-0 rounded-full bg-muted transition-colors after:absolute after:left-0.5 after:top-0.5 after:size-5 after:rounded-full after:bg-card after:shadow after:transition-transform peer-checked:bg-primary peer-checked:after:translate-x-5" />
+    </label>
+  );
+}
+
 type TeamDraft = Rules & { id?: string; name: string; key: string };
-const DEFAULT_RULES: Rules = { penaltyMode: "FIXED", targetPages: 20, minPages: 10, penaltyAmount: 20, minDiscount: 50 };
+const DEFAULT_RULES: Rules = { penaltyMode: "FIXED", targetPages: 20, minPages: 10, penaltyAmount: 20, minDiscount: 50, books: [{ id: "kitap1", title: "", targetPages: 20, minPages: 10 }] };
 
 function TeamCard({ team, index, canRemove, onChange, onRemove }: { team: TeamDraft; index: number; canRemove: boolean; onChange: (t: TeamDraft) => void; onRemove: () => void }) {
   const [open, setOpen] = useState(index === 0);
@@ -86,7 +99,7 @@ function TeamCard({ team, index, canRemove, onChange, onRemove }: { team: TeamDr
       </div>
       {!open && (
         <p className="px-3 pb-2 text-xs text-muted-foreground">
-          Günde {team.targetPages} sayfa · alt sınır {team.minPages} · {team.penaltyMode === "FIXED" ? `${team.penaltyAmount} TL (%${team.minDiscount} indirim)` : `${team.penaltyAmount} TL/eksik sayfa`}
+          {team.books.length} eser · günde {team.targetPages} sayfa · alt sınır {team.minPages} · {team.penaltyMode === "FIXED" ? `${team.penaltyAmount} TL (%${team.minDiscount} indirim)` : `${team.penaltyAmount} TL/eksik sayfa`}
         </p>
       )}
       {open && (
@@ -101,6 +114,7 @@ function TeamCard({ team, index, canRemove, onChange, onRemove }: { team: TeamDr
 export function GroupForm({ group }: { group?: Group & { teams?: Team[] } }) {
   const [visibility, setVisibility] = useState<"PRIVATE" | "PUBLIC">(group?.visibility ?? "PRIVATE");
   const [chatPolicy, setChatPolicy] = useState<"ALL" | "ADMINS">(group?.chatPolicy ?? "ALL");
+  const [shareProgress, setShareProgress] = useState(group?.shareProgress ?? false);
   const [rules, setRules] = useState<Rules>(group ? pickRules(group) : DEFAULT_RULES);
   const [teamsEnabled, setTeamsEnabled] = useState(group?.teamsEnabled ?? false);
   const [teams, setTeams] = useState<TeamDraft[]>(
@@ -112,7 +126,12 @@ export function GroupForm({ group }: { group?: Group & { teams?: Team[] } }) {
   const [iban, setIban] = useState(group?.iban ?? "");
 
   const nextDay = deadline <= start;
-  const newTeam = (n: number): TeamDraft => ({ ...rules, name: `${String.fromCharCode(65 + n)} Ekibi`, key: `new-${Date.now()}-${n}` });
+  const newTeam = (n: number): TeamDraft => ({
+    ...rules,
+    books: rules.books.map((b) => ({ ...b, id: `${b.id}-${n}` })),
+    name: `${String.fromCharCode(65 + n)} Ekibi`,
+    key: `new-${Date.now()}-${n}`,
+  });
   function toggleTeams(on: boolean) {
     setTeamsEnabled(on);
     if (on && teams.length < 2) setTeams((t) => [...t, ...Array.from({ length: 2 - t.length }, (_, i) => newTeam(t.length + i))]);
@@ -128,6 +147,8 @@ export function GroupForm({ group }: { group?: Group & { teams?: Team[] } }) {
       <input type="hidden" name="minPages" value={rules.minPages} />
       <input type="hidden" name="penaltyAmount" value={rules.penaltyAmount} />
       <input type="hidden" name="minDiscount" value={rules.minDiscount} />
+      <input type="hidden" name="books" value={JSON.stringify(rules.books)} />
+      <input type="hidden" name="shareProgress" value={shareProgress ? "1" : "0"} />
       <input type="hidden" name="teamsEnabled" value={teamsEnabled ? "1" : "0"} />
       <input type="hidden" name="teams" value={JSON.stringify(teams.map(({ key: _k, ...t }) => t))} />
       <input type="hidden" name="startTime" value={minuteToTime(start)} />
@@ -165,18 +186,17 @@ export function GroupForm({ group }: { group?: Group & { teams?: Team[] } }) {
               { value: "ADMINS", Icon: ShieldCheck, title: "Yöneticiler", desc: "Üyeler yalnızca okur" },
             ]}
           />
+          <Toggle
+            checked={shareProgress}
+            onChange={setShareProgress}
+            title="Okuyucular birbirinin geçmişini görsün"
+            desc="Kapalıyken üyeler sohbetteki geçmiş tablosunda yalnızca kendilerini görür."
+          />
         </Section>
       </div>
 
       <Section Icon={Shield} title="Ekipler" hint="Üyeleri ekiplere ayır; her ekibin kendi okuma ve ceza kuralları olsun.">
-        <label className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-border p-3">
-          <span>
-            <span className="block text-sm font-semibold">Grubu ekiplere böl</span>
-            <span className="block text-xs text-muted-foreground">Katılanlar ekibini seçer; ekip değişikliği yönetici onayıyla olur.</span>
-          </span>
-          <input type="checkbox" checked={teamsEnabled} onChange={(e) => toggleTeams(e.target.checked)} className="peer sr-only" />
-          <span className="relative h-6 w-11 shrink-0 rounded-full bg-muted transition-colors after:absolute after:left-0.5 after:top-0.5 after:size-5 after:rounded-full after:bg-card after:shadow after:transition-transform peer-checked:bg-primary peer-checked:after:translate-x-5" />
-        </label>
+        <Toggle checked={teamsEnabled} onChange={toggleTeams} title="Grubu ekiplere böl" desc="Katılanlar ekibini seçer; ekip değişikliği yönetici onayıyla olur." />
         {teamsEnabled && (
           <div className="space-y-2">
             {teams.map((t, i) => (

@@ -18,7 +18,8 @@ function refresh() {
   revalidatePath("/", "layout");
 }
 
-type RulesInput = { penaltyMode: "FIXED" | "PER_PAGE"; targetPages: number; minPages: number; penaltyAmount: number; minDiscount: number };
+type BookInput = { id: string; title: string; targetPages: number; minPages: number };
+type RulesInput = { penaltyMode: "FIXED" | "PER_PAGE"; targetPages: number; minPages: number; penaltyAmount: number; minDiscount: number; books: BookInput[] };
 
 function validateRules(r: Record<string, unknown>, label = ""): RulesInput {
   const num = (v: unknown, min: number, max: number, name: string) => {
@@ -27,13 +28,26 @@ function validateRules(r: Record<string, unknown>, label = ""): RulesInput {
     return n;
   };
   const penaltyMode = r.penaltyMode === "PER_PAGE" ? ("PER_PAGE" as const) : ("FIXED" as const);
-  const targetPages = num(r.targetPages, 1, 2000, "Günlük hedef");
-  const minPages = num(r.minPages, 0, 2000, "Alt sınır");
+  let rawBooks: Record<string, unknown>[] = [];
+  try {
+    rawBooks = Array.isArray(r.books) ? r.books : typeof r.books === "string" ? JSON.parse(r.books) : [];
+  } catch {}
+  const books: BookInput[] = rawBooks.slice(0, 10).map((b, i) => {
+    const title = String(b.title ?? "").trim().slice(0, 80);
+    if (!title) throw new Error(`${label}${i + 1}. eserin adını yazın`);
+    const t = num(b.targetPages, 1, 2000, `"${title}" günlük hedefi`);
+    const m = num(b.minPages, 0, 2000, `"${title}" alt sınırı`);
+    if (m > t) throw new Error(`${label}"${title}" için alt sınır hedeften büyük olamaz`);
+    return { id: typeof b.id === "string" && b.id ? b.id.slice(0, 40) : crypto.randomUUID().slice(0, 12), title, targetPages: t, minPages: m };
+  });
+  const targetPages = books.length ? books.reduce((s, b) => s + b.targetPages, 0) : num(r.targetPages, 1, 2000, "Günlük hedef");
+  const minPages = books.length ? books.reduce((s, b) => s + b.minPages, 0) : num(r.minPages, 0, 2000, "Alt sınır");
   if (minPages > targetPages) throw new Error(`${label}Alt sınır günlük hedeften büyük olamaz`);
   return {
     penaltyMode,
     targetPages,
     minPages,
+    books,
     penaltyAmount: num(r.penaltyAmount, 0, 100000, "Ceza tutarı"),
     minDiscount: penaltyMode === "FIXED" ? num(r.minDiscount ?? 0, 0, 100, "İndirim oranı") : 0,
   };
@@ -89,7 +103,9 @@ function parseGroupForm(fd: FormData) {
       minPages: fd.get("minPages"),
       penaltyAmount: fd.get("penaltyAmount"),
       minDiscount: fd.get("minDiscount"),
+      books: fd.get("books"),
     }),
+    shareProgress: str(fd, "shareProgress") === "1",
     iban,
     ibanName: str(fd, "ibanName", 80),
     startMinute,
@@ -159,10 +175,16 @@ export async function deleteGroupState(fd: FormData) {
 export async function reportReading(_: Prev, fd: FormData) {
   return run(async () => {
     const user = await actionUser();
-    const choice = str(fd, "choice") as ReportChoice;
-    if (!["min", "none", "pages"].includes(choice)) throw new Error("Geçersiz seçim");
+    const choice = (str(fd, "choice") || "all") as ReportChoice;
+    if (!["all", "min", "none", "pages"].includes(choice)) throw new Error("Geçersiz seçim");
     const groupId = str(fd, "groupId");
-    const { log, rules } = await submitReading(user.id, groupId, choice, Number(fd.get("pages")));
+    const bookChoice = str(fd, "bookChoice") as "read" | "min" | "none";
+    const { log, rules } = await submitReading(user.id, groupId, {
+      choice,
+      pages: Number(fd.get("pages")),
+      bookId: str(fd, "bookId") || undefined,
+      bookChoice: ["read", "min", "none"].includes(bookChoice) ? bookChoice : undefined,
+    });
     await publish(groupId, { type: "refresh", reason: "day" });
     refresh();
     if (log.pages >= rules.targetPages) return `Harika! ${log.pages} sayfa bildirildi`;

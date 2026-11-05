@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDown, ArrowLeft, BarChart3, Info, Lock, Receipt, SendHorizontal, Settings } from "lucide-react";
+import { ArrowDown, ArrowLeft, BarChart3, CalendarRange, Info, Lock, Receipt, SendHorizontal, Settings } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { sendMessage } from "@/app/actions";
@@ -8,6 +8,7 @@ import type { ChatPage } from "@/lib/chat";
 import { formatDayLong } from "@/lib/schedule";
 import { DayCardFull } from "../day-card";
 import { Bubble, PollBody, type UiMessage } from "./message-items";
+import { GroupHistory } from "./group-history";
 import { PollDialog } from "./poll-dialog";
 
 type Page = Extract<ChatPage, { messages: unknown }>;
@@ -30,6 +31,7 @@ export function ChatView({ initial, dueBanner }: { initial: Page; dueBanner: { a
   const [me, setMe] = useState(initial.me!);
   const [text, setText] = useState("");
   const [pollOpen, setPollOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [atBottom, setAtBottom] = useState(true);
   const [live, setLive] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
@@ -170,6 +172,9 @@ export function ChatView({ initial, dueBanner }: { initial: Page; dueBanner: { a
               </span>
             </span>
           </Link>
+          <button className="btn-icon" onClick={() => setHistoryOpen(true)} aria-label="Okuma geçmişi" title="Okuma geçmişi">
+            <CalendarRange />
+          </button>
           <Link href={`/gruplar/${groupId}/bilgi`} className="btn-icon" aria-label="Grup bilgisi">
             <Info />
           </Link>
@@ -286,6 +291,7 @@ export function ChatView({ initial, dueBanner }: { initial: Page; dueBanner: { a
       </footer>
 
       {pollOpen && <PollDialog groupId={groupId} onClose={() => setPollOpen(false)} onCreated={refresh} />}
+      {historyOpen && <GroupHistory groupId={groupId} onClose={() => setHistoryOpen(false)} />}
     </div>
   );
 }

@@ -133,7 +133,47 @@ try {
   ok((await db.groupMember.findFirstOrThrow({ where: { groupId, userId: users[1].id } })).teamId === tm[0].id, "Onaylanınca ekip değişti");
 
   const today = (await api(tB, "/api/m/me")).json.groups?.[0];
-  ok(today?.card?.dayKey && today?.week?.days?.length === 7, "Bugün verisi: gün kartı + 7 gün tablosu");
+  ok(today?.card?.dayKey && !("week" in today), "Bugün verisi: gün kartı var, başkalarının geçmişi yok");
+
+  // ---- Eserler: 2 kitaplı grup (ekipsiz) ----
+  const books = JSON.stringify([
+    { title: "Suç ve Ceza", targetPages: 20, minPages: 10 },
+    { title: "Simyacı", targetPages: 10, minPages: 5 },
+  ]);
+  const g2 = (await api(tA, "/api/m/action/createGroup", { name: "E2E Eserler", visibility: "PRIVATE", chatPolicy: "ALL", penaltyMode: "FIXED", penaltyAmount: 40, minDiscount: 50, books, teamsEnabled: "0", teams: "[]", startTime: "00:00", deadlineTime: "23:59", reminderHours: 2 })).json;
+  const grp2 = await db.group.findUniqueOrThrow({ where: { id: g2.id } });
+  ok(grp2.targetPages === 30 && grp2.minPages === 15 && (grp2.books as unknown[]).length === 2, `2 eser kaydedildi, toplam hedef ${grp2.targetPages} / alt sınır ${grp2.minPages}`);
+  await db.groupMember.create({ data: { groupId: g2.id, userId: users[1].id, joinedAt: threeDaysAgo } });
+  const c2 = (await api(tB, `/api/m/groups/${g2.id}/chat`)).json;
+  const myBooks = c2.messages.find((m: { kind: string }) => m.kind === "DAY").day.me.books;
+  ok(myBooks.length === 2 && myBooks[0].title === "Suç ve Ceza", "Gün kartında eserler listeleniyor");
+  await api(tB, "/api/m/action/reportReading", { groupId: g2.id, bookId: myBooks[0].id, bookChoice: "read" });
+  let lg = await db.readingLog.findFirstOrThrow({ where: { groupId: g2.id, userId: users[1].id } });
+  ok(lg.pages === 20 && lg.requiredPages === 30, `Tek esere "okudum": ${lg.pages}/${lg.requiredPages} sayfa`);
+  await api(tB, "/api/m/action/reportReading", { groupId: g2.id, bookId: myBooks[1].id, bookChoice: "min" });
+  lg = await db.readingLog.findFirstOrThrow({ where: { groupId: g2.id, userId: users[1].id } });
+  ok(lg.pages === 25, `İkinci esere "alt sınır": toplam ${lg.pages} sayfa (20 + 5)`);
+  await api(tB, "/api/m/action/reportReading", { groupId: g2.id, choice: "all" });
+  lg = await db.readingLog.findFirstOrThrow({ where: { groupId: g2.id, userId: users[1].id } });
+  ok(lg.pages === 30, `"Hepsini okudum": ${lg.pages} sayfa`);
+  await api(tB, "/api/m/action/reportReading", { groupId: g2.id, choice: "min" });
+  const d3 = (await api(tB, `/api/m/groups/${g2.id}/chat`)).json.messages.find((m: { kind: string }) => m.kind === "DAY").day;
+  ok(d3.min.length === 1 && d3.me.pages === 15, `"Alt sınırı okudum": ${d3.me.pages} sayfa, kartta alt sınırda`);
+
+  // ---- Geçmiş ve gizlilik ----
+  for (const r of ["7d", "1m", "3m", "1y", "all"]) {
+    const h = (await api(tB, `/api/m/history?range=${r}`)).json;
+    if (r === "7d") ok(h.groups?.length === 2 && h.all && h.groups.every((g: { cells: string }) => g.cells.length === 7), "Kişisel geçmiş: 2 grup + tüm gruplar, 7 gün");
+    if (r === "1y") ok(h.groups?.[0]?.cells.length === 365, `1 yıllık geçmiş: ${h.groups?.[0]?.cells.length} gün`);
+  }
+  const hB = (await api(tB, `/api/m/groups/${g2.id}/history?range=1m`)).json;
+  const hA = (await api(tA, `/api/m/groups/${g2.id}/history?range=1m`)).json;
+  ok(hB.limited && hB.rows.length === 1 && hB.rows[0].me, "Paylaşım kapalı: üye yalnızca kendini görüyor");
+  ok(!hA.limited && hA.rows.length === 2, "Yönetici tüm üyelerin geçmişini görüyor");
+  await db.group.update({ where: { id: g2.id }, data: { shareProgress: true } });
+  const hB2 = (await api(tB, `/api/m/groups/${g2.id}/history?range=7d`)).json;
+  ok(!hB2.limited && hB2.rows.length === 2, "Paylaşım açılınca üye de herkesi görüyor");
+  await db.group.delete({ where: { id: g2.id } });
   ctrl.abort();
   times.sort((a, b) => a - b);
   console.log(`   ⏱  ${times.length} istek · ortanca ${times[Math.floor(times.length / 2)]} ms · en yavaş ${times.at(-1)} ms`);

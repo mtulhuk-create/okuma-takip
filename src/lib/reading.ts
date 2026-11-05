@@ -1,11 +1,13 @@
 import { getDb } from "./db";
-import { rulesFor } from "./rules";
+import { parseBookLogs, rulesFor, type BookLog } from "./rules";
 import { openPeriod } from "./schedule";
 
-export type ReportChoice = "min" | "none" | "pages";
+/** all/min/none: tüm eserler için · pages: toplam sayfa (eserlere sırayla dağıtılır) · book: tek eser */
+export type ReportChoice = "all" | "min" | "none" | "pages";
+export type ReportInput = { choice: ReportChoice; pages?: number; bookId?: string; bookChoice?: "read" | "min" | "none" };
 
-/** Üyenin bugünkü (açık) okuma gününe sayfa bildirmesi. */
-export async function submitReading(userId: string, groupId: string, choice: ReportChoice, pagesInput?: number, expectedDayKey?: string) {
+/** Üyenin bugünkü (açık) okuma gününe bildirim yapması. */
+export async function submitReading(userId: string, groupId: string, input: ReportInput, expectedDayKey?: string) {
   const db = getDb();
   const member = await db.groupMember.findUnique({
     where: { groupId_userId: { groupId, userId } },
@@ -17,15 +19,33 @@ export async function submitReading(userId: string, groupId: string, choice: Rep
   if (expectedDayKey && expectedDayKey !== period.dayKey) throw new Error("Bu bildirimin süresi geçmiş");
   const rules = rulesFor(member.group, member);
 
-  let pages: number;
-  if (choice === "min") pages = rules.minPages;
-  else if (choice === "none") pages = 0;
+  const existing = await db.readingLog.findUnique({ where: { groupId_userId_dayKey: { groupId, userId, dayKey: period.dayKey } } });
+  const prev = new Map(parseBookLogs(existing?.books).map((b) => [b.id, b.pages]));
+  let books: BookLog[] = rules.books.map((b) => ({ id: b.id, title: b.title, target: b.targetPages, min: b.minPages, pages: prev.get(b.id) ?? null }));
+
+  if (input.bookId) {
+    const book = books.find((b) => b.id === input.bookId);
+    if (!book) throw new Error("Eser bulunamadı");
+    book.pages = input.bookChoice === "read" ? book.target : input.bookChoice === "min" ? book.min : 0;
+  } else if (input.choice === "all") books = books.map((b) => ({ ...b, pages: b.target }));
+  else if (input.choice === "min") books = books.map((b) => ({ ...b, pages: b.min }));
+  else if (input.choice === "none") books = books.map((b) => ({ ...b, pages: 0 }));
   else {
-    pages = Math.floor(Number(pagesInput));
-    if (!Number.isFinite(pages) || pages < 0 || pages > 5000) throw new Error("Geçerli bir sayfa sayısı girin");
+    let left = Math.floor(Number(input.pages));
+    if (!Number.isFinite(left) || left < 0 || left > 5000) throw new Error("Geçerli bir sayfa sayısı girin");
+    books = books.map((b, i) => {
+      const p = i === books.length - 1 ? left : Math.min(left, b.target);
+      left -= p;
+      return { ...b, pages: p };
+    });
   }
 
-  const snapshot = { pages, requiredPages: rules.targetPages, minPages: rules.minPages };
+  const snapshot = {
+    pages: books.reduce((s, b) => s + (b.pages ?? 0), 0),
+    requiredPages: rules.targetPages,
+    minPages: rules.minPages,
+    books,
+  };
   const log = await db.readingLog.upsert({
     where: { groupId_userId_dayKey: { groupId, userId, dayKey: period.dayKey } },
     create: { groupId, userId, dayKey: period.dayKey, ...snapshot },

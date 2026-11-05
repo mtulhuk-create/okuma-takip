@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpenCheck, Check, CheckCheck, ChevronRight, Clock, Lock, Pencil, X } from "lucide-react";
+import { BookOpen, Check, CheckCheck, ChevronRight, Clock, Lock, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { reportReading } from "@/app/actions";
@@ -16,88 +16,99 @@ const CATS = [
   { key: "pending", label: "Bekleniyor", Icon: Clock, tone: "text-muted-foreground", bg: "bg-muted" },
 ] as const;
 
-type Choice = "pages" | "min" | "none";
+type Choice = "all" | "min" | "none";
+type BookChoice = "read" | "min" | "none";
 
-/** Okuma bildirimi butonları; hem sohbet kartında hem Bugün kartında kullanılır. */
+function bookState(b: { pages: number | null; target: number; min: number }): BookChoice | "partial" | null {
+  if (b.pages == null) return null;
+  if (b.pages >= b.target) return "read";
+  if (b.pages === 0) return "none";
+  if (b.pages >= b.min) return "min";
+  return "partial";
+}
+
+const BOOK_BTNS: { key: BookChoice; Icon: typeof Check; label: string; on: string }[] = [
+  { key: "read", Icon: CheckCheck, label: "Okudum", on: "bg-emerald-600 text-white border-emerald-600" },
+  { key: "min", Icon: Check, label: "Alt sınırı okudum", on: "bg-amber-500 text-white border-amber-500" },
+  { key: "none", Icon: X, label: "Okumadım", on: "bg-rose-600 text-white border-rose-600" },
+];
+
+/** Eser satırları + tümü için butonlar; hem sohbet kartında hem Bugün kartında kullanılır. */
 function ReportControls({ groupId, card, onDone, compact }: { groupId: string; card: Card; onDone?: () => void; compact?: boolean }) {
   const router = useRouter();
   const [pending, start] = useTransition();
-  const [busy, setBusy] = useState<Choice | null>(null);
-  const [editing, setEditing] = useState(false);
-  const [pages, setPages] = useState(String(card.me?.pages ?? card.me?.target ?? ""));
+  const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const me = card.me!;
+  const single = me.books.length === 1;
 
-  function send(choice: Choice) {
-    setBusy(choice);
+  function send(fields: Record<string, string>, key: string) {
+    setBusy(key);
     setError(null);
     start(async () => {
       const fd = new FormData();
       fd.set("groupId", groupId);
-      fd.set("choice", choice);
-      if (choice === "pages") fd.set("pages", pages);
+      for (const [k, v] of Object.entries(fields)) fd.set(k, v);
       const res = await reportReading(null, fd);
       setBusy(null);
       if (res?.error) return setError(res.error);
-      setEditing(false);
       onDone ? onDone() : router.refresh();
     });
   }
 
-  if (me.pages != null && !editing) {
-    const ok = me.pages >= me.min;
-    return (
-      <div className={`flex items-center justify-between gap-2 rounded-lg px-3 py-2 ${ok ? "bg-emerald-500/10" : "bg-rose-500/10"}`}>
-        <p className={`flex items-center gap-1.5 text-sm font-semibold ${ok ? "text-emerald-700 dark:text-emerald-400" : "text-rose-700 dark:text-rose-400"}`}>
-          {ok ? <CheckCheck className="size-4" /> : <X className="size-4" />}
-          {me.pages} sayfa bildirdin {me.pages >= me.target ? "· hedef tamam" : me.pages >= me.min ? "· alt sınır" : ""}
-        </p>
-        <button className="btn-quiet btn-sm" onClick={() => setEditing(true)}>
-          <Pencil /> Değiştir
-        </button>
-      </div>
-    );
-  }
+  const total = me.pages ?? 0;
+  const status = me.pages == null ? null : total >= me.target ? "Hedef tamam" : total >= me.min ? "Alt sınır tamam" : "Alt sınırın altında";
+  const btn = compact ? "btn-sm h-9 px-2" : "";
 
   return (
     <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
-      {editing ? (
-        <form
-          className="flex gap-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            send("pages");
-          }}
-        >
-          <input
-            type="number"
-            inputMode="numeric"
-            min={0}
-            autoFocus
-            value={pages}
-            onChange={(e) => setPages(e.target.value)}
-            className="input"
-            placeholder="Kaç sayfa okudun?"
-          />
-          <button className="btn-success" disabled={pending || pages === ""}>
-            {busy === "pages" ? <Spinner /> : <Check />} Kaydet
-          </button>
-          <button type="button" className="btn-icon" onClick={() => setEditing(false)} aria-label="Vazgeç">
-            <X />
-          </button>
-        </form>
-      ) : (
-        <div className={`grid gap-2 ${compact ? "grid-cols-3" : "grid-cols-1 sm:grid-cols-3"}`}>
-          <button className={`btn-success ${compact ? "btn-sm h-9 px-2" : ""}`} disabled={pending} onClick={() => setEditing(true)}>
-            <BookOpenCheck /> Okudum
-          </button>
-          <button className={`btn-primary ${compact ? "btn-sm h-9 px-2" : ""}`} disabled={pending} onClick={() => send("min")}>
-            {busy === "min" ? <Spinner /> : <Check />} {compact ? `Alt sınır (${me.min})` : `Alt sınırı okudum (${me.min})`}
-          </button>
-          <button className={`btn-ghost ${compact ? "btn-sm h-9 px-2" : ""}`} disabled={pending} onClick={() => send("none")}>
-            {busy === "none" ? <Spinner /> : <X />} Okumadım
-          </button>
-        </div>
+      <ul className="divide-y divide-border rounded-xl border border-border">
+        {me.books.map((b) => {
+          const st = bookState(b);
+          return (
+            <li key={b.id} className="flex items-center gap-2 px-3 py-2">
+              <BookOpen className="size-4 shrink-0 text-primary" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold">{b.title}</p>
+                <p className="text-[11px] text-muted-foreground">
+                  Hedef {b.target} · alt sınır {b.min}
+                  {b.pages != null && <b className="text-foreground"> · {b.pages} sf</b>}
+                </p>
+              </div>
+              <div className="flex gap-1">
+                {BOOK_BTNS.map(({ key, Icon, label, on }) => (
+                  <button
+                    key={key}
+                    title={label}
+                    aria-label={`${b.title}: ${label}`}
+                    aria-pressed={st === key}
+                    disabled={pending}
+                    onClick={() => send({ bookId: b.id, bookChoice: key }, `${b.id}-${key}`)}
+                    className={`flex size-8 items-center justify-center rounded-lg border transition-colors disabled:opacity-60 ${st === key ? on : "border-border text-muted-foreground hover:bg-muted"}`}
+                  >
+                    {busy === `${b.id}-${key}` ? <Spinner /> : <Icon className="size-4" strokeWidth={2.5} />}
+                  </button>
+                ))}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+      <div className="grid grid-cols-3 gap-1.5">
+        <button className={`btn-success px-2 ${btn}`} disabled={pending} onClick={() => send({ choice: "all" }, "all")}>
+          {busy === "all" ? <Spinner /> : <CheckCheck />} {single ? "Okudum" : "Hepsini okudum"}
+        </button>
+        <button className={`btn-primary px-2 ${btn}`} disabled={pending} onClick={() => send({ choice: "min" }, "min")}>
+          {busy === "min" ? <Spinner /> : <Check />} Alt sınırı okudum
+        </button>
+        <button className={`btn-ghost px-2 ${btn}`} disabled={pending} onClick={() => send({ choice: "none" }, "none")}>
+          {busy === "none" ? <Spinner /> : <X />} Okuyamadım
+        </button>
+      </div>
+      {status && (
+        <p className="text-center text-xs text-muted-foreground">
+          Bugün <b className="text-foreground">{total}</b>/{me.target} sayfa · {status}
+        </p>
       )}
       {error && <p className="text-xs font-medium text-destructive">{error}</p>}
     </div>
@@ -178,11 +189,13 @@ export function DayCardFull({ card, groupId, onReported }: { card: Card; groupId
       </div>
       {card.open && card.me && (
         <div className="mt-3 space-y-2 border-t border-border pt-3">
-          <p className="text-xs text-muted-foreground">
-            {card.me.teamName && <b className="text-foreground">{card.me.teamName} · </b>}
-            Hedef <b className="text-foreground">{card.me.target}</b> sayfa · alt sınır <b className="text-foreground">{card.me.min}</b>
-            {!card.me.eligible && " · bugün katıldığın için ceza yazılmaz"}
-          </p>
+          {(card.me.teamName || !card.me.eligible) && (
+            <p className="text-xs text-muted-foreground">
+              {card.me.teamName && <b className="text-foreground">{card.me.teamName} ekibi</b>}
+              {card.me.teamName && !card.me.eligible && " · "}
+              {!card.me.eligible && "bugün katıldığın için ceza yazılmaz"}
+            </p>
+          )}
           <ReportControls groupId={groupId} card={card} onDone={onReported} />
         </div>
       )}
@@ -235,10 +248,7 @@ export function DayCardMini({ card, groupId, groupName }: { card: Card; groupId:
       </div>
       {card.open && card.me && (
         <>
-          <p className="text-[11px] text-muted-foreground">
-            Hedef {card.me.target} · alt sınır {card.me.min}
-            {!card.me.eligible && " · bugün ceza yok"}
-          </p>
+          {!card.me.eligible && <p className="text-[11px] text-muted-foreground">Bugün katıldığın için ceza yazılmaz</p>}
           <ReportControls groupId={groupId} card={card} compact />
         </>
       )}

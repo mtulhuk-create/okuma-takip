@@ -101,7 +101,9 @@ model Group {
   minPages      Int         @default(10) // alt sınır
   penaltyAmount Int         @default(20) // TL (sabit) ya da eksik sayfa başına TL
   minDiscount   Int         @default(50) // alt sınırı okuyanlara cezada % indirim (sabit cezada)
+  books         Json        @default("[]") // okunacak eserler: [{id, title, targetPages, minPages}]
   teamsEnabled  Boolean     @default(false)
+  shareProgress Boolean     @default(false) // üyeler birbirinin okuma geçmişini görebilir
   iban          String      @default("")
   ibanName      String      @default("")
   // Zamanlama (yerel saat, gece yarısından itibaren dakika)
@@ -155,6 +157,7 @@ model ReadingLog {
   pages         Int
   requiredPages Int // o günkü hedef
   minPages      Int      @default(0) // o günkü alt sınır
+  books         Json? // eser bazında: [{id, title, pages, target, min}]
   note          String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -328,6 +331,7 @@ model Team {
   minPages      Int         @default(10)
   penaltyAmount Int         @default(20)
   minDiscount   Int         @default(50)
+  books         Json        @default("[]")
   members       GroupMember[]
   changes       TeamChangeRequest[]
 

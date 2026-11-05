@@ -5,8 +5,9 @@ import { Countdown } from "@/components/countdown";
 import { DayCardMini } from "@/components/day-card";
 import { PushToggle } from "@/components/push-toggle";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { WeekTable } from "@/components/week-table";
+import { MyHistory } from "@/components/my-history";
 import { requireUser } from "@/lib/auth";
+import { getMyHistory } from "@/lib/history";
 import { myGroupsToday, myMoney } from "@/lib/queries";
 import { formatDateTime } from "@/lib/schedule";
 
@@ -14,7 +15,7 @@ export const metadata = { title: "Bugün" };
 
 export default async function PanelPage() {
   const user = await requireUser();
-  const [groups, money] = await Promise.all([myGroupsToday(user.id), myMoney(user.id)]);
+  const [groups, money, history] = await Promise.all([myGroupsToday(user.id), myMoney(user.id), getMyHistory(user.id, "7d")]);
 
   return (
     <main className="space-y-5 pt-4">
@@ -28,6 +29,8 @@ export default async function PanelPage() {
           <UserButton />
         </div>
       </header>
+
+      <MyHistory initial={history} />
 
       <PushToggle compact />
 
@@ -84,15 +87,6 @@ export default async function PanelPage() {
         </section>
       )}
 
-      {groups.map((g) => (
-        <section key={g.group.id} className="card space-y-2">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold">Son 7 gün</h2>
-            {groups.length > 1 && <span className="truncate text-xs text-muted-foreground">{g.group.name}</span>}
-          </div>
-          <WeekTable days={g.week.days} rows={g.week.rows} />
-        </section>
-      ))}
     </main>
   );
 }

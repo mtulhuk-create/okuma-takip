@@ -9,8 +9,6 @@ import { getDb } from "./db";
 const publicUser = { select: { id: true, name: true, username: true, imageUrl: true } } as const;
 import { currentPeriod, openPeriod, periodFor, shiftDayKey } from "./schedule";
 
-export type WeekCell = "read" | "min" | "none" | "pending" | "na";
-
 /** Bugün sayfası: her grup için güncel gün kartı ve son 7 günün özeti. */
 export async function myGroupsToday(userId: string) {
   const db = getDb();
@@ -34,13 +32,7 @@ export async function myGroupsToday(userId: string) {
       const { members, ...group } = m.group;
       const rules = rulesFor(group, m);
       const period = currentPeriod(now, group);
-      const days = Array.from({ length: 7 }, (_, i) => shiftDayKey(period.dayKey, i - 6));
-      const cards = await getDayCards(group, members, days, userId);
-      const status = (dayKey: string, uid: string): WeekCell => {
-        const c = cards[dayKey];
-        for (const k of ["read", "min", "none", "pending"] as const) if (c[k].some((p) => p.id === uid)) return k;
-        return "na";
-      };
+      const cards = await getDayCards(group, members, [period.dayKey], userId);
       return {
         group: { id: group.id, name: group.name, startMinute: group.startMinute, deadlineMinute: group.deadlineMinute, visibility: group.visibility },
         role: m.role,
@@ -48,10 +40,6 @@ export async function myGroupsToday(userId: string) {
         period,
         open: openPeriod(now, group),
         card: cards[period.dayKey],
-        week: {
-          days,
-          rows: members.map((mm) => ({ user: mm.user, cells: days.map((d) => status(d, mm.userId)) })),
-        },
       };
     }),
   );

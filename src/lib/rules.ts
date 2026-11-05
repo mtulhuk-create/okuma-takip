@@ -1,16 +1,35 @@
 // Okuma kuralları: grup geneli ya da (ekipler açıksa) üyenin ekibine göre.
 export type PenaltyMode = "FIXED" | "PER_PAGE";
-export type Rules = { penaltyMode: PenaltyMode; targetPages: number; minPages: number; penaltyAmount: number; minDiscount: number };
-type TeamLike = Rules & { id: string; name: string };
-type GroupLike = Rules & { teamsEnabled: boolean; teams?: TeamLike[] };
+export type Book = { id: string; title: string; targetPages: number; minPages: number };
+export type Rules = { penaltyMode: PenaltyMode; targetPages: number; minPages: number; penaltyAmount: number; minDiscount: number; books: Book[] };
+type RulesRow = Omit<Rules, "books"> & { books: unknown };
+type TeamLike = RulesRow & { id: string; name: string };
+type GroupLike = RulesRow & { teamsEnabled: boolean; teams?: TeamLike[] };
 
-export const pickRules = (r: Rules): Rules => ({
-  penaltyMode: r.penaltyMode,
-  targetPages: r.targetPages,
-  minPages: r.minPages,
-  penaltyAmount: r.penaltyAmount,
-  minDiscount: r.minDiscount,
-});
+function parseBooks(v: unknown): Book[] {
+  if (!Array.isArray(v)) return [];
+  return v
+    .filter((b): b is Book => !!b && typeof b === "object" && typeof (b as Book).id === "string")
+    .map((b) => ({ id: b.id, title: String(b.title ?? ""), targetPages: Number(b.targetPages) || 0, minPages: Number(b.minPages) || 0 }));
+}
+
+/** Eser listesi yoksa (eski gruplar) toplam hedef tek bir "Günlük okuma" eseri sayılır */
+export function booksOf(r: Pick<Rules, "targetPages" | "minPages"> & { books: unknown }): Book[] {
+  const books = parseBooks(r.books);
+  return books.length ? books : [{ id: "genel", title: "Günlük okuma", targetPages: r.targetPages, minPages: r.minPages }];
+}
+
+export const pickRules = (r: RulesRow): Rules => {
+  const books = booksOf(r);
+  return {
+    penaltyMode: r.penaltyMode,
+    targetPages: books.reduce((s, b) => s + b.targetPages, 0),
+    minPages: books.reduce((s, b) => s + b.minPages, 0),
+    penaltyAmount: r.penaltyAmount,
+    minDiscount: r.minDiscount,
+    books,
+  };
+};
 
 /** Ekipler yalnızca açık ve en az 2 ekip varsa devrededir */
 export function teamsActive(group: { teamsEnabled: boolean; teams?: unknown[] }) {
@@ -32,16 +51,20 @@ export function categoryOf(pages: number, r: Pick<Rules, "targetPages" | "minPag
 }
 
 /** Bir günün cezası (TL). Hedefi tutturan ceza ödemez; sabit cezada alt sınırı tutturan indirimli öder. */
-export function penaltyFor(r: Rules, pages: number) {
+export function penaltyFor(r: Pick<Rules, "penaltyMode" | "targetPages" | "minPages" | "penaltyAmount" | "minDiscount">, pages: number) {
   if (pages >= r.targetPages) return 0;
   const reachedMin = pages >= r.minPages;
   if (r.penaltyMode === "PER_PAGE") return r.penaltyAmount * (r.targetPages - pages);
   return reachedMin ? Math.round((r.penaltyAmount * (100 - r.minDiscount)) / 100) : r.penaltyAmount;
 }
 
-export function describePenalty(r: Rules) {
+export function describePenalty(r: Pick<Rules, "penaltyMode" | "penaltyAmount" | "minDiscount">) {
   if (r.penaltyMode === "PER_PAGE") return `Eksik sayfa başına ${r.penaltyAmount} TL`;
-  return r.minDiscount > 0
-    ? `${r.penaltyAmount} TL · alt sınırda %${r.minDiscount} indirim`
-    : `${r.penaltyAmount} TL / gün`;
+  return r.minDiscount > 0 ? `${r.penaltyAmount} TL · alt sınırda %${r.minDiscount} indirim` : `${r.penaltyAmount} TL / gün`;
+}
+
+/** Günlük kayıtta eser bazında okunan sayfa */
+export type BookLog = { id: string; title: string; pages: number | null; target: number; min: number };
+export function parseBookLogs(v: unknown): BookLog[] {
+  return Array.isArray(v) ? (v as BookLog[]).filter((b) => b && typeof b.id === "string") : [];
 }

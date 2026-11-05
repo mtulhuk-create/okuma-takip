@@ -1,7 +1,7 @@
 "use client";
 
-import { BookOpen, CalendarX2, Check, CheckCheck, FileMinus2, Minus, Percent, Plus, X } from "lucide-react";
-import { penaltyFor, type Rules } from "@/lib/rules";
+import { BookOpen, CalendarX2, Check, CheckCheck, FileMinus2, Minus, Percent, Plus, Trash2, X } from "lucide-react";
+import { penaltyFor, type Book, type Rules } from "@/lib/rules";
 
 export function Tiles<T extends string>({ value, onChange, options }: { value: T; onChange: (v: T) => void; options: { value: T; Icon: typeof Check; title: string; desc: string }[] }) {
   return (
@@ -71,6 +71,76 @@ export function Stepper({ label, hint, value, onChange, min, max, step = 1, unit
   );
 }
 
+function NumberField({ label, value, onChange, min, max }: { label: string; value: number; onChange: (v: number) => void; min: number; max: number }) {
+  const clamp = (n: number) => Math.min(max, Math.max(min, Number.isFinite(n) ? Math.round(n) : min));
+  return (
+    <div className="min-w-0 flex-1">
+      <p className="mb-1 text-[11px] font-semibold text-muted-foreground">{label}</p>
+      <div className="flex h-10 items-center rounded-lg border border-input bg-card">
+        <button type="button" className="flex h-full w-9 items-center justify-center text-muted-foreground hover:text-foreground" onClick={() => onChange(clamp(value - 1))} aria-label={`${label} azalt`}>
+          <Minus className="size-4" />
+        </button>
+        <input
+          type="number"
+          inputMode="numeric"
+          value={value}
+          onChange={(e) => onChange(clamp(Number(e.target.value)))}
+          className="w-full min-w-0 bg-transparent text-center text-base font-bold outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+        />
+        <button type="button" className="flex h-full w-9 items-center justify-center text-muted-foreground hover:text-foreground" onClick={() => onChange(clamp(value + 1))} aria-label={`${label} artır`}>
+          <Plus className="size-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+const newBook = (): Book => ({ id: Math.random().toString(36).slice(2, 10), title: "", targetPages: 20, minPages: 10 });
+
+function BooksEditor({ books, onChange }: { books: Book[]; onChange: (b: Book[]) => void }) {
+  const update = (id: string, patch: Partial<Book>) =>
+    onChange(
+      books.map((b) => {
+        if (b.id !== id) return b;
+        const n = { ...b, ...patch };
+        if (n.minPages > n.targetPages) n.minPages = n.targetPages;
+        return n;
+      }),
+    );
+  return (
+    <div className="space-y-2">
+      {books.map((b, i) => (
+        <div key={b.id} className="space-y-2 rounded-xl border border-border p-3">
+          <div className="flex items-center gap-2">
+            <BookOpen className="size-4 shrink-0 text-primary" />
+            <input
+              value={b.title}
+              maxLength={80}
+              onChange={(e) => update(b.id, { title: e.target.value })}
+              placeholder={i === 0 ? "Kitap adı (örn. Suç ve Ceza)" : `${i + 1}. kitap adı`}
+              className={`input h-9 ${b.title.trim() ? "" : "border-amber-400"}`}
+            />
+            {books.length > 1 && (
+              <button type="button" className="btn-icon size-9 shrink-0" onClick={() => onChange(books.filter((x) => x.id !== b.id))} aria-label="Eseri kaldır">
+                <Trash2 />
+              </button>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <NumberField label="Günlük hedef (sayfa)" value={b.targetPages} onChange={(targetPages) => update(b.id, { targetPages })} min={1} max={2000} />
+            <NumberField label="Alt sınır (sayfa)" value={b.minPages} onChange={(minPages) => update(b.id, { minPages })} min={0} max={b.targetPages} />
+          </div>
+        </div>
+      ))}
+      {books.length < 10 && (
+        <button type="button" className="btn-ghost btn-sm" onClick={() => onChange([...books, newBook()])}>
+          <Plus /> Eser ekle
+        </button>
+      )}
+    </div>
+  );
+}
+
 function Step({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
   return (
     <div className="relative pl-9">
@@ -85,7 +155,8 @@ function Step({ n, title, children }: { n: number; title: string; children: Reac
 export function RulesEditor({ value, onChange }: { value: Rules; onChange: (r: Rules) => void }) {
   const set = (patch: Partial<Rules>) => {
     const next = { ...value, ...patch };
-    if (next.minPages > next.targetPages) next.minPages = next.targetPages;
+    next.targetPages = next.books.reduce((s, b) => s + b.targetPages, 0);
+    next.minPages = next.books.reduce((s, b) => s + b.minPages, 0);
     onChange(next);
   };
   const fixed = value.penaltyMode === "FIXED";
@@ -109,24 +180,15 @@ export function RulesEditor({ value, onChange }: { value: Rules; onChange: (r: R
         />
       </Step>
 
-      <Step n={2} title="Günlük okuma hedefi">
-        <Stepper label="Her gün okunacak sayfa" value={t} onChange={(targetPages) => set({ targetPages })} min={1} max={2000} unit="sayfa" presets={[10, 20, 30, 50, 100]} />
+      <Step n={2} title="Okunacak eserler">
+        <BooksEditor books={value.books} onChange={(books) => set({ books })} />
+        <p className="mt-2 text-xs text-muted-foreground">
+          Günlük toplam: hedef <b className="text-foreground">{t}</b> sayfa · alt sınır <b className="text-foreground">{value.minPages}</b> sayfa.{" "}
+          {fixed ? "Alt sınırı okuyan indirimli, altında kalan tam ceza öder." : "Hedefe eksik kalan her sayfa için ceza yazılır."}
+        </p>
       </Step>
 
-      <Step n={3} title="Alt sınır">
-        <Stepper
-          label="Hedefe ulaşamayanın en az okuması gereken"
-          hint={fixed ? "Alt sınırı okuyan indirimli ceza öder; altında kalan tam ceza öder." : "“Alt sınırı okudum” butonu bu sayıyı bildirir."}
-          value={value.minPages}
-          onChange={(minPages) => set({ minPages })}
-          min={0}
-          max={t}
-          unit="sayfa"
-          presets={[Math.round(t * 0.25), Math.round(t * 0.5), Math.round(t * 0.75)]}
-        />
-      </Step>
-
-      <Step n={4} title={fixed ? "Günlük ceza" : "Eksik sayfa başına ceza"}>
+      <Step n={3} title={fixed ? "Günlük ceza" : "Eksik sayfa başına ceza"}>
         <Stepper
           label={fixed ? "Hedefi tutmayan öder" : "Hedefe eksik kalan her sayfa için"}
           value={value.penaltyAmount}
@@ -140,7 +202,7 @@ export function RulesEditor({ value, onChange }: { value: Rules; onChange: (r: R
       </Step>
 
       {fixed && (
-        <Step n={5} title="Alt sınırı okuyana indirim">
+        <Step n={4} title="Alt sınırı okuyana indirim">
           <div className="flex items-center gap-3">
             <Percent className="size-5 shrink-0 text-primary" />
             <input type="range" min={0} max={100} step={5} value={value.minDiscount} onChange={(e) => set({ minDiscount: Number(e.target.value) })} className="flex-1 accent-primary" />
