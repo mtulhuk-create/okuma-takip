@@ -74,7 +74,7 @@ export function PaySheet({ visible, items, title, onClose }: { visible: boolean;
                   <View style={{ backgroundColor: c.muted, borderRadius: 10, padding: 10, gap: 4 }}>
                     <Row gap={4}>
                       <Landmark size={11} color={c.mutedForeground} />
-                      <Text style={{ fontFamily: fonts.bold, fontSize: 10, letterSpacing: 0.6, color: c.mutedForeground }}>IBAN</Text>
+                      <Text style={{ fontFamily: fonts.bold, fontSize: 10, letterSpacing: 0.6, color: c.mutedForeground }}>GRUP KASASI IBAN</Text>
                     </Row>
                     <Row style={{ justifyContent: "space-between" }}>
                       <Text selectable style={{ flex: 1, fontFamily: fonts.semibold, fontSize: 13, color: c.foreground }}>

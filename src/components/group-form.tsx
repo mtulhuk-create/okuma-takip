@@ -262,9 +262,9 @@ export function GroupForm({ group }: { group?: Group & { teams?: Team[] } }) {
         </p>
       </Section>
 
-      <Section Icon={Landmark} title="Ceza ödemeleri" hint="Cezalar bu hesaba ödenir; yalnızca üyeler görür.">
+      <Section Icon={Landmark} title="Ceza ödemeleri" hint="Cezalar grubun kasasında toplanır; yönetici de herkes gibi okur ve ceza öder. Yalnızca üyeler görür.">
         <div>
-          <label className="label">IBAN</label>
+          <label className="label">Grup kasası IBAN</label>
           <input
             name="iban"
             className="input font-mono tracking-wide"
@@ -274,7 +274,7 @@ export function GroupForm({ group }: { group?: Group & { teams?: Team[] } }) {
           />
         </div>
         <div>
-          <label className="label">Alıcı adı soyadı</label>
+          <label className="label">Hesap sahibi adı soyadı</label>
           <input name="ibanName" className="input" defaultValue={group?.ibanName} />
         </div>
         <div>

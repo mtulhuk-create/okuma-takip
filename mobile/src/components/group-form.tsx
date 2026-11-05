@@ -175,9 +175,9 @@ export function GroupForm({ group, onSubmit, submitting, submitLabel }: { group?
         </Muted>
       </Section>
 
-      <Section icon={Landmark} title="Ceza ödemeleri" hint="Cezalar bu hesaba ödenir; yalnızca üyeler görür.">
-        <Input label="IBAN" value={iban.replace(/(.{4})/g, "$1 ").trim()} onChangeText={(v) => setIban(v.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 26))} autoCapitalize="characters" placeholder="TR00 0000 0000 0000 0000 0000 00" />
-        <Input label="Alıcı adı soyadı" value={ibanName} onChangeText={setIbanName} />
+      <Section icon={Landmark} title="Ceza ödemeleri" hint="Cezalar grubun kasasında toplanır; yönetici de herkes gibi okur ve ceza öder. Yalnızca üyeler görür.">
+        <Input label="Grup kasası IBAN" value={iban.replace(/(.{4})/g, "$1 ").trim()} onChangeText={(v) => setIban(v.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 26))} autoCapitalize="characters" placeholder="TR00 0000 0000 0000 0000 0000 00" />
+        <Input label="Hesap sahibi adı soyadı" value={ibanName} onChangeText={setIbanName} />
         <View>
           <Muted style={{ marginBottom: 6 }}>Varsayılan ödeme vadesi</Muted>
           <Row gap={8}>

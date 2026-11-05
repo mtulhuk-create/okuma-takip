@@ -42,7 +42,7 @@ export default function GroupInfoScreen() {
             Son ödeme {formatDateTime(d.dueAt, group.tzOffset)} · <Countdown to={d.dueAt} style={{ fontSize: 13 }} />
           </Body>
           <Card style={{ gap: 4 }}>
-            <Label>IBAN</Label>
+            <Label>Grup kasası IBAN</Label>
             <Body style={{ fontFamily: fonts.semibold, letterSpacing: 0.5 }}>{formatIban(group.iban)}</Body>
             <Body>{group.ibanName}</Body>
             <Button

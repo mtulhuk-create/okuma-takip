@@ -52,7 +52,7 @@ export function PaySheet({ items, title, onClose }: { items: PayItem[]; title: s
                 {d.group.iban ? (
                   <div className="rounded-lg bg-muted/60 p-2.5">
                     <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
-                      <Landmark className="size-3" /> IBAN
+                      <Landmark className="size-3" /> Grup kasası IBAN
                     </p>
                     <div className="flex items-center justify-between gap-2">
                       <p className="break-all font-mono text-[13px] font-semibold">{formatIban(d.group.iban)}</p>

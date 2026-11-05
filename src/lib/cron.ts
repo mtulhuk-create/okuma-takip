@@ -134,13 +134,21 @@ export async function processDues(now = new Date()) {
     await db.paymentDue.update({ where: { id: d.id }, data: { status: "EXPIRED", resolvedAt: now } });
     await db.penalty.updateMany({ where: { dueId: d.id, status: "IN_DUE" }, data: { status: "UNPAID", dueId: null } });
     const member = await db.groupMember.findUnique({ where: { groupId_userId: { groupId: d.groupId, userId: d.userId } } });
-    if (member && member.status === "ACTIVE" && member.role !== "ADMIN") {
-      await db.groupMember.update({ where: { id: member.id }, data: { status: "KICKED", leftAt: now } });
-    }
-    await notifyUsers([d.userId], { title: `🚫 ${d.group.name} grubundan çıkarıldın`, body: `${d.amount} TL ceza ödemesi vadesinde onaylanmadı.`, url: "/gruplar" }, { inApp: true });
+    // Yönetici de okuyucudur ve ceza öder; ama grup yöneticisiz kalmasın diye vadesi dolunca çıkarılmaz, borcu kasada açık kalır
+    const kick = !!member && member.status === "ACTIVE" && member.role !== "ADMIN";
+    if (kick) await db.groupMember.update({ where: { id: member.id }, data: { status: "KICKED", leftAt: now } });
+    await notifyUsers(
+      [d.userId],
+      kick
+        ? { title: `🚫 ${d.group.name} grubundan çıkarıldın`, body: `${d.amount} TL ceza ödemesi vadesinde onaylanmadı.`, url: "/gruplar" }
+        : { title: `⚠️ ${d.group.name}: ödeme vaden doldu`, body: `${d.amount} TL cezan kasaya ödenmedi; borcun açık duruyor.`, url: `/gruplar/${d.groupId}/bilgi` },
+      { inApp: true },
+    );
     await notifyUsers(
       (await groupAdminIds(d.groupId)).filter((id) => id !== d.userId),
-      { title: `${d.group.name}: ${d.user.name} gruptan çıkarıldı`, body: `${d.amount} TL ödemenin vadesi doldu.`, url: `/gruplar/${d.groupId}/yonetim` },
+      kick
+        ? { title: `${d.group.name}: ${d.user.name} gruptan çıkarıldı`, body: `${d.amount} TL ödemenin vadesi doldu.`, url: `/gruplar/${d.groupId}/yonetim` }
+        : { title: `${d.group.name}: ${d.user.name} vadesinde ödemedi`, body: `${d.amount} TL kasaya girmedi (yönetici olduğu için gruptan çıkarılmadı).`, url: `/gruplar/${d.groupId}/yonetim` },
       { inApp: true },
     );
   }
