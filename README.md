@@ -2,7 +2,7 @@
 
 Okuma grubu kur, her gün sayfanı bildir, hedefin altında kalırsan ceza öde.
 
-- **Web / mobil web:** Next.js 16 · Clerk · Prisma 7 + Neon (PostgreSQL) · Vercel — https://okumatakip.vercel.app
+- **Web / mobil web:** Next.js 16 · Clerk · Prisma 7 + Neon (PostgreSQL) · Vercel — https://okumatakipp.site
 - **Android:** React Native (Expo SDK 58) — `mobile/`
 
 ## Özellikler
