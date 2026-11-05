@@ -1,70 +1,172 @@
+import { AlarmClock, BookOpen, ChevronDown, Globe, Landmark, Lock, PencilLine, Plus, Shield, ShieldCheck, Trash2, Users, type LucideIcon } from "lucide-react-native";
 import { useState } from "react";
-import { View } from "react-native";
-import type { Group, PenaltyMode } from "@/lib/types";
+import { Pressable, Switch, Text, View } from "react-native";
+import { fonts, useColors } from "@/lib/theme";
+import type { Group, Rules } from "@/lib/types";
 import { TimeField } from "./pickers";
-import { Body, Button, Card, Input, Muted, Row, Segmented, Title } from "./ui";
+import { RulesEditor } from "./rules-editor";
+import { Button, Card, Input, Muted, Row, Segmented } from "./ui";
 
 export type GroupFormValues = Record<string, string | number>;
+type TeamDraft = Rules & { id?: string; name: string; key: string };
+const DEFAULT_RULES: Rules = { penaltyMode: "FIXED", targetPages: 20, minPages: 10, penaltyAmount: 20, minDiscount: 50 };
+const pick = (r: Rules): Rules => ({ penaltyMode: r.penaltyMode, targetPages: r.targetPages, minPages: r.minPages, penaltyAmount: r.penaltyAmount, minDiscount: r.minDiscount });
+
+function Section({ icon: Icon, title, hint, children }: { icon: LucideIcon; title: string; hint?: string; children: React.ReactNode }) {
+  const c = useColors();
+  return (
+    <Card style={{ gap: 14 }}>
+      <Row gap={10} style={{ alignItems: "flex-start" }}>
+        <View style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: c.primary + "18", alignItems: "center", justifyContent: "center" }}>
+          <Icon size={19} color={c.primary} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontFamily: fonts.bold, fontSize: 15, color: c.foreground }}>{title}</Text>
+          {hint && <Muted>{hint}</Muted>}
+        </View>
+      </Row>
+      {children}
+    </Card>
+  );
+}
+
+function TeamCard({ team, index, canRemove, onChange, onRemove }: { team: TeamDraft; index: number; canRemove: boolean; onChange: (t: TeamDraft) => void; onRemove: () => void }) {
+  const c = useColors();
+  const [open, setOpen] = useState(index === 0);
+  return (
+    <View style={{ borderWidth: 1, borderColor: c.border, borderRadius: 12, padding: 10, gap: 10 }}>
+      <Row>
+        <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: c.primary + "18", alignItems: "center", justifyContent: "center" }}>
+          <Text style={{ fontFamily: fonts.bold, color: c.primary }}>{index + 1}</Text>
+        </View>
+        <Input value={team.name} onChangeText={(name) => onChange({ ...team, name })} placeholder={`${index + 1}. ekip adı`} maxLength={40} />
+        <Pressable onPress={() => setOpen((o) => !o)} hitSlop={8}>
+          <ChevronDown size={20} color={c.mutedForeground} style={{ transform: [{ rotate: open ? "180deg" : "0deg" }] }} />
+        </Pressable>
+        {canRemove && (
+          <Pressable onPress={onRemove} hitSlop={8}>
+            <Trash2 size={18} color={c.mutedForeground} />
+          </Pressable>
+        )}
+      </Row>
+      {open ? (
+        <RulesEditor value={team} onChange={(r) => onChange({ ...team, ...r })} />
+      ) : (
+        <Muted>
+          Günde {team.targetPages} sayfa · alt sınır {team.minPages} · {team.penaltyMode === "FIXED" ? `${team.penaltyAmount} TL (%${team.minDiscount} indirim)` : `${team.penaltyAmount} TL/eksik sayfa`}
+        </Muted>
+      )}
+    </View>
+  );
+}
 
 export function GroupForm({ group, onSubmit, submitting, submitLabel }: { group?: Group; onSubmit: (v: GroupFormValues) => void; submitting?: boolean; submitLabel: string }) {
+  const c = useColors();
   const [name, setName] = useState(group?.name ?? "");
   const [description, setDescription] = useState(group?.description ?? "");
   const [visibility, setVisibility] = useState<"PRIVATE" | "PUBLIC">(group?.visibility ?? "PRIVATE");
-  const [minPages, setMinPages] = useState(String(group?.minPages ?? 10));
-  const [penaltyMode, setPenaltyMode] = useState<PenaltyMode>(group?.penaltyMode ?? "FIXED");
-  const [penaltyAmount, setPenaltyAmount] = useState(String(group?.penaltyAmount ?? 20));
+  const [chatPolicy, setChatPolicy] = useState<"ALL" | "ADMINS">(group?.chatPolicy ?? "ALL");
+  const [rules, setRules] = useState<Rules>(group ? pick(group) : DEFAULT_RULES);
+  const [teamsEnabled, setTeamsEnabled] = useState(group?.teamsEnabled ?? false);
+  const [teams, setTeams] = useState<TeamDraft[]>(group?.teams?.map((t) => ({ ...pick(t), id: t.id, name: t.name, key: t.id })) ?? []);
   const [startMinute, setStartMinute] = useState(group?.startMinute ?? 0);
   const [deadlineMinute, setDeadlineMinute] = useState(group?.deadlineMinute ?? 1439);
-  const [reminderHours, setReminderHours] = useState(String(group?.reminderHours ?? 2));
+  const [reminderHours, setReminderHours] = useState(group?.reminderHours ?? 2);
   const [iban, setIban] = useState(group?.iban ?? "");
   const [ibanName, setIbanName] = useState(group?.ibanName ?? "");
-
   const time = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+  const newTeam = (n: number): TeamDraft => ({ ...rules, name: `${String.fromCharCode(65 + n)} Ekibi`, key: `new-${Date.now()}-${n}` });
+
+  function toggleTeams(on: boolean) {
+    setTeamsEnabled(on);
+    if (on && teams.length < 2) setTeams((t) => [...t, ...Array.from({ length: 2 - t.length }, (_, i) => newTeam(t.length + i))]);
+  }
 
   return (
     <View style={{ gap: 14 }}>
-      <Input label="Grup adı" value={name} onChangeText={setName} placeholder="Örn. Sabah Okurları" maxLength={80} />
-      <Input label="Açıklama" value={description} onChangeText={setDescription} multiline maxLength={500} />
-      <Segmented
-        value={visibility}
-        onChange={setVisibility}
-        options={[
-          { value: "PRIVATE", label: "🔒 Özel", hint: "Sadece davetle" },
-          { value: "PUBLIC", label: "🌍 Herkese açık", hint: "Listede görünür, istek alınır" },
-        ]}
-      />
+      <Section icon={PencilLine} title="Temel bilgiler">
+        <Input label="Grup adı" value={name} onChangeText={setName} placeholder="Örn. Sabah Okurları" maxLength={80} />
+        <Input label="Açıklama (isteğe bağlı)" value={description} onChangeText={setDescription} multiline maxLength={500} />
+      </Section>
 
-      <Card>
-        <Title>📖 Okuma kuralları</Title>
-        <Input label="Günlük en az sayfa (alt sınır)" value={minPages} onChangeText={setMinPages} keyboardType="number-pad" />
-        <Muted>Her üye kendi günlük hedefini belirler; bu değerin altına inemez.</Muted>
+      <Section icon={Users} title="Kimler katılabilir?">
         <Segmented
-          value={penaltyMode}
-          onChange={setPenaltyMode}
+          value={visibility}
+          onChange={setVisibility}
           options={[
-            { value: "FIXED", label: "Gün başına sabit" },
-            { value: "PER_PAGE", label: "Eksik sayfa başına" },
+            { value: "PRIVATE", label: "Özel", hint: "Yalnızca davetle", icon: Lock },
+            { value: "PUBLIC", label: "Herkese açık", hint: "Listede görünür", icon: Globe },
           ]}
         />
-        <Input label="Ceza tutarı (TL)" value={penaltyAmount} onChangeText={setPenaltyAmount} keyboardType="number-pad" />
-      </Card>
+      </Section>
 
-      <Card>
-        <Title>⏰ Zamanlama (Türkiye saati)</Title>
-        <Row>
-          <TimeField label="Yeni gün başlangıcı" minute={startMinute} onChange={setStartMinute} />
-          <TimeField label="Son bildirim saati" minute={deadlineMinute} onChange={setDeadlineMinute} />
+      <Section icon={ShieldCheck} title="Kimler yazabilir?">
+        <Segmented
+          value={chatPolicy}
+          onChange={setChatPolicy}
+          options={[
+            { value: "ALL", label: "Tüm üyeler", hint: "Mesaj ve anket", icon: Users },
+            { value: "ADMINS", label: "Yöneticiler", hint: "Üyeler okur", icon: ShieldCheck },
+          ]}
+        />
+      </Section>
+
+      <Section icon={Shield} title="Ekipler" hint="Her ekibin kendi okuma ve ceza kuralları olur.">
+        <Row style={{ justifyContent: "space-between" }}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontFamily: fonts.semibold, fontSize: 14, color: c.foreground }}>Grubu ekiplere böl</Text>
+            <Muted>Katılanlar ekibini seçer; değişiklik yönetici onayıyla olur.</Muted>
+          </View>
+          <Switch value={teamsEnabled} onValueChange={toggleTeams} trackColor={{ true: c.primary, false: c.muted }} thumbColor="#fff" />
         </Row>
-        <Muted>Son saat başlangıçtan önceyse ertesi güne sayılır (örn. 06:00 başlangıç, 02:00 bitiş).</Muted>
-        <Input label="Son saatten kaç saat önce uyarı?" value={reminderHours} onChangeText={setReminderHours} keyboardType="number-pad" />
-        <Muted>0 = uyarı yok. Son 10 dakikada geri sayım bildirimi her zaman gönderilir.</Muted>
-      </Card>
+        {teamsEnabled && (
+          <View style={{ gap: 8 }}>
+            {teams.map((t, i) => (
+              <TeamCard
+                key={t.key}
+                team={t}
+                index={i}
+                canRemove={teams.length > 2}
+                onChange={(nt) => setTeams((all) => all.map((x) => (x.key === t.key ? nt : x)))}
+                onRemove={() => setTeams((all) => all.filter((x) => x.key !== t.key))}
+              />
+            ))}
+            <Button title="Ekip ekle" icon={Plus} small variant="ghost" onPress={() => setTeams((all) => [...all, newTeam(all.length)])} style={{ alignSelf: "flex-start" }} />
+          </View>
+        )}
+      </Section>
 
-      <Card>
-        <Title>💳 Ceza ödemeleri</Title>
-        <Input label="IBAN" value={iban} onChangeText={setIban} autoCapitalize="characters" placeholder="TR00 0000 0000 0000 0000 0000 00" />
+      {!teamsEnabled && (
+        <Section icon={BookOpen} title="Okuma kuralları" hint="Önce ceza türünü seç, sonra hedefi ve cezayı belirle.">
+          <RulesEditor value={rules} onChange={setRules} />
+        </Section>
+      )}
+
+      <Section icon={AlarmClock} title="Zamanlama" hint="Türkiye saati">
+        <Row>
+          <TimeField label="Gün başlar" minute={startMinute} onChange={setStartMinute} />
+          <TimeField label={deadlineMinute <= startMinute ? "Son bildirim (ertesi gün)" : "Son bildirim"} minute={deadlineMinute} onChange={setDeadlineMinute} />
+        </Row>
+        <View>
+          <Muted style={{ marginBottom: 6 }}>Son saatten önce uyarı</Muted>
+          <Row style={{ flexWrap: "wrap" }} gap={6}>
+            {[0, 1, 2, 3, 6, 12].map((h) => (
+              <Pressable key={h} onPress={() => setReminderHours(h)} style={{ borderRadius: 99, borderWidth: 1, borderColor: h === reminderHours ? c.primary : c.border, backgroundColor: h === reminderHours ? c.primary : c.card, paddingHorizontal: 12, paddingVertical: 6 }}>
+                <Text style={{ fontFamily: fonts.semibold, fontSize: 12, color: h === reminderHours ? c.primaryForeground : c.foreground }}>{h === 0 ? "Kapalı" : `${h} saat`}</Text>
+              </Pressable>
+            ))}
+          </Row>
+        </View>
+        <Muted>
+          Her gün {time(startMinute)}&apos;de başlar, {deadlineMinute <= startMinute ? "ertesi gün " : ""}
+          {time(deadlineMinute)}&apos;de kapanır.{reminderHours ? ` ${reminderHours} saat önce uyarı,` : ""} son 10 dakikada geri sayım gelir.
+        </Muted>
+      </Section>
+
+      <Section icon={Landmark} title="Ceza ödemeleri" hint="Cezalar bu hesaba ödenir; yalnızca üyeler görür.">
+        <Input label="IBAN" value={iban.replace(/(.{4})/g, "$1 ").trim()} onChangeText={(v) => setIban(v.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 26))} autoCapitalize="characters" placeholder="TR00 0000 0000 0000 0000 0000 00" />
         <Input label="Alıcı adı soyadı" value={ibanName} onChangeText={setIbanName} />
-      </Card>
+      </Section>
 
       <Button
         title={submitLabel}
@@ -75,9 +177,10 @@ export function GroupForm({ group, onSubmit, submitting, submitLabel }: { group?
             name,
             description,
             visibility,
-            minPages,
-            penaltyMode,
-            penaltyAmount,
+            chatPolicy,
+            ...rules,
+            teamsEnabled: teamsEnabled ? "1" : "0",
+            teams: JSON.stringify(teams.map(({ key: _k, ...t }) => t)),
             startTime: time(startMinute),
             deadlineTime: time(deadlineMinute),
             reminderHours,
@@ -86,7 +189,6 @@ export function GroupForm({ group, onSubmit, submitting, submitLabel }: { group?
           })
         }
       />
-      {!group && <Body style={{ textAlign: "center", opacity: 0.6 }}>Grubu kurunca otomatik olarak yönetici olursun.</Body>}
     </View>
   );
 }

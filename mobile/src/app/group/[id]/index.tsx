@@ -1,268 +1,207 @@
-import * as Clipboard from "expo-clipboard";
-import { router, Stack, useLocalSearchParams } from "expo-router";
-import { useState } from "react";
-import { Alert, ScrollView, View } from "react-native";
-import { Countdown } from "@/components/countdown";
-import { ReportButtons } from "@/components/report-buttons";
-import { Avatar, Badge, Body, Button, Card, Divider, ErrorView, H1, Input, Label, Loading, Muted, Row, Screen, Title, type Tone } from "@/components/ui";
-import { toast, useAction, useApi } from "@/lib/api";
-import { formatDateTime, formatDayKey, formatIban, minuteToTime } from "@/lib/format";
+import { useQuery } from "@tanstack/react-query";
+import { router, Stack, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { BarChart3, Info, Lock, Receipt, SendHorizontal, Settings } from "lucide-react-native";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AppState, FlatList, KeyboardAvoidingView, Platform, Pressable, Text, TextInput, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { MessageBubble } from "@/components/chat/message";
+import { PollModal } from "@/components/chat/poll-modal";
+import { DayCardFull } from "@/components/day-card";
+import { JoinView } from "@/components/join-view";
+import { ErrorView, Loading, Row } from "@/components/ui";
+import { ApiError, useAction, useApi, useApiFetch } from "@/lib/api";
+import { formatDayLong } from "@/lib/format";
 import { fonts, useColors } from "@/lib/theme";
-import type { Group, GroupDetailResponse, PenaltyStatus } from "@/lib/types";
+import type { ChatMessage, ChatResponse, MeResponse } from "@/lib/types";
 
-const PENALTY: Record<PenaltyStatus, [string, Tone]> = {
-  UNPAID: ["Ödenmedi", "danger"],
-  IN_DUE: ["Vadede", "warning"],
-  PAID: ["Ödendi", "success"],
-  WAIVED: ["Affedildi", "neutral"],
-};
-
-function Rules({ group }: { group: Group }) {
-  const items = [
-    ["Alt sınır", `${group.minPages} sayfa/gün`],
-    ["Ceza", group.penaltyMode === "FIXED" ? `${group.penaltyAmount} TL / gün` : `${group.penaltyAmount} TL / eksik sayfa`],
-    ["Okuma günü", `${minuteToTime(group.startMinute)} → ${minuteToTime(group.deadlineMinute)}`],
-    ["Uyarı", `${group.reminderHours ? `${group.reminderHours} saat önce` : "Kapalı"} + son 10 dk`],
-  ];
-  return (
-    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-      {items.map(([l, v]) => (
-        <Card key={l} style={{ width: "48%", padding: 12, gap: 2 }}>
-          <Label>{l}</Label>
-          <Body style={{ fontFamily: fonts.semibold }}>{v}</Body>
-        </Card>
-      ))}
-    </View>
-  );
+const trDay = (iso: string) => new Date(new Date(iso).getTime() + 3 * 3_600_000).toISOString().slice(0, 10);
+function dayLabel(day: string) {
+  if (day === trDay(new Date().toISOString())) return "Bugün";
+  if (day === trDay(new Date(Date.now() - 86_400_000).toISOString())) return "Dün";
+  return formatDayLong(day);
 }
 
-export default function GroupScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+export default function ChatScreen() {
+  const { id, day } = useLocalSearchParams<{ id: string; day?: string }>();
   const c = useColors();
-  const { data, isLoading, error, refetch, isRefetching } = useApi<GroupDetailResponse>(`/api/m/groups/${id}`);
+  const insets = useSafeAreaInsets();
+  const fetcher = useApiFetch();
   const action = useAction();
-  const [joinNote, setJoinNote] = useState("");
-  const [payNote, setPayNote] = useState("");
-  const [target, setTarget] = useState<string | null>(null);
+  const chat = useQuery({ queryKey: [`/api/m/groups/${id}/chat`], queryFn: () => fetcher<ChatResponse>(`/api/m/groups/${id}/chat`), retry: (n, e) => !(e instanceof ApiError) && n < 2 });
+  const me = useApi<MeResponse>("/api/m/me");
+  const [older, setOlder] = useState<ChatMessage[]>([]);
+  const [pending, setPending] = useState<ChatMessage[]>([]);
+  const [hasMoreOlder, setHasMoreOlder] = useState<boolean | null>(null);
+  const [text, setText] = useState("");
+  const [pollOpen, setPollOpen] = useState(false);
+  const list = useRef<FlatList<ChatMessage>>(null);
+  const cursor = useRef(0);
+  const scrolledToDay = useRef(false);
+  const loadingOlder = useRef(false);
 
-  if (isLoading) return <Loading />;
-  if (error || !data) return <ErrorView message={error?.message ?? "Yüklenemedi"} onRetry={refetch} />;
+  useEffect(() => {
+    if (chat.data && !cursor.current) cursor.current = chat.data.cursor;
+  }, [chat.data]);
 
-  if (data.private) {
-    return (
-      <Screen padTop={false}>
-        <Stack.Screen options={{ title: data.group.name }} />
-        <Card style={{ alignItems: "center" }}>
-          <Body style={{ fontSize: 44 }}>🔒</Body>
-          <Title>Bu grup özel</Title>
-          <Muted style={{ textAlign: "center" }}>Yalnızca yöneticinin davet ettiği kişiler katılabilir.</Muted>
-        </Card>
-      </Screen>
+  // Gerçek zamanlı: ekran açıkken 2 saniyede bir yeni olay var mı bak
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      const tick = async () => {
+        if (!active || AppState.currentState !== "active" || !cursor.current) return;
+        try {
+          const res = await fetcher<{ cursor: number; events: unknown[] }>(`/api/m/groups/${id}/events?once=1&after=${cursor.current}`);
+          cursor.current = res.cursor;
+          if (res.events.length) chat.refetch();
+        } catch {}
+      };
+      const t = setInterval(tick, 2000);
+      return () => {
+        active = false;
+        clearInterval(t);
+      };
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [id, fetcher]),
+  );
+
+  const latest = chat.data?.messages ?? [];
+  const messages = useMemo(() => {
+    const first = latest[0]?.createdAt;
+    const old = first ? older.filter((m) => m.createdAt < first) : older;
+    const stillPending = pending.filter((p) => !latest.some((m) => m.text === p.text && m.user?.id === p.user?.id && m.createdAt >= p.createdAt));
+    return [...old, ...latest, ...stillPending];
+  }, [latest, older, pending]);
+  const reversed = useMemo(() => [...messages].reverse(), [messages]);
+  const dayIndex = day ? reversed.findIndex((m) => m.kind === "DAY" && m.day?.dayKey === day) : -1;
+
+  // Bugün ekranından gelindiyse ilgili gün kartına kaydır
+  useEffect(() => {
+    if (dayIndex < 0 || scrolledToDay.current) return;
+    scrolledToDay.current = true;
+    const t = setTimeout(() => list.current?.scrollToIndex({ index: dayIndex, viewPosition: 0.4, animated: true }), 300);
+    return () => clearTimeout(t);
+  }, [dayIndex]);
+
+  async function loadOlder() {
+    if (loadingOlder.current || hasMoreOlder === false || !messages.length || !(chat.data?.hasMore || hasMoreOlder)) return;
+    loadingOlder.current = true;
+    try {
+      const page = await fetcher<ChatResponse>(`/api/m/groups/${id}/chat?before=${encodeURIComponent(messages[0].createdAt)}`);
+      setOlder((o) => [...page.messages, ...o]);
+      setHasMoreOlder(page.hasMore);
+    } catch {}
+    loadingOlder.current = false;
+  }
+
+  async function send() {
+    const body = text.trim();
+    if (!body || !chat.data) return;
+    setText("");
+    const tmp: ChatMessage = { id: `tmp-${Date.now()}`, kind: "TEXT", text: body, createdAt: new Date().toISOString(), user: { id: chat.data.me.userId, name: "", imageUrl: null }, day: null, poll: null, pending: true };
+    setPending((p) => [...p, tmp]);
+    list.current?.scrollToOffset({ offset: 0, animated: true });
+    action.mutate(
+      { name: "sendMessage", body: { groupId: id, text: body } },
+      { onError: () => setPending((p) => p.map((m) => (m.id === tmp.id ? { ...m, pending: false, failed: true } : m))) },
     );
   }
 
-  const { group, me, invite, request, board } = data;
-  const busy = (name: string) => action.isPending && action.variables?.name === name;
-
-  // ---- Üye olmayan görünüm ----
-  if (!me || !board) {
-    return (
-      <Screen padTop={false} refreshing={isRefetching} onRefresh={refetch}>
-        <Stack.Screen options={{ title: "" }} />
-        <H1>{group.name}</H1>
-        <Muted>
-          {group.members.length} üye · yönetici {group.owner.name}
-        </Muted>
-        {group.description && <Body>{group.description}</Body>}
-        <Rules group={group} />
-        {invite ? (
-          <Card tone="accent">
-            <Body>
-              📩 <Body style={{ fontFamily: fonts.bold }}>{invite.inviter.name}</Body> seni bu gruba davet etti.
-            </Body>
-            <Row>
-              <Button title="Katıl" variant="success" style={{ flex: 1 }} loading={busy("respondInvite")} onPress={() => action.mutate({ name: "respondInvite", body: { inviteId: invite.id, accept: "1" } })} />
-              <Button title="Reddet" variant="ghost" style={{ flex: 1 }} onPress={() => action.mutate({ name: "respondInvite", body: { inviteId: invite.id, accept: "0" } })} />
-            </Row>
-          </Card>
-        ) : request ? (
-          <Card>
-            <Body>⏳ Katılım isteğin yönetici onayı bekliyor.</Body>
-          </Card>
-        ) : (
-          <Card>
-            <Input placeholder="Yöneticiye not (isteğe bağlı)" value={joinNote} onChangeText={setJoinNote} maxLength={300} />
-            <Button title="Katılma isteği gönder" loading={busy("requestJoin")} onPress={() => action.mutate({ name: "requestJoin", body: { groupId: group.id, message: joinNote } })} />
-          </Card>
-        )}
-      </Screen>
-    );
+  if (chat.isLoading) return <Loading />;
+  if (chat.error) {
+    if (chat.error.message.includes("üyesi değilsiniz")) return <JoinView groupId={id} />;
+    return <ErrorView message={chat.error.message} onRetry={chat.refetch} />;
   }
-
-  // ---- Üye görünümü ----
-  const { period, open, days, dayStarts, logs, penalties, dues } = board;
-  const logMap = new Map(logs.map((l) => [`${l.userId}:${l.dayKey}`, l]));
-  const myToday = logMap.get(`${me.userId}:${period.dayKey}`);
-  const unpaidTotal = penalties.filter((p) => p.status === "UNPAID" || p.status === "IN_DUE").reduce((s, p) => s + p.amount, 0);
-  const openDues = dues.filter((d) => d.status === "PENDING" || d.status === "SUBMITTED");
+  const data = chat.data!;
+  const isAdmin = data.me.role === "ADMIN";
+  const due = me.data?.money.dues.find((d) => d.groupId === id && d.status === "PENDING");
 
   return (
-    <Screen padTop={false} refreshing={isRefetching} onRefresh={refetch}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: c.background }} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={90}>
       <Stack.Screen
         options={{
-          title: "",
-          headerRight: me.role === "ADMIN" ? () => <Button title="⚙️ Yönetim" small variant="ghost" onPress={() => router.push(`/group/${id}/admin`)} /> : undefined,
+          headerTitle: () => (
+            <Pressable onPress={() => router.push(`/group/${id}/info`)}>
+              <Text numberOfLines={1} style={{ fontFamily: fonts.semibold, fontSize: 16, color: c.foreground }}>
+                {data.group.name}
+              </Text>
+              <Text style={{ fontFamily: fonts.regular, fontSize: 11, color: c.mutedForeground }}>{data.group.memberCount} üye</Text>
+            </Pressable>
+          ),
+          headerRight: () => (
+            <Row gap={16}>
+              <Pressable onPress={() => router.push(`/group/${id}/info`)} hitSlop={10}>
+                <Info size={22} color={c.foreground} />
+              </Pressable>
+              {isAdmin && (
+                <Pressable onPress={() => router.push(`/group/${id}/admin`)} hitSlop={10}>
+                  <Settings size={22} color={c.foreground} />
+                </Pressable>
+              )}
+            </Row>
+          ),
         }}
       />
-      <View>
-        <H1>{group.name}</H1>
-        <Muted>
-          {group.visibility === "PUBLIC" ? "🌍 Herkese açık" : "🔒 Özel"} · {group.members.length} üye
-        </Muted>
-      </View>
-      {group.description && <Body>{group.description}</Body>}
-
-      {openDues.map((d) => (
-        <Card key={d.id} tone="danger">
-          <Title style={{ color: c.destructive }}>🧾 Ödenecek ceza: {d.amount} TL</Title>
-          <Body>
-            Son ödeme: <Body style={{ fontFamily: fonts.bold }}>{formatDateTime(d.dueAt, group.tzOffset)}</Body>. Bu tarihe kadar ödemen yönetici tarafından onaylanmazsa gruptan otomatik çıkarılırsın.
-          </Body>
-          <Countdown to={d.dueAt} />
-          <Card style={{ gap: 4 }}>
-            <Label>IBAN</Label>
-            <Body style={{ fontFamily: fonts.semibold, letterSpacing: 0.5 }}>{formatIban(group.iban)}</Body>
-            <Body>{group.ibanName}</Body>
-            <Muted>Açıklama: {me.user.name} — Okuma Takip cezası</Muted>
-            <Button
-              title="IBAN'ı kopyala"
-              small
-              variant="ghost"
-              onPress={async () => {
-                await Clipboard.setStringAsync(group.iban);
-                toast("IBAN kopyalandı");
-              }}
-            />
-          </Card>
-          {d.status === "SUBMITTED" ? (
-            <Body style={{ color: c.warning, fontFamily: fonts.semibold }}>⏳ Ödeme bildirdin, yönetici onayı bekleniyor.</Body>
-          ) : (
-            <>
-              <Input placeholder="Not: gönderen ad, saat, banka vb." value={payNote} onChangeText={setPayNote} maxLength={300} />
-              <Button title="💳 Ödedim" variant="success" loading={busy("submitPayment")} onPress={() => action.mutate({ name: "submitPayment", body: { dueId: d.id, note: payNote } })} />
-            </>
-          )}
-        </Card>
-      ))}
-
-      <Card>
-        <Row style={{ justifyContent: "space-between" }}>
-          <Title>📖 {formatDayKey(period.dayKey)}</Title>
-          {open && <Countdown to={open.deadline} />}
-        </Row>
-        {open ? (
-          <ReportButtons groupId={group.id} dailyPages={me.dailyPages} current={myToday?.pages ?? null} />
-        ) : (
-          <Muted>
-            Bildirim süresi doldu. Yeni gün {minuteToTime(group.startMinute)}&apos;de başlıyor.
-          </Muted>
-        )}
-      </Card>
-
-      <Card>
-        <Title>👥 Son 7 gün</Title>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          <View style={{ gap: 6 }}>
-            <Row gap={0}>
-              <View style={{ width: 130 }} />
-              {days.map((d) => (
-                <Muted key={d} style={{ width: 34, textAlign: "center", fontFamily: fonts.semibold }}>
-                  {Number(d.slice(8))}
-                </Muted>
-              ))}
-            </Row>
-            {group.members.map((m) => (
-              <Row key={m.id} gap={0}>
-                <Row style={{ width: 130 }}>
-                  <Avatar name={m.user.name} uri={m.user.imageUrl} size={26} />
-                  <View style={{ flex: 1 }}>
-                    <Body numberOfLines={1} style={{ fontSize: 12, fontFamily: fonts.medium }}>
-                      {m.user.name}
-                      {m.role === "ADMIN" ? " ⭐" : ""}
-                    </Body>
-                    <Muted style={{ fontSize: 10 }}>{m.dailyPages} sf/gün</Muted>
-                  </View>
-                </Row>
-                {days.map((d) => {
-                  const l = logMap.get(`${m.userId}:${d}`);
-                  const isToday = d === period.dayKey;
-                  const closed = !(isToday && open);
-                  const eligible = new Date(m.joinedAt) <= new Date(dayStarts[d]);
-                  let text = "·";
-                  let color = c.mutedForeground;
-                  if (l) {
-                    text = String(l.pages);
-                    color = l.pages >= l.requiredPages ? c.success : c.destructive;
-                  } else if (closed && eligible) {
-                    text = "✗";
-                    color = c.destructive;
-                  } else if (isToday && open) text = "…";
-                  return (
-                    <Body key={d} style={{ width: 34, textAlign: "center", color, fontFamily: fonts.bold, fontSize: 12, backgroundColor: isToday ? c.accent : undefined, borderRadius: 4 }}>
-                      {text}
-                    </Body>
-                  );
-                })}
-              </Row>
-            ))}
-          </View>
-        </ScrollView>
-      </Card>
-
-      <Rules group={group} />
-
-      <Card>
-        <Title>🎯 Günlük hedefim</Title>
-        <Row>
-          <Input value={target ?? String(me.dailyPages)} onChangeText={setTarget} keyboardType="number-pad" />
-          <Button title="Kaydet" loading={busy("setDailyPages")} onPress={() => action.mutate({ name: "setDailyPages", body: { groupId: group.id, dailyPages: target ?? me.dailyPages } })} />
-        </Row>
-        <Muted>Bu sayının altında kalırsan ceza yazılır. En az {group.minPages} olabilir.</Muted>
-      </Card>
-
-      <Card>
-        <Row style={{ justifyContent: "space-between" }}>
-          <Title>💸 Cezalarım</Title>
-          <Body style={{ fontFamily: fonts.bold, color: unpaidTotal ? c.destructive : c.success }}>{unpaidTotal} TL ödenmemiş</Body>
-        </Row>
-        {penalties.length === 0 && <Muted>Hiç cezan yok, böyle devam! 🎉</Muted>}
-        {penalties.map((p, i) => (
-          <View key={p.id}>
-            {i > 0 && <Divider />}
-            <Row style={{ justifyContent: "space-between" }}>
-              <Body>
-                {formatDayKey(p.dayKey)} · {p.pagesRead}/{p.requiredPages} sf
-              </Body>
-              <Row>
-                <Body style={{ fontFamily: fonts.bold }}>{p.amount} TL</Body>
-                <Badge text={PENALTY[p.status][0]} tone={PENALTY[p.status][1]} />
-              </Row>
-            </Row>
-          </View>
-        ))}
-      </Card>
-
-      <Button
-        title="Gruptan ayrıl"
-        variant="ghost"
-        textColor={c.destructive}
-        onPress={() =>
-          Alert.alert("Gruptan ayrıl", "Gruptan ayrılmak istediğine emin misin?", [
-            { text: "Vazgeç", style: "cancel" },
-            { text: "Ayrıl", style: "destructive", onPress: () => action.mutate({ name: "leaveGroup", body: { groupId: group.id } }, { onSuccess: () => router.back() }) },
-          ])
-        }
+      {due && (
+        <Pressable onPress={() => router.push(`/group/${id}/info`)} style={{ backgroundColor: c.dangerBg, paddingVertical: 7, flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6 }}>
+          <Receipt size={14} color={c.destructive} />
+          <Text style={{ fontFamily: fonts.semibold, fontSize: 12, color: c.destructive }}>{due.amount} TL ceza ödemen var · ödeme bilgileri</Text>
+        </Pressable>
+      )}
+      <FlatList
+        ref={list}
+        inverted
+        data={reversed}
+        keyExtractor={(m) => m.id}
+        contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 10 }}
+        onEndReached={loadOlder}
+        onEndReachedThreshold={0.3}
+        onScrollToIndexFailed={(info) => setTimeout(() => list.current?.scrollToIndex({ index: info.index, viewPosition: 0.4 }), 400)}
+        renderItem={({ item: m, index }) => {
+          const olderItem = reversed[index + 1];
+          if (m.kind === "DAY" && m.day) return <DayCardFull card={m.day} groupId={id} highlight={m.day.dayKey === day} onReported={() => chat.refetch()} />;
+          const dayKey = trDay(m.createdAt);
+          const sep = !olderItem || olderItem.kind === "DAY" || trDay(olderItem.createdAt) !== dayKey;
+          const mine = m.user?.id === data.me.userId;
+          const showAuthor = sep || olderItem?.user?.id !== m.user?.id;
+          return (
+            <View>
+              {sep && (
+                <View style={{ alignSelf: "center", backgroundColor: c.card, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 3, marginVertical: 10 }}>
+                  <Text style={{ fontFamily: fonts.medium, fontSize: 11, color: c.mutedForeground }}>{dayLabel(dayKey)}</Text>
+                </View>
+              )}
+              <MessageBubble m={m} mine={mine} showAuthor={showAuthor} canDelete={mine || isAdmin} />
+            </View>
+          );
+        }}
       />
-    </Screen>
+      <View style={{ borderTopWidth: 1, borderTopColor: c.border, backgroundColor: c.card, paddingHorizontal: 8, paddingTop: 8, paddingBottom: Math.max(8, insets.bottom) }}>
+        {data.me.canPost ? (
+          <Row gap={6} style={{ alignItems: "flex-end" }}>
+            <Pressable onPress={() => setPollOpen(true)} hitSlop={6} style={{ width: 42, height: 42, alignItems: "center", justifyContent: "center" }}>
+              <BarChart3 size={22} color={c.mutedForeground} />
+            </Pressable>
+            <TextInput
+              value={text}
+              onChangeText={setText}
+              placeholder="Mesaj yaz"
+              placeholderTextColor={c.mutedForeground}
+              multiline
+              maxLength={2000}
+              style={{ flex: 1, maxHeight: 120, minHeight: 42, borderRadius: 21, borderWidth: 1, borderColor: c.border, backgroundColor: c.background, paddingHorizontal: 14, paddingTop: 10, paddingBottom: 10, fontFamily: fonts.regular, fontSize: 15, color: c.foreground }}
+            />
+            <Pressable onPress={send} disabled={!text.trim()} style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: c.primary, opacity: text.trim() ? 1 : 0.5, alignItems: "center", justifyContent: "center" }}>
+              <SendHorizontal size={19} color={c.primaryForeground} />
+            </Pressable>
+          </Row>
+        ) : (
+          <Row style={{ justifyContent: "center", paddingVertical: 8 }} gap={6}>
+            <Lock size={15} color={c.mutedForeground} />
+            <Text style={{ fontFamily: fonts.regular, fontSize: 13, color: c.mutedForeground }}>Bu grupta yalnızca yöneticiler mesaj gönderebilir</Text>
+          </Row>
+        )}
+      </View>
+      <PollModal groupId={id} visible={pollOpen} onClose={() => setPollOpen(false)} />
+    </KeyboardAvoidingView>
   );
 }

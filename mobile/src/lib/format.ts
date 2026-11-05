@@ -39,3 +39,16 @@ export function formatDuration(ms: number) {
   if (d > 0) return `${d} gün ${h} sa`;
   return h > 0 ? `${h}:${pad(m)}:${pad(sec)}` : `${pad(m)}:${pad(sec)}`;
 }
+
+const DAYS_TR = ["Pazar", "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi"];
+const MONTHS_LONG = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
+
+export function formatDayLong(dayKey: string) {
+  const [y, m, d] = dayKey.split("-").map(Number);
+  return `${d} ${MONTHS_LONG[m - 1]} ${DAYS_TR[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]}`;
+}
+
+export function formatClock(iso: string | Date, tzOffset = TZ) {
+  const d = new Date(new Date(iso).getTime() + tzOffset * 60_000);
+  return `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
+}

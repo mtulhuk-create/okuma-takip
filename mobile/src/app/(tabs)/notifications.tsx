@@ -4,13 +4,15 @@ import { Body, Button, Card, ErrorView, H1, Label, Loading, Muted, Row, Screen, 
 import { useAction, useApi } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
 import { useColors } from "@/lib/theme";
-import type { NotificationsResponse } from "@/lib/types";
+import { describePenalty, teamsActive, type NotificationsResponse } from "@/lib/types";
+import { TeamPicker } from "@/components/team-picker";
+import { useState } from "react";
 
 /** Web bağlantısını (/gruplar/x/yonetim) uygulama içi rotaya çevirir */
 function toAppRoute(url: string | null) {
   if (!url) return null;
   const m = /^\/gruplar\/([^/]+)(\/yonetim)?/.exec(url);
-  if (m) return m[2] ? `/group/${m[1]}/admin` : `/group/${m[1]}`;
+  if (m) return m[2] ? `/group/${m[1]}/admin` : url.includes("/bilgi") ? `/group/${m[1]}/info` : `/group/${m[1]}`;
   if (url.startsWith("/gruplar")) return "/groups";
   if (url.startsWith("/bildirimler")) return null;
   return "/";
@@ -20,6 +22,7 @@ export default function NotificationsScreen() {
   const c = useColors();
   const { data, isLoading, error, refetch, isRefetching } = useApi<NotificationsResponse>("/api/m/notifications");
   const action = useAction();
+  const [teams, setTeams] = useState<Record<string, string>>({});
   if (isLoading) return <Loading />;
   if (error || !data) return <ErrorView message={error?.message ?? "Yüklenemedi"} onRetry={refetch} />;
   const unread = data.notes.some((n) => !n.read);
@@ -37,14 +40,21 @@ export default function NotificationsScreen() {
       {data.invites.map((inv) => (
         <Card key={inv.id} tone="accent">
           <Body>
-            📩 <Body style={{ fontFamily: "Poppins_700Bold" }}>{inv.inviter.name}</Body> seni <Body style={{ fontFamily: "Poppins_700Bold" }}>{inv.group.name}</Body> grubuna davet etti.
+            <Body style={{ fontFamily: "Poppins_700Bold" }}>{inv.inviter.name}</Body> seni <Body style={{ fontFamily: "Poppins_700Bold" }}>{inv.group.name}</Body> grubuna davet etti.
           </Body>
           <Muted>
-            {inv.group._count.members} üye · en az {inv.group.minPages} sayfa/gün ·{" "}
-            {inv.group.penaltyMode === "FIXED" ? `${inv.group.penaltyAmount} TL/gün ceza` : `${inv.group.penaltyAmount} TL/eksik sayfa`}
+            {inv.group._count.members} üye · günde {inv.group.targetPages} sayfa · {describePenalty(inv.group)}
           </Muted>
+          {teamsActive(inv.group) && <TeamPicker teams={inv.group.teams} value={teams[inv.id] ?? null} onChange={(t) => setTeams((s) => ({ ...s, [inv.id]: t }))} />}
           <Row>
-            <Button title="Katıl" variant="success" style={{ flex: 1 }} loading={busy(inv.id, "1")} onPress={() => action.mutate({ name: "respondInvite", body: { inviteId: inv.id, accept: "1" } })} />
+            <Button
+              title="Katıl"
+              variant="success"
+              style={{ flex: 1 }}
+              disabled={teamsActive(inv.group) && !teams[inv.id]}
+              loading={busy(inv.id, "1")}
+              onPress={() => action.mutate({ name: "respondInvite", body: { inviteId: inv.id, accept: "1", teamId: teams[inv.id] } })}
+            />
             <Button title="Reddet" variant="ghost" style={{ flex: 1 }} loading={busy(inv.id, "0")} onPress={() => action.mutate({ name: "respondInvite", body: { inviteId: inv.id, accept: "0" } })} />
           </Row>
         </Card>

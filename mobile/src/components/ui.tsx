@@ -1,4 +1,5 @@
 import { Image } from "expo-image";
+import { BookX, type LucideIcon } from "lucide-react-native";
 import type { ReactNode } from "react";
 import {
   ActivityIndicator,
@@ -126,7 +127,9 @@ export function Button({
   disabled,
   style,
   textColor,
+  icon: Icon,
 }: {
+  icon?: LucideIcon;
   title: string;
   onPress?: () => void;
   variant?: Variant;
@@ -152,7 +155,10 @@ export function Button({
       {loading ? (
         <ActivityIndicator size="small" color={v.fg} />
       ) : (
-        <Text style={{ fontFamily: fonts.semibold, fontSize: small ? 12 : 14, color: textColor ?? v.fg, textAlign: "center" }}>{title}</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          {Icon && <Icon size={small ? 14 : 16} color={textColor ?? v.fg} strokeWidth={2.2} />}
+          {!!title && <Text style={{ fontFamily: fonts.semibold, fontSize: small ? 12 : 14, color: textColor ?? v.fg, textAlign: "center" }}>{title}</Text>}
+        </View>
       )}
     </Pressable>
   );
@@ -213,7 +219,7 @@ export function Row({ children, style, gap = 8 }: { children: ReactNode; style?:
   return <View style={[{ flexDirection: "row", alignItems: "center", gap }, style]}>{children}</View>;
 }
 
-export function Segmented<T extends string>({ value, onChange, options }: { value: T; onChange: (v: T) => void; options: { value: T; label: string; hint?: string }[] }) {
+export function Segmented<T extends string>({ value, onChange, options }: { value: T; onChange: (v: T) => void; options: { value: T; label: string; hint?: string; icon?: LucideIcon }[] }) {
   const c = useColors();
   return (
     <Row gap={8}>
@@ -223,9 +229,10 @@ export function Segmented<T extends string>({ value, onChange, options }: { valu
           <Pressable
             key={o.value}
             onPress={() => onChange(o.value)}
-            style={[styles.segment, { borderColor: active ? c.primary : c.border, backgroundColor: active ? c.accent : c.card }]}
+            style={[styles.segment, { borderColor: active ? c.primary : c.border, backgroundColor: active ? c.primary + "12" : c.card }]}
           >
-            <Text style={{ fontFamily: fonts.semibold, fontSize: 13, color: active ? c.accentForeground : c.foreground }}>{o.label}</Text>
+            {o.icon && <o.icon size={22} color={active ? c.primary : c.mutedForeground} style={{ marginBottom: 4 }} />}
+            <Text style={{ fontFamily: fonts.semibold, fontSize: 13, color: c.foreground }}>{o.label}</Text>
             {o.hint && <Muted>{o.hint}</Muted>}
           </Pressable>
         );
@@ -252,17 +259,18 @@ export function ErrorView({ message, onRetry }: { message: string; onRetry?: () 
   const c = useColors();
   return (
     <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 12, padding: 24, backgroundColor: c.background }}>
-      <Text style={{ fontSize: 44 }}>📕</Text>
+      <BookX size={44} color={c.mutedForeground} />
       <Body style={{ textAlign: "center" }}>{message}</Body>
       {onRetry && <Button title="Tekrar dene" onPress={onRetry} />}
     </View>
   );
 }
 
-export function Stat({ label, value, danger }: { label: string; value: string | number; danger?: boolean }) {
+export function Stat({ label, value, danger, icon: Icon }: { label: string; value: string | number; danger?: boolean; icon?: LucideIcon }) {
   const c = useColors();
   return (
-    <Card style={{ flex: 1 }}>
+    <Card style={{ flex: 1, gap: 4 }}>
+      {Icon && <Icon size={20} color={c.primary} />}
       <Label>{label}</Label>
       <Text style={{ fontFamily: fonts.bold, fontSize: 22, color: danger ? c.destructive : c.foreground }}>{value}</Text>
     </Card>

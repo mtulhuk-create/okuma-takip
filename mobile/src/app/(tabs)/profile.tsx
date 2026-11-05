@@ -3,22 +3,35 @@ import * as Application from "expo-application";
 import * as Notifications from "expo-notifications";
 import { useEffect, useState } from "react";
 import { Alert, Linking, View } from "react-native";
-import { Avatar, Body, Button, Card, ErrorView, H1, Loading, Muted, Row, Screen, Stat, Title } from "@/components/ui";
+import { Avatar, Body, Button, Card, ErrorView, H1, Loading, Muted, Row, Screen, Segmented, Stat, Title } from "@/components/ui";
 import { useApi } from "@/lib/api";
 import { exactAlarmsAllowed, requestExactAlarms } from "@/lib/notifications";
+import { useThemePref } from "@/lib/theme-pref";
+import { Bell, BookOpen, CalendarCheck, LogOut, Monitor, Moon, Palette, Sun, Users, Wallet } from "lucide-react-native";
+import { useColors } from "@/lib/theme";
 import type { ProfileResponse } from "@/lib/types";
 
 export default function ProfileScreen() {
   const { signOut } = useClerk();
   const { data, isLoading, error, refetch, isRefetching } = useApi<ProfileResponse>("/api/m/profile");
   const [perm, setPerm] = useState<{ notif: boolean; exact: boolean } | null>(null);
+  const { pref, setPref } = useThemePref();
+  const c = useColors();
 
   async function checkPerms() {
     const n = await Notifications.getPermissionsAsync();
     setPerm({ notif: n.granted, exact: await exactAlarmsAllowed() });
   }
   useEffect(() => {
-    checkPerms();
+    let alive = true;
+    (async () => {
+      const n = await Notifications.getPermissionsAsync();
+      const exact = await exactAlarmsAllowed();
+      if (alive) setPerm({ notif: n.granted, exact });
+    })();
+    return () => {
+      alive = false;
+    };
   }, []);
 
   if (isLoading) return <Loading />;
@@ -35,16 +48,35 @@ export default function ProfileScreen() {
         </View>
       </Row>
       <Row gap={12}>
-        <Stat label="Toplam sayfa" value={s.totalPages} />
-        <Stat label="Okunan gün" value={s.readDays} />
+        <Stat icon={BookOpen} label="Toplam sayfa" value={s.totalPages} />
+        <Stat icon={CalendarCheck} label="Okunan gün" value={s.readDays} />
       </Row>
       <Row gap={12}>
-        <Stat label="Toplam ceza" value={`${s.totalPenalty} TL`} />
-        <Stat label="Aktif grup" value={s.activeGroups} />
+        <Stat icon={Wallet} label="Toplam ceza" value={`${s.totalPenalty} TL`} />
+        <Stat icon={Users} label="Aktif grup" value={s.activeGroups} />
       </Row>
 
       <Card>
-        <Title>🔔 Bildirimler</Title>
+        <Row>
+          <Palette size={18} color={c.primary} />
+          <Title>Görünüm</Title>
+        </Row>
+        <Segmented
+          value={pref}
+          onChange={setPref}
+          options={[
+            { value: "light", label: "Açık", icon: Sun },
+            { value: "dark", label: "Koyu", icon: Moon },
+            { value: "system", label: "Sistem", icon: Monitor },
+          ]}
+        />
+      </Card>
+
+      <Card>
+        <Row>
+          <Bell size={18} color={c.primary} />
+          <Title>Bildirimler</Title>
+        </Row>
         <Body>
           Uyarılar grubun belirlediği saatte, geri sayım ise son bildirim saatinden 10 dakika önce başlar. Bildirimdeki butonlarla uygulamayı açmadan okumanı bildirebilirsin.
         </Body>
@@ -68,7 +100,7 @@ export default function ProfileScreen() {
             }}
           />
         )}
-        {perm?.notif && perm.exact && <Body style={{ color: "#047857" }}>✓ Bildirimler açık ve tam zamanında gelecek.</Body>}
+        {perm?.notif && perm.exact && <Body style={{ color: c.success }}>Bildirimler açık ve tam zamanında gelecek.</Body>}
       </Card>
 
       <Muted>
@@ -77,6 +109,7 @@ export default function ProfileScreen() {
 
       <Button
         title="Çıkış yap"
+        icon={LogOut}
         variant="ghost"
         textColor="#991b1b"
         onPress={() =>

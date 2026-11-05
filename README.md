@@ -1,57 +1,49 @@
-# 📚 Okuma Takip
+# Okuma Takip
 
-Web: Next.js 16 · Clerk · Prisma 7 + Neon · Cloudflare Workers (OpenNext) · PWA
-Mobil: React Native (Expo SDK 58) · Clerk Expo · expo-notifications — `mobile/` klasöründe
+Okuma grubu kur, her gün sayfanı bildir, hedefin altında kalırsan ceza öde.
+
+- **Web / mobil web:** Next.js 16 · Clerk · Prisma 7 + Neon (PostgreSQL) · Vercel — https://okumatakip.vercel.app
+- **Android:** React Native (Expo SDK 58) — `mobile/`
 
 ## Özellikler
-- Her üye gruptaki **günlük sayfa hedefini** belirler (grubun alt sınırından az olamaz). Hedefin altında kalınan her gün için **TL cezası** yazılır (gün başına sabit ya da eksik sayfa başına).
-- **Özel** gruplar: yönetici kullanıcıları isimle arayıp uygulama içinden davet eder.
-  **Herkese açık** gruplar: Gruplar sayfasında listelenir, kullanıcı katılma isteği gönderir; davet de yapılabilir.
-- Yönetici; **yeni okuma gününün başlangıç saatini**, **son bildirim saatini** ve **kaç saat önce uyarı** gönderileceğini belirler.
-- Uyarı bildiriminde hızlı butonlar: **📖 Okudum (sayı gir)**, **✅ Alt sınırı okudum**, **❌ Okumadım**.
-- Son saatten **10 dakika önce dakika dakika geri sayım** bildirimi.
-- Yönetici, cezası biriken üyeye **ödeme vadesi** verir. Üye grubun IBAN'ına öder ve "Ödedim" der; vade bitene kadar yönetici onaylamazsa üye **otomatik gruptan atılır**.
+- **Grup sohbeti (WhatsApp benzeri):** mesaj, anket, gerçek zamanlı akış (SSE). Ayarlardan "tüm üyeler" ya da "yalnızca yöneticiler" yazabilir.
+- **Gün kartları:** her okuma günü sohbetin ortasına otomatik düşer; *Okudum / Alt sınırı okudum / Okumadım* butonları ve
+  okuyan · alt sınır · okumayan · bekleyen listeleri (üst üste profil resimleri, dokununca isimler).
+- **Bugün ekranı:** her grubun sade gün kartı (dokununca sohbette o güne gider) ve son 7 gün tablosu.
+- **Okuma kuralları:** önce ceza türü (günlük sabit / eksik sayfa başına), sonra günlük hedef, alt sınır, ceza ve
+  alt sınırı okuyana % indirim. Canlı "kim ne öder" önizlemesi.
+- **Ekipler:** grup ekiplere bölünebilir; her ekibin kendi kuralları olur. Katılan ekibini seçer, ekip değişikliği yönetici onayıyla.
+- **Gruplar:** özel (davetle) ya da herkese açık (katılma isteği). Kullanıcı arayıp uygulama içi davet.
+- **Cezalar:** yönetici vade verir; üye IBAN'a öder, "Ödedim" der; vadesinde onaylanmazsa otomatik gruptan çıkarılır.
+- **Bildirimler:** web push (PWA) ve Android'de cihazda planlanan native bildirimler (uyarı + son 10 dk geri sayım, butonlu).
+- Açık / koyu / sistem teması.
 
-## Bildirimler nasıl çalışır?
-| Platform | Yöntem |
+## Mimari notları
+| Konu | Çözüm |
 |---|---|
-| Web / mobil web (PWA) | Web Push (VAPID). Sunucudaki dakikalık Cloudflare Cron gönderir. iPhone'da önce "Ana Ekrana Ekle" gerekir. |
-| Android (React Native) | Cihazda planlanan native bildirimler (Firebase gerekmez). Butonlar uygulama kapalıyken de çalışır. Plan her açılışta ve her bildirimden sonra tazelenir. |
+| Veritabanı | Neon (us-east-1), `@prisma/adapter-pg` havuzu; Vercel fonksiyonları `iad1` bölgesinde (DB'ye ~1 ms) |
+| Gerçek zamanlı | `GroupEvent` tablosu + `/api/m/groups/[id]/events` (tarayıcıda SSE, mobilde kısa yoklama) |
+| Zamanlanmış işler | `/api/cron`: Vercel günlük cron + GitHub Actions (5 dk) + sayfa açılışında `after()` ile bakım |
+| Mobil API | `/api/m/*` — Clerk oturum token'ı (Bearer); değişiklikler web'deki server action'ları çalıştırır |
 
-## Kurulum
+## Geliştirme
 ```bash
 npm install
-cp .env.example .env          # değerleri doldurun
-node scripts/generate-keys.mjs >> .env   # VAPID + gizli anahtarlar
-npx prisma migrate deploy     # tabloları Neon'da oluşturur
+cp .env.example .env              # Neon + Clerk değerleri
+node scripts/generate-keys.mjs >> .env
+npx prisma migrate deploy
 npm run dev
+node scripts/e2e.mts http://localhost:3000   # uçtan uca test (geçici Clerk kullanıcılarıyla, sonunda siler)
 ```
 
-## Cloudflare'e ücretsiz yayın
-> Next.js'in Cloudflare'deki güncel/önerilen yolu OpenNext ile **Cloudflare Workers**'tır (Pages'in Next.js adaptörü kullanımdan kalktı). Free plan yeterlidir; paket ~2.5 MB (sınır 3 MB).
+## Yayın
+Vercel projesi: `okuma-takip` (ortam değişkenleri Vercel'de). Elle dağıtım: `npx vercel deploy --prod`.
 
+## Android APK
 ```bash
-npx wrangler login
-# Gizli değişkenler (çalışma zamanı)
-for k in DATABASE_URL CLERK_SECRET_KEY VAPID_PRIVATE_KEY VAPID_SUBJECT APP_SECRET CRON_SECRET APP_URL; do
-  grep "^$k=" .env | cut -d= -f2- | tr -d '"' | npx wrangler secret put $k
-done
-npm run deploy   # NEXT_PUBLIC_* değerleri build sırasında .env'den okunur
-```
-
-## Mobil uygulama (React Native / Expo)
-```bash
-cd mobile
-npm install
-cp .env.example .env        # EXPO_PUBLIC_API_URL ve EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY
+cd mobile && npm install
+cp .env.example .env        # EXPO_PUBLIC_API_URL, EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY
 npx expo prebuild -p android --clean
-cd android && ./gradlew assembleRelease   # JDK 21 + Android SDK
+cd android && ./gradlew assembleRelease     # JDK 21 + Android SDK
 ```
-APK: `mobile/android/app/build/outputs/apk/release/app-release.apk`
-
-Mobil uygulama sunucuyla `/api/m/*` JSON uç noktaları üzerinden konuşur (Clerk oturum token'ı ile); değişiklikler web'deki server action'ların aynısını çalıştırır.
-
-## Notlar
-- Clerk **geliştirme** anahtarları workers.dev alan adında çalışır. Clerk **production** örneği kendi alan adınızı ister.
-- Mobil giriş Clerk'in hazır ekranıyla (Account Portal) yapılır; e-posta ve Google desteklenir.
-- Saatler Türkiye saatine (UTC+3) göredir.
+İmza anahtarı depo dışında: `~/android-build/okuma-takip-keystore.properties` (ya da `KEYSTORE_PROPERTIES`).

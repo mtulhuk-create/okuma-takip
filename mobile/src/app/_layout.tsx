@@ -11,8 +11,10 @@ import { useColorScheme } from "react-native";
 import { NotificationBridge } from "@/components/notification-bridge";
 import { CLERK_PUBLISHABLE_KEY } from "@/lib/config";
 import { fonts, useColors } from "@/lib/theme";
+import { loadThemePref } from "@/lib/theme-pref";
 
 SplashScreen.preventAutoHideAsync();
+loadThemePref();
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 15_000, retry: 1 } },
@@ -60,6 +62,7 @@ function Navigation() {
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="group/new" options={{ title: "Yeni okuma grubu", presentation: "modal" }} />
           <Stack.Screen name="group/[id]/index" options={{ title: "" }} />
+          <Stack.Screen name="group/[id]/info" options={{ title: "Grup bilgisi" }} />
           <Stack.Screen name="group/[id]/admin" options={{ title: "Grup yönetimi" }} />
         </Stack.Protected>
         <Stack.Protected guard={!isSignedIn}>

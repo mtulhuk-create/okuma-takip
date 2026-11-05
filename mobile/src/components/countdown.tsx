@@ -5,7 +5,7 @@ import { fonts, useColors } from "@/lib/theme";
 
 export function Countdown({ to, suffix = "kaldı", style }: { to: string; suffix?: string; style?: StyleProp<TextStyle> }) {
   const c = useColors();
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);

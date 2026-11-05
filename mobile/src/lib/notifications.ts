@@ -32,11 +32,13 @@ export async function setupNotifications() {
   if (Platform.OS === "android") {
     await Notifications.setNotificationChannelAsync("reminders", {
       name: "Okuma hatırlatmaları",
+      // eslint-disable-next-line import/namespace -- enum `export *` ile geliyor, eklenti göremiyor
       importance: Notifications.AndroidImportance.HIGH,
       vibrationPattern: [0, 250, 150, 250],
     });
     await Notifications.setNotificationChannelAsync("countdown", {
       name: "Son 10 dakika geri sayımı",
+      // eslint-disable-next-line import/namespace -- enum `export *` ile geliyor, eklenti göremiyor
       importance: Notifications.AndroidImportance.MAX,
       vibrationPattern: [0, 200],
     });
