@@ -1,5 +1,6 @@
 import { Tabs } from "expo-router/js-tabs";
 import { Bell, BookOpen, User, Users, type LucideIcon } from "lucide-react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { NameSheet } from "@/components/name-sheet";
 import { useApi } from "@/lib/api";
 import { fonts, useColors } from "@/lib/theme";
@@ -13,6 +14,8 @@ const icon = (Icon: LucideIcon) =>
 export default function TabsLayout() {
   const c = useColors();
   const me = useApi<MeResponse>("/api/m/me");
+  // Uygulama kenardan kenara çizilir: alt menü, sistemin gezinme çubuğu (3 tuş / hareket çubuğu) kadar yükseltilir
+  const insets = useSafeAreaInsets();
   return (
     <>
     <Tabs
@@ -20,7 +23,7 @@ export default function TabsLayout() {
         headerShown: false,
         tabBarActiveTintColor: c.primary,
         tabBarInactiveTintColor: c.mutedForeground,
-        tabBarStyle: { backgroundColor: c.card, borderTopColor: c.border, height: 62, paddingTop: 6 },
+        tabBarStyle: { backgroundColor: c.card, borderTopColor: c.border, height: 58 + insets.bottom, paddingTop: 6 },
         tabBarLabelStyle: { fontFamily: fonts.semibold, fontSize: 11 },
         tabBarBadgeStyle: { backgroundColor: c.destructive, fontFamily: fonts.semibold, fontSize: 10 },
       }}
