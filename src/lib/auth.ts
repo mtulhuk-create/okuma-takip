@@ -10,28 +10,25 @@ export const requireUser = cache(async () => {
   if (!userId) redirect("/sign-in");
   const db = getDb();
   const existing = await db.user.findUnique({ where: { id: userId } });
-  if (existing) {
-    // Adı zaten gerçek bir ad soyada benziyorsa ad soyad penceresi gösterilmez
-    if (!existing.nameConfirmed && looksLikeFullName(existing.name)) return db.user.update({ where: { id: userId }, data: { nameConfirmed: true } });
-    return existing;
-  }
+  if (existing) return existing;
 
   const cu = await currentUser();
   if (!cu) redirect("/sign-in");
   const first = cu.firstName?.trim();
   const last = cu.lastName?.trim();
-  const name =
-    [first, last].filter(Boolean).join(" ") ||
-    cu.username ||
-    cu.primaryEmailAddress?.emailAddress?.split("@")[0] ||
-    "Okuyucu";
+  const emailName = cu.primaryEmailAddress?.emailAddress?.split("@")[0];
+  const name = [first, last].filter(Boolean).join(" ") || cu.username || emailName || "Okuyucu";
+  // Uygulama içi kayıtta ad soyad formda girildi; aksi halde (Google, web kaydı) ilk açılışta sorulur
+  const entered = (cu.unsafeMetadata as { nameEntered?: boolean } | undefined)?.nameEntered === true;
+  // Hesap adı: Google/e-posta hesabından gelen ad (grup ayarına göre gösterilebilir)
+  const accountName = entered ? cu.username || emailName || name : name;
   return db.user.upsert({
     where: { id: userId },
     create: {
       id: userId,
       name,
-      // Kayıtta ad ve soyad alındıysa tekrar sorulmaz; yoksa ilk açılışta istenir
-      nameConfirmed: !!(first && last) || looksLikeFullName(name),
+      accountName,
+      nameConfirmed: entered && !!(first && last),
       username: cu.username ?? null,
       email: cu.primaryEmailAddress?.emailAddress ?? null,
       imageUrl: cu.imageUrl,

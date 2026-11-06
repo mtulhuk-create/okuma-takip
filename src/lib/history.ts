@@ -1,5 +1,6 @@
 import "server-only";
 import { getDb } from "./db";
+import { withShownName } from "./names";
 import { categoryOf } from "./rules";
 import { currentPeriod, periodFor, shiftDayKey } from "./schedule";
 
@@ -108,7 +109,7 @@ export async function getGroupHistory(groupId: string, userId: string, range: Hi
   const db = getDb();
   const group = await db.group.findUnique({
     where: { id: groupId },
-    include: { members: { where: { status: "ACTIVE" }, include: { user: { select: { id: true, name: true, imageUrl: true } } }, orderBy: { joinedAt: "asc" } } },
+    include: { members: { where: { status: "ACTIVE" }, include: { user: { select: { id: true, name: true, accountName: true, imageUrl: true } } }, orderBy: { joinedAt: "asc" } } },
   });
   const me = group?.members.find((m) => m.userId === userId);
   if (!group || !me) return null;
@@ -120,7 +121,7 @@ export async function getGroupHistory(groupId: string, userId: string, range: Hi
   const logs = await db.readingLog.findMany({ where: { groupId, userId: { in: members.map((m) => m.userId) }, dayKey: { gte: startKey } } });
   const rows = members.map((m) => {
     const mine = new Map(logs.filter((l) => l.userId === m.userId).map((l) => [l.dayKey, l]));
-    return { user: m.user, me: m.userId === userId, ...row(group, m.joinedAt, startKey, endKey, mine, now) };
+    return { user: withShownName(m.user, group.nameDisplay), me: m.userId === userId, ...row(group, m.joinedAt, startKey, endKey, mine, now) };
   });
   return { range, limited: !full, shareProgress: group.shareProgress, rows };
 }

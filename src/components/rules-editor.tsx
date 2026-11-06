@@ -1,6 +1,7 @@
 "use client";
 
-import { BookSuggestions, useUnlinkOnEdit } from "./book-suggest";
+import { BOOK_CATALOG, DEFAULT_BOOK, isCatalogBook } from "@/lib/catalog";
+import { BookSuggestions, useAutoLink } from "./book-suggest";
 
 import { BookOpen, CalendarX2, Check, CheckCheck, FileMinus2, Minus, Percent, Plus, Trash2, X } from "lucide-react";
 import { penaltyFor, type Book, type Rules } from "@/lib/rules";
@@ -98,9 +99,10 @@ function NumberField({ label, value, onChange, min, max }: { label: string; valu
 }
 
 const newBook = (): Book => ({ id: Math.random().toString(36).slice(2, 10), title: "", targetPages: 20, minPages: 10 });
+void DEFAULT_BOOK;
 
 function BooksEditor({ books, onChange }: { books: Book[]; onChange: (b: Book[]) => void }) {
-  const unlink = useUnlinkOnEdit();
+  const autoLink = useAutoLink();
   const update = (id: string, patch: Partial<Book>) =>
     onChange(
       books.map((b) => {
@@ -116,22 +118,34 @@ function BooksEditor({ books, onChange }: { books: Book[]; onChange: (b: Book[])
         <div key={b.id} className="space-y-2 rounded-xl border border-border p-3">
           <div className="flex items-center gap-2">
             <BookOpen className="size-4 shrink-0 text-primary" />
-            <input
+            {/* Yalnızca katalogdaki eserler seçilebilir */}
+            <select
               value={b.title}
-              maxLength={80}
               onChange={(e) => {
-                unlink(b.id, e.target.value);
+                autoLink(b.id, e.target.value);
                 update(b.id, { title: e.target.value });
               }}
-              placeholder={i === 0 ? "Eser adı" : `${i + 1}. eser adı`}
               className={`input h-9 ${b.title.trim() ? "" : "border-amber-400"}`}
-            />
+              aria-label={`${i + 1}. eser`}
+            >
+              {!b.title && <option value="">Eser seç</option>}
+              {b.title && !isCatalogBook(b.title) && <option value={b.title}>{b.title} (eski)</option>}
+              {BOOK_CATALOG.map((g) => (
+                <optgroup key={g.group} label={g.group}>
+                  {g.books.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
             {books.length > 1 && (
               <button
                 type="button"
                 className="btn-icon size-9 shrink-0"
                 onClick={() => {
-                  unlink(b.id, "");
+                  autoLink(b.id, "");
                   onChange(books.filter((x) => x.id !== b.id));
                 }}
                 aria-label="Eseri kaldır"
@@ -140,7 +154,7 @@ function BooksEditor({ books, onChange }: { books: Book[]; onChange: (b: Book[])
               </button>
             )}
           </div>
-          <BookSuggestions bookId={b.id} title={b.title} onPick={(title) => update(b.id, { title })} />
+          <BookSuggestions bookId={b.id} title={b.title} />
           <div className="flex gap-2">
             <NumberField label="Günlük hedef (sayfa)" value={b.targetPages} onChange={(targetPages) => update(b.id, { targetPages })} min={1} max={2000} />
             <NumberField label="Alt sınır (sayfa)" value={b.minPages} onChange={(minPages) => update(b.id, { minPages })} min={0} max={b.targetPages} />

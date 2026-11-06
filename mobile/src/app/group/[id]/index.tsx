@@ -138,7 +138,8 @@ export default function ChatScreen() {
   }
 
   if (chat.isLoading) return <Loading />;
-  if (chat.error) {
+  // Önbellekte sohbet varsa internet yokken de gösterilir
+  if (chat.error && !chat.data) {
     if (chat.error.message.includes("üyesi değilsiniz")) return <JoinView groupId={id} />;
     return <ErrorView message={chat.error.message} onRetry={chat.refetch} />;
   }

@@ -97,7 +97,7 @@ export default function SignInScreen() {
   const doSignUp = () =>
     run("signup", async () => {
       if (first.trim().length < 2 || last.trim().length < 2) throw new Error("Ad ve soyadını yaz.");
-      const r = await signUp.password({ emailAddress: email.trim(), password, firstName: first.trim(), lastName: last.trim(), locale: "tr-TR" });
+      const r = await signUp.password({ emailAddress: email.trim(), password, firstName: first.trim(), lastName: last.trim(), locale: "tr-TR", unsafeMetadata: { nameEntered: true } });
       if (r.error) throw r.error;
       if (signUp.status === "complete") {
         const f = await signUp.finalize();

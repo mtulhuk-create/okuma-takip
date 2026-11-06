@@ -4,6 +4,7 @@ import * as Notifications from "expo-notifications";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 import { API_URL } from "./config";
+import { enqueue } from "./offline";
 
 export const REPORT_CATEGORY = "REPORT";
 const COUNTDOWN_MINUTES = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
@@ -241,11 +242,22 @@ export async function scheduledSummary() {
 /** Bildirimdeki hızlı butona basıldığında okumayı sunucuya iletir (uygulama kapalıyken de çalışır). */
 export async function handleReportAction(actionId: string, data: ReportData, userText?: string) {
   if (!["all", "pages", "min", "none"].includes(actionId) || !data?.token) return false;
-  const res = await fetch(`${API_URL}/api/quick-report`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ token: data.token, choice: actionId, pages: userText ? Number(userText) : undefined }),
-  });
+  const payload = { token: data.token, choice: actionId, pages: userText ? Number(userText) : undefined };
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}/api/quick-report`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
+  } catch {
+    // İnternet yok: bildirim butonundaki seçim sıraya alınır, bağlanınca işlem anıyla gönderilir
+    const label = { all: "Okudum", min: "Alt sınırı okudum", none: "Okumadım", pages: "Sayfa bildirimi" }[actionId] ?? "Bildirim";
+    await enqueue({ kind: "quick", groupId: data.groupId, dayKey: data.dayKey, label, body: payload });
+    await Notifications.dismissAllNotificationsAsync();
+    await Notifications.scheduleNotificationAsync({
+      identifier: "report-result",
+      content: { title: "📴 Çevrimdışı kaydedildi", body: `${label}: internet gelince işlem saatiyle gönderilecek.` },
+      trigger: null,
+    });
+    return true;
+  }
   const body = (await res.json().catch(() => ({}))) as { pages?: number; required?: number; error?: string };
   if (res.ok) {
     // Bu gün için kalan hatırlatmaları iptal et

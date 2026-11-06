@@ -40,7 +40,7 @@ export default function AdminScreen() {
   const [deleteText, setDeleteText] = useState("");
   const [fallbackDue] = useState(() => new Date(Date.now() + 3 * 86_400_000));
   if (isLoading) return <Loading />;
-  if (error || !data) return <ErrorView message={error?.message ?? "Yüklenemedi"} onRetry={refetch} />;
+  if (!data) return <ErrorView message={error?.message ?? "Yüklenemedi"} onRetry={refetch} />;
   const { group, members, requests, invites, dues, unpaidPenalties, money, teamChanges } = data;
   const hasTeams = teamsActive(group);
   const teamName = (tid: string | null) => group.teams.find((t) => t.id === tid)?.name;

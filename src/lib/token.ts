@@ -13,14 +13,14 @@ export async function signPayload(payload: { e: number } & Record<string, unknow
   return `${body}.${b64urlEncode(sig)}`;
 }
 
-export async function verifyPayload<T extends { e: number }>(token: string, secret?: string): Promise<T | null> {
+export async function verifyPayload<T extends { e: number }>(token: string, secret?: string, graceMs = 0): Promise<T | null> {
   const [body, sig] = token.split(".");
   if (!body || !sig) return null;
   try {
     const ok = await crypto.subtle.verify("HMAC", await key(secret), b64urlDecode(sig), utf8(body));
     if (!ok) return null;
     const p = JSON.parse(new TextDecoder().decode(b64urlDecode(body))) as T;
-    return Date.now() > p.e ? null : p;
+    return Date.now() > p.e + graceMs ? null : p;
   } catch {
     return null; // bozuk token
   }
@@ -30,8 +30,9 @@ export function signQuickToken(userId: string, groupId: string, dayKey: string, 
   return signPayload({ t: "q", u: userId, g: groupId, d: dayKey, e: expiresAt.getTime() });
 }
 
-export async function verifyQuickToken(token: string) {
-  const p = await verifyPayload<{ t?: string; u: string; g: string; d: string; e: number }>(token);
+/** graceMs: çevrimdışı yapılan işlem için süresi yeni dolmuş token kabul edilir (işlem anı ayrıca kontrol edilir) */
+export async function verifyQuickToken(token: string, graceMs = 0) {
+  const p = await verifyPayload<{ t?: string; u: string; g: string; d: string; e: number }>(token, undefined, graceMs);
   if (!p || (p.t && p.t !== "q")) return null;
   return { userId: p.u, groupId: p.g, dayKey: p.d };
 }

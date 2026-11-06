@@ -3,7 +3,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { Alert, Platform, ToastAndroid } from "react-native";
 import { API_URL } from "./config";
+import { enqueue, isNetworkError } from "./offline";
 import type { ActionResult } from "./types";
+
+/** Sıradaki işlem için kısa açıklama */
+export function reportLabel(body: Record<string, unknown>) {
+  const c = String(body.bookChoice ?? body.choice ?? "");
+  return { all: "Okudum", read: "Okudum", min: "Alt sınırı okudum", none: "Okumadım", pages: "Sayfa bildirimi" }[c] ?? "Bildirim";
+}
 
 export class ApiError extends Error {}
 
@@ -40,8 +47,18 @@ export function useAction() {
   const fetcher = useApiFetch();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ name, body }: { name: string; body?: Record<string, unknown> }) =>
-      fetcher<ActionResult>(`/api/m/action/${name}`, { method: "POST", body: JSON.stringify(body ?? {}) }),
+    mutationFn: async ({ name, body }: { name: string; body?: Record<string, unknown> }) => {
+      try {
+        return await fetcher<ActionResult>(`/api/m/action/${name}`, { method: "POST", body: JSON.stringify(body ?? {}) });
+      } catch (e) {
+        // İnternet yokken gün kartı işlemi sıraya alınır; bağlanınca işlemin yapıldığı anla gönderilir
+        if (name === "reportReading" && body?.groupId && body?.dayKey && isNetworkError(e)) {
+          await enqueue({ kind: "action", groupId: String(body.groupId), dayKey: String(body.dayKey), label: reportLabel(body), body });
+          return { ok: true, message: "İnternet yok: işlem kaydedildi, bağlanınca gönderilecek" } as ActionResult;
+        }
+        throw e;
+      }
+    },
     onSuccess: (res) => {
       if (res.message) toast(res.message);
       qc.invalidateQueries();

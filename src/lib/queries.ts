@@ -3,11 +3,14 @@ import { ensureDayCard } from "./chat";
 import { getDayCards } from "./day";
 import { maintainLater } from "./maintenance";
 import { dueView } from "./due-view";
+import { withShownName } from "./names";
 import { describePenalty, rulesFor } from "./rules";
 import { getDb } from "./db";
 
 // Diğer kullanıcılar hakkında dışarıya yalnızca bu alanlar verilir
 const publicUser = { select: { id: true, name: true, username: true, imageUrl: true } } as const;
+// Grup içinde gösterilen kullanıcılar: ad, grup ayarına göre (girdiği / hesap adı / ikisi)
+const groupUser = { select: { id: true, name: true, accountName: true, username: true, imageUrl: true } } as const;
 import { currentPeriod, defaultDueAt, openPeriod, periodFor, shiftDayKey } from "./schedule";
 
 /** Bugün sayfası: her grup için güncel gün kartı ve son 7 günün özeti. */
@@ -19,7 +22,7 @@ export async function myGroupsToday(userId: string) {
       group: {
         include: {
           teams: { orderBy: { position: "asc" } },
-          members: { where: { status: "ACTIVE" }, include: { user: publicUser }, orderBy: { joinedAt: "asc" } },
+          members: { where: { status: "ACTIVE" }, include: { user: groupUser }, orderBy: { joinedAt: "asc" } },
         },
       },
     },
@@ -30,7 +33,8 @@ export async function myGroupsToday(userId: string) {
   maintainLater(memberships.map((m) => m.groupId));
   return Promise.all(
     memberships.map(async (m) => {
-      const { members, ...group } = m.group;
+      const { members: rawMembers, ...group } = m.group;
+      const members = rawMembers.map((x) => ({ ...x, user: withShownName(x.user, group.nameDisplay) }));
       const rules = rulesFor(group, m);
       const period = currentPeriod(now, group);
       const cards = await getDayCards(group, members, [period.dayKey], userId);
@@ -75,15 +79,16 @@ export async function myMoney(userId: string) {
 /** Grup sayfası verisi. Üye değilse yalnızca davet/istek bilgisi döner. */
 export async function getGroupDetail(id: string, userId: string) {
   const db = getDb();
-  const group = await db.group.findUnique({
+  const raw = await db.group.findUnique({
     where: { id },
     include: {
       owner: { select: { name: true } },
       teams: { orderBy: { position: "asc" } },
-      members: { where: { status: "ACTIVE" }, include: { user: publicUser }, orderBy: { joinedAt: "asc" } },
+      members: { where: { status: "ACTIVE" }, include: { user: groupUser }, orderBy: { joinedAt: "asc" } },
     },
   });
-  if (!group) return null;
+  if (!raw) return null;
+  const group = { ...raw, members: raw.members.map((m) => ({ ...m, user: withShownName(m.user, raw.nameDisplay) })) };
   const me = group.members.find((m) => m.userId === userId) ?? null;
   const myRules = me ? rulesFor(group, me) : null;
   if (!me) {
@@ -115,14 +120,20 @@ export async function getAdminData(id: string, userId: string) {
     db.groupMember.findUnique({ where: { groupId_userId: { groupId: id, userId } } }),
   ]);
   if (!group || !me || me.status !== "ACTIVE" || me.role !== "ADMIN") return null;
-  const [members, requests, invites, dues, unpaidPenalties, teamChanges] = await Promise.all([
-    db.groupMember.findMany({ where: { groupId: id, status: "ACTIVE" }, include: { user: publicUser }, orderBy: { joinedAt: "asc" } }),
+  const [rawMembers, requests, invites, rawDues, rawPenalties, rawChanges] = await Promise.all([
+    db.groupMember.findMany({ where: { groupId: id, status: "ACTIVE" }, include: { user: groupUser }, orderBy: { joinedAt: "asc" } }),
     db.joinRequest.findMany({ where: { groupId: id, status: "PENDING" }, include: { user: publicUser }, orderBy: { createdAt: "asc" } }),
     db.invitation.findMany({ where: { groupId: id, status: "PENDING" }, include: { invitee: publicUser } }),
-    db.paymentDue.findMany({ where: { groupId: id }, include: { user: publicUser }, orderBy: [{ status: "asc" }, { dueAt: "asc" }], take: 50 }),
-    db.penalty.findMany({ where: { groupId: id, status: { in: ["UNPAID", "IN_DUE"] } }, include: { user: publicUser }, orderBy: { dayKey: "desc" } }),
-    db.teamChangeRequest.findMany({ where: { groupId: id, status: "PENDING" }, include: { user: publicUser, team: { select: { name: true } } }, orderBy: { createdAt: "asc" } }),
+    db.paymentDue.findMany({ where: { groupId: id }, include: { user: groupUser }, orderBy: [{ status: "asc" }, { dueAt: "asc" }], take: 50 }),
+    db.penalty.findMany({ where: { groupId: id, status: { in: ["UNPAID", "IN_DUE"] } }, include: { user: groupUser }, orderBy: { dayKey: "desc" } }),
+    db.teamChangeRequest.findMany({ where: { groupId: id, status: "PENDING" }, include: { user: groupUser, team: { select: { name: true } } }, orderBy: { createdAt: "asc" } }),
   ]);
+  // Üyeler grup ayarındaki adla görünür (katılma isteği ve davetlerde girdiği ad)
+  const mode = group.nameDisplay;
+  const members = rawMembers.map((x) => ({ ...x, user: withShownName(x.user, mode) }));
+  const dues = rawDues.map((x) => ({ ...x, user: withShownName(x.user, mode) }));
+  const unpaidPenalties = rawPenalties.map((x) => ({ ...x, user: withShownName(x.user, mode) }));
+  const teamChanges = rawChanges.map((x) => ({ ...x, user: withShownName(x.user, mode) }));
   const money: Record<string, { unpaid: number; inDue: number }> = {};
   for (const p of unpaidPenalties) {
     const e = (money[p.userId] ??= { unpaid: 0, inDue: 0 });
