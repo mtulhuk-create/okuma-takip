@@ -3,7 +3,8 @@
 import { clerkClient } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { actionUser, cleanNamePart, getMembership, requireAdmin } from "@/lib/auth";
+import { actionUser, cleanName, getMembership, requireAdmin } from "@/lib/auth";
+import { chooseName } from "@/lib/names";
 import { run, str, int, type ActionState } from "@/lib/action-state";
 import { getDb } from "@/lib/db";
 import { parseLinks, saveBookLinks } from "@/lib/book-links";
@@ -132,23 +133,25 @@ function parseGroupForm(fd: FormData, teamRules?: RulesInput, keep?: Set<string>
 
 // ---------- Profil ----------
 
-/** Ad ve soyadı kaydeder: hem Clerk hesabına hem uygulamadaki kullanıcıya yazılır. */
+/** Kullanmak istediği adı kaydeder (tek alan). Hesap adıyla aynı/çok benzerse hesap adı kullanılır. */
 export async function saveFullName(_: Prev, fd: FormData) {
   return run(async () => {
     const user = await actionUser();
-    const firstName = cleanNamePart(fd.get("firstName"), "Ad");
-    const lastName = cleanNamePart(fd.get("lastName"), "Soyad");
-    const name = `${firstName} ${lastName}`;
+    // Eski istemciler ad ve soyadı ayrı gönderir
+    const raw = fd.get("name") ?? [fd.get("firstName"), fd.get("lastName")].filter(Boolean).join(" ");
+    const entered = cleanName(raw);
+    const name = chooseName(entered, user.accountName);
+    const parts = entered.split(" ");
     try {
       const clerk = await clerkClient();
-      await clerk.users.updateUser(user.id, { firstName, lastName });
+      await clerk.users.updateUser(user.id, parts.length > 1 ? { firstName: parts.slice(0, -1).join(" "), lastName: parts[parts.length - 1] } : { firstName: entered });
     } catch (e) {
-      // Clerk'e yazılamasa da uygulamadaki ad güncellenir; bir sonraki kayıtta yeniden denenir
-      console.error("Clerk ad soyad güncellenemedi", e);
+      // Clerk'e yazılamasa da uygulamadaki ad güncellenir
+      console.error("Clerk adı güncellenemedi", e);
     }
     await getDb().user.update({ where: { id: user.id }, data: { name, nameConfirmed: true } });
     refresh();
-    return "Ad soyad kaydedildi";
+    return name === entered ? "Adın kaydedildi" : `Hesap adın kullanılacak: ${name}`;
   });
 }
 

@@ -180,7 +180,7 @@ export function GroupForm({ group, onSubmit, submitting, submitLabel }: { group?
       <Section
         icon={ShieldCheck}
         title="Sohbet ve üyeler"
-        summary={`${chatPolicy === "ALL" ? "Herkes yazar" : "Yalnızca yöneticiler yazar"} · ${{ ENTERED: "Ad soyad", ACCOUNT: "Hesap adı", BOTH: "Ad + hesap adı" }[nameDisplay]} · geçmiş ${shareProgress ? "açık" : "gizli"}`}
+        summary={`${chatPolicy === "ALL" ? "Herkes yazar" : "Yalnızca yöneticiler yazar"} · ${{ ENTERED: "Yazdığı ad", ACCOUNT: "Hesap adı", BOTH: "Ad + hesap adı" }[nameDisplay]} · geçmiş ${shareProgress ? "açık" : "gizli"}`}
         collapsible={edit}
       >
         <View>
@@ -200,9 +200,9 @@ export function GroupForm({ group, onSubmit, submitting, submitLabel }: { group?
             value={nameDisplay}
             onChange={setNameDisplay}
             options={[
-              { value: "ENTERED", label: "Ad soyad", hint: "Girdiği ad", icon: UserRound },
+              { value: "ENTERED", label: "Yazdığı ad", hint: "Pencerede", icon: UserRound },
               { value: "ACCOUNT", label: "Hesap adı", hint: "Google / e-posta", icon: AtSign },
-              { value: "BOTH", label: "İkisi", hint: "Ahmet (sinan)", icon: Users },
+              { value: "BOTH", label: "İkisi", hint: "Ahmet Sinan", icon: Users },
             ]}
           />
         </View>

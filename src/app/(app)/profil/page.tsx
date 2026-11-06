@@ -25,7 +25,7 @@ export default async function ProfilePage() {
           <h1 className="truncate font-serif text-2xl font-bold">{user.name}</h1>
           {user.username && <p className="text-sm text-muted-foreground">@{user.username}</p>}
         </div>
-        <Link href="/ad-soyad?duzenle=1" className="btn-ghost btn-sm" aria-label="Ad soyadı düzenle">
+        <Link href="/ad-soyad?duzenle=1" className="btn-ghost btn-sm" aria-label="Adını düzenle">
           <Pencil /> Düzenle
         </Link>
       </header>

@@ -7,7 +7,7 @@ import { useActionState, useEffect } from "react";
 import { saveFullName } from "@/app/actions";
 import { SubmitButton } from "./action-form";
 
-export function NameForm({ firstName, lastName, next, canCancel }: { firstName: string; lastName: string; next: string; canCancel?: boolean }) {
+export function NameForm({ name, next, canCancel }: { name: string; next: string; canCancel?: boolean }) {
   const router = useRouter();
   const [state, action] = useActionState(saveFullName, null);
   useEffect(() => {
@@ -16,16 +16,10 @@ export function NameForm({ firstName, lastName, next, canCancel }: { firstName: 
   return (
     <form action={action} className="card space-y-4">
       <div>
-        <label htmlFor="firstName" className="label">
-          Ad
+        <label htmlFor="name" className="label">
+          Kullanmak istediğiniz adınız
         </label>
-        <input id="firstName" name="firstName" className="input" defaultValue={firstName} autoComplete="given-name" autoCapitalize="words" required minLength={2} maxLength={40} autoFocus />
-      </div>
-      <div>
-        <label htmlFor="lastName" className="label">
-          Soyad
-        </label>
-        <input id="lastName" name="lastName" className="input" defaultValue={lastName} autoComplete="family-name" autoCapitalize="words" required minLength={2} maxLength={40} />
+        <input id="name" name="name" className="input" defaultValue={name} autoComplete="name" autoCapitalize="words" required minLength={2} maxLength={60} autoFocus />
       </div>
       {state?.error && <p className="text-sm font-medium text-destructive">{state.error}</p>}
       <div className="flex gap-2">

@@ -83,3 +83,12 @@ export function looksLikeFullName(name: string) {
   if (words.length < 2) return false;
   return words.every((w) => /^[\p{L}][\p{L}\p{M}'-]+$/u.test(w));
 }
+
+/** Pencerede yazılan ad: 2-60 karakter, harf ve boşluk; kelime başları büyük */
+export function cleanName(v: unknown) {
+  const s = String(v ?? "").replace(/\s+/g, " ").trim();
+  if (s.length < 2) throw new Error("Adını yaz (en az 2 harf)");
+  if (s.length > 60) throw new Error("Ad en fazla 60 karakter olabilir");
+  if (!/^[\p{L}][\p{L}\p{M}' .-]*$/u.test(s)) throw new Error("Ad yalnızca harflerden oluşmalı");
+  return s.replace(/(^|[ -])(\p{L})/gu, (_, sep: string, ch: string) => sep + ch.toLocaleUpperCase("tr-TR"));
+}

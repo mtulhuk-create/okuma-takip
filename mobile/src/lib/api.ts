@@ -19,11 +19,17 @@ export function useApiFetch() {
   const { getToken } = useAuth();
   return useCallback(
     async <T,>(path: string, init?: RequestInit): Promise<T> => {
-      const token = await getToken();
-      const res = await fetch(API_URL + path, {
-        ...init,
-        headers: { "content-type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}), ...init?.headers },
-      });
+      const token = await getToken().catch(() => null);
+      let res: Response;
+      try {
+        res = await fetch(API_URL + path, {
+          ...init,
+          headers: { "content-type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}), ...init?.headers },
+        });
+      } catch {
+        // Sunucuya ulaşılamadı: anlaşılır mesaj (çevrimdışı sıra bu hatayı ağ hatası sayar)
+        throw new Error("İnternet bağlantısı yok. Bağlanınca tekrar dene.");
+      }
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new ApiError((data as ActionResult).error ?? `Sunucu hatası (${res.status})`);
       return data as T;
@@ -52,7 +58,8 @@ export function useAction() {
         return await fetcher<ActionResult>(`/api/m/action/${name}`, { method: "POST", body: JSON.stringify(body ?? {}) });
       } catch (e) {
         // İnternet yokken gün kartı işlemi sıraya alınır; bağlanınca işlemin yapıldığı anla gönderilir
-        if (name === "reportReading" && body?.groupId && body?.dayKey && isNetworkError(e)) {
+        // Sunucudan yanıt gelmediyse (ApiError değilse) internet yok sayılır
+        if (name === "reportReading" && body?.groupId && body?.dayKey && (!(e instanceof ApiError) || isNetworkError(e))) {
           await enqueue({ kind: "action", groupId: String(body.groupId), dayKey: String(body.dayKey), label: reportLabel(body), body });
           return { ok: true, message: "İnternet yok: işlem kaydedildi, bağlanınca gönderilecek" } as ActionResult;
         }

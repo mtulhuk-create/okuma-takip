@@ -23,7 +23,7 @@ export function OfflineSync() {
         toast(`Gönderilemedi: ${j.error ?? res.status}`);
         return "drop";
       } catch (e) {
-        if (isNetworkError(e)) return "retry";
+        if (!(e instanceof ApiError) || isNetworkError(e)) return "retry";
         // Sunucu reddetti (ör. süresi çok geçmiş): sıradan çıkar ve haber ver
         toast(`Çevrimdışı işlem gönderilemedi: ${e instanceof ApiError ? e.message : String(e)}`);
         return "drop";
