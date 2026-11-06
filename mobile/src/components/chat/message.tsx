@@ -1,6 +1,7 @@
 import { Check } from "lucide-react-native";
 import { Alert, Pressable, Text, View } from "react-native";
-import { useAction } from "@/lib/api";
+import * as Clipboard from "expo-clipboard";
+import { toast, useAction } from "@/lib/api";
 import { formatClock } from "@/lib/format";
 import { fonts, useColors } from "@/lib/theme";
 import type { ChatMessage } from "@/lib/types";
@@ -16,37 +17,69 @@ const nameColor = (id: string) => {
 export function MessageBubble({ m, mine, showAuthor, canDelete }: { m: ChatMessage; mine: boolean; showAuthor: boolean; canDelete: boolean }) {
   const c = useColors();
   const action = useAction();
-  const fg = mine ? c.primaryForeground : c.foreground;
-  const sub = mine ? c.primaryForeground + "b3" : c.mutedForeground;
+  const fg = mine ? c.chatMineFg : c.foreground;
+  const sub = mine ? c.chatMineFg + "99" : c.mutedForeground;
+  const bg = mine ? c.chatMine : c.card;
   const poll = m.poll;
   const max = poll ? Math.max(1, ...poll.options.map((o) => o.votes)) : 1;
 
   return (
-    <View style={{ flexDirection: mine ? "row-reverse" : "row", alignItems: "flex-end", gap: 8, marginTop: showAuthor ? 10 : 2 }}>
+    <View style={{ flexDirection: mine ? "row-reverse" : "row", alignItems: "flex-start", gap: 8, marginTop: showAuthor ? 8 : 2 }}>
       {!mine && <View style={{ width: 30 }}>{showAuthor && m.user && <Avatar name={m.user.name} uri={m.user.imageUrl} size={30} />}</View>}
       <Pressable
-        onLongPress={() =>
-          canDelete &&
-          !m.pending &&
-          Alert.alert("Mesajı sil", "Bu mesaj herkes için silinsin mi?", [
-            { text: "Vazgeç", style: "cancel" },
-            { text: "Sil", style: "destructive", onPress: () => action.mutate({ name: "deleteMessage", body: { messageId: m.id } }) },
-          ])
-        }
+        // Uzun bas: kopyala; kendi mesajını ya da (yöneticiysen) herkesin mesajını sil
+        onLongPress={() => {
+          if (m.pending) return;
+          const buttons: { text: string; style?: "cancel" | "destructive"; onPress?: () => void }[] = [];
+          if (m.text) buttons.push({ text: "Kopyala", onPress: () => Clipboard.setStringAsync(m.text ?? "").then(() => toast("Kopyalandı")) });
+          if (canDelete)
+            buttons.push({
+              text: "Sil",
+              style: "destructive",
+              onPress: () =>
+                Alert.alert("Mesajı sil", mine ? "Mesajın herkes için silinsin mi?" : `${m.user?.name ?? "Bu kişinin"} mesajı herkes için silinsin mi?`, [
+                  { text: "Vazgeç", style: "cancel" },
+                  { text: "Sil", style: "destructive", onPress: () => action.mutate({ name: "deleteMessage", body: { messageId: m.id } }) },
+                ]),
+            });
+          if (!buttons.length) return;
+          buttons.push({ text: "Vazgeç", style: "cancel" });
+          Alert.alert(m.poll ? "Anket" : "Mesaj", undefined, buttons);
+        }}
         style={{
           maxWidth: "80%",
           minWidth: poll ? "70%" : undefined,
-          backgroundColor: mine ? c.primary : c.card,
-          borderWidth: mine ? 0 : 1,
-          borderColor: c.border,
-          borderRadius: 18,
-          borderBottomRightRadius: mine ? 6 : 18,
-          borderBottomLeftRadius: mine ? 18 : 6,
-          paddingHorizontal: 12,
-          paddingVertical: 8,
+          backgroundColor: bg,
+          borderRadius: 12,
+          borderTopLeftRadius: !mine && showAuthor ? 0 : 12,
+          borderTopRightRadius: mine && showAuthor ? 0 : 12,
+          paddingHorizontal: 10,
+          paddingTop: 6,
+          paddingBottom: 4,
           opacity: m.pending ? 0.7 : 1,
+          elevation: 1,
+          shadowColor: "#000",
+          shadowOpacity: 0.08,
+          shadowRadius: 1,
+          shadowOffset: { width: 0, height: 1 },
         }}
       >
+        {/* Grubun ilk mesajında balon kuyruğu */}
+        {showAuthor && (
+          <View
+            style={{
+              position: "absolute",
+              top: 0,
+              [mine ? "right" : "left"]: -8,
+              width: 0,
+              height: 0,
+              borderTopWidth: 12,
+              borderTopColor: bg,
+              [mine ? "borderRightWidth" : "borderLeftWidth"]: 9,
+              [mine ? "borderRightColor" : "borderLeftColor"]: "transparent",
+            }}
+          />
+        )}
         {!mine && showAuthor && m.user && <Text style={{ fontFamily: fonts.bold, fontSize: 12, color: nameColor(m.user.id), marginBottom: 2 }}>{m.user.name}</Text>}
         {poll ? (
           <View style={{ gap: 6 }}>
@@ -56,12 +89,12 @@ export function MessageBubble({ m, mine, showAuthor, canDelete }: { m: ChatMessa
               <Pressable
                 key={o.id}
                 onPress={() => action.mutate({ name: "votePoll", body: { optionId: o.id } })}
-                style={{ borderWidth: 1, borderColor: mine ? c.primaryForeground + "55" : c.border, borderRadius: 10, overflow: "hidden" }}
+                style={{ borderWidth: 1, borderColor: mine ? c.chatMineFg + "33" : c.border, borderRadius: 10, overflow: "hidden" }}
               >
-                <View style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${(o.votes / max) * 100}%`, backgroundColor: mine ? c.primaryForeground + "33" : c.primary + "1a" }} />
+                <View style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${(o.votes / max) * 100}%`, backgroundColor: c.primary + "22" }} />
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 10, paddingVertical: 8 }}>
-                  <View style={{ width: 18, height: 18, borderRadius: 9, borderWidth: 1.5, borderColor: mine ? c.primaryForeground : c.primary, backgroundColor: o.mine ? (mine ? c.primaryForeground : c.primary) : "transparent", alignItems: "center", justifyContent: "center" }}>
-                    {o.mine && <Check size={11} color={mine ? c.primary : c.primaryForeground} strokeWidth={3} />}
+                  <View style={{ width: 18, height: 18, borderRadius: 9, borderWidth: 1.5, borderColor: c.primary, backgroundColor: o.mine ? c.primary : "transparent", alignItems: "center", justifyContent: "center" }}>
+                    {o.mine && <Check size={11} color={c.primaryForeground} strokeWidth={3} />}
                   </View>
                   <Text style={{ flex: 1, fontFamily: fonts.regular, fontSize: 14, color: fg }}>{o.text}</Text>
                   <Text style={{ fontFamily: fonts.bold, fontSize: 12, color: fg }}>{o.votes}</Text>
@@ -73,7 +106,10 @@ export function MessageBubble({ m, mine, showAuthor, canDelete }: { m: ChatMessa
         ) : (
           <Text style={{ fontFamily: fonts.regular, fontSize: 15, lineHeight: 20, color: fg }}>{m.text}</Text>
         )}
-        <Text style={{ fontFamily: fonts.regular, fontSize: 10, color: sub, alignSelf: "flex-end", marginTop: 2 }}>{m.failed ? "Gönderilemedi" : m.pending ? "Gönderiliyor…" : formatClock(m.createdAt)}</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 2, alignSelf: "flex-end", marginTop: 1 }}>
+          <Text style={{ fontFamily: fonts.regular, fontSize: 10, color: sub }}>{m.failed ? "Gönderilemedi" : m.pending ? "Gönderiliyor…" : formatClock(m.createdAt)}</Text>
+          {mine && !m.pending && !m.failed && <Check size={11} color={sub} strokeWidth={2.5} />}
+        </View>
       </Pressable>
     </View>
   );

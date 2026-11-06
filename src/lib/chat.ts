@@ -2,7 +2,8 @@ import "server-only";
 import type { Group } from "@prisma/client";
 import { getDb } from "./db";
 import { getDayCards } from "./day";
-import { currentPeriod } from "./schedule";
+import { dueView } from "./due-view";
+import { currentPeriod, defaultDueAt } from "./schedule";
 
 const PAGE = 40;
 const publicUser = { select: { id: true, name: true, imageUrl: true } } as const;
@@ -44,8 +45,10 @@ export async function getChatPage(groupId: string, userId: string, before?: Date
   });
   const hasMore = rows.length > PAGE;
   const page = rows.slice(0, PAGE).reverse();
+  const today = currentPeriod(new Date(), group).dayKey;
   const dayKeys = page.filter((m) => m.kind === "DAY" && m.dayKey).map((m) => m.dayKey!);
-  const cards = await getDayCards(group, group.members, dayKeys, userId);
+  // Bugünün kartı sayfada olmasa da (çok mesaj atıldıysa) sohbet başlığındaki kısayol için hesaplanır
+  const cards = await getDayCards(group, group.members, before || dayKeys.includes(today) ? dayKeys : [...dayKeys, today], userId);
 
   const messages = page.map((m) => ({
     id: m.id,
@@ -66,13 +69,14 @@ export async function getChatPage(groupId: string, userId: string, before?: Date
             text: o.text,
             votes: o.votes.length,
             mine: o.votes.some((v) => v.userId === userId),
-            names: o.votes.map((v) => v.user.name.split(" ")[0]),
+            names: o.votes.map((v) => v.user.name),
           })),
         }
       : null,
   }));
 
   const lastEvent = await db.groupEvent.findFirst({ where: { groupId }, orderBy: { id: "desc" }, select: { id: true } });
+  const kasa = before ? null : await getGroupCash(group, userId);
   return {
     cursor: lastEvent?.id ?? 0,
     group: {
@@ -81,10 +85,43 @@ export async function getChatPage(groupId: string, userId: string, before?: Date
       chatPolicy: group.chatPolicy,
       memberCount: group.members.length,
       deadlineMinute: group.deadlineMinute,
+      today,
     },
+    todayCard: before ? null : (cards[today] ?? null),
+    kasa,
     me: { userId, role: me.role, canPost: canPost(group, me.role) },
     messages,
     hasMore,
+  };
+}
+
+/**
+ * Grup kasası: ödenmemiş (vadeli ya da vadesiz) cezaların toplamı. Yönetici ödemeyi onaylayınca düşer.
+ * Kişinin kendi borcu ve ödeme bilgileri de döner.
+ */
+export async function getGroupCash(group: Pick<Group, "id" | "iban" | "ibanName" | "tzOffset" | "dueOffsetDays">, userId: string) {
+  const db = getDb();
+  const open = { groupId: group.id, status: { in: ["UNPAID", "IN_DUE"] as ("UNPAID" | "IN_DUE")[] } };
+  const [all, mine, due, paid, inDue] = await Promise.all([
+    db.penalty.aggregate({ where: open, _sum: { amount: true } }),
+    db.penalty.aggregate({ where: { ...open, userId }, _sum: { amount: true } }),
+    db.paymentDue.findFirst({ where: { groupId: group.id, userId, status: { in: ["PENDING", "SUBMITTED", "OVERDUE"] } }, orderBy: { dueAt: "asc" } }),
+    // Grup kurulduğundan beri kasaya giren (onaylanan) toplam
+    db.penalty.aggregate({ where: { groupId: group.id, status: "PAID" }, _sum: { amount: true } }),
+    // Vadesi verilmiş (ödeme bekleyen) tutarlar ve en yakın vade
+    db.paymentDue.aggregate({ where: { groupId: group.id, status: { in: ["PENDING", "SUBMITTED", "OVERDUE"] } }, _sum: { amount: true }, _min: { dueAt: true }, _count: true }),
+  ]);
+  return {
+    expected: all._sum.amount ?? 0,
+    paidTotal: paid._sum.amount ?? 0,
+    inDue: inDue._sum.amount ?? 0,
+    inDueCount: inDue._count,
+    nextDueAt: inDue._min.dueAt?.toISOString() ?? null,
+    myDebt: mine._sum.amount ?? 0,
+    myDue: due ? dueView(due) : null,
+    defaultDueAt: defaultDueAt(group).toISOString(),
+    iban: group.iban,
+    ibanName: group.ibanName,
   };
 }
 

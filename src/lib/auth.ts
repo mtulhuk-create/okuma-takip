@@ -14,8 +14,10 @@ export const requireUser = cache(async () => {
 
   const cu = await currentUser();
   if (!cu) redirect("/sign-in");
+  const first = cu.firstName?.trim();
+  const last = cu.lastName?.trim();
   const name =
-    [cu.firstName, cu.lastName].filter(Boolean).join(" ") ||
+    [first, last].filter(Boolean).join(" ") ||
     cu.username ||
     cu.primaryEmailAddress?.emailAddress?.split("@")[0] ||
     "Okuyucu";
@@ -24,6 +26,8 @@ export const requireUser = cache(async () => {
     create: {
       id: userId,
       name,
+      // Kayıtta ad ve soyad alındıysa tekrar sorulmaz; yoksa ilk açılışta istenir
+      nameConfirmed: !!(first && last),
       username: cu.username ?? null,
       email: cu.primaryEmailAddress?.emailAddress ?? null,
       imageUrl: cu.imageUrl,
@@ -48,4 +52,23 @@ export async function requireAdmin(groupId: string) {
   const m = await getMembership(groupId, user.id);
   if (!m || m.status !== "ACTIVE" || m.role !== "ADMIN") throw new Error("Bu işlem için grup yöneticisi olmalısınız");
   return { user, membership: m };
+}
+
+/** "Ad Soyad" doğrulaması: ad ve soyad ayrı alınır, fazla boşluklar temizlenir. */
+export function cleanNamePart(v: unknown, label: string) {
+  const s = String(v ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (s.length < 2) throw new Error(`${label} en az 2 harf olmalı`);
+  if (s.length > 40) throw new Error(`${label} en fazla 40 karakter olabilir`);
+  if (!/^[\p{L}][\p{L}\p{M}' .-]*$/u.test(s)) throw new Error(`${label} yalnızca harflerden oluşmalı`);
+  // Her kelimenin ilk harfi büyük (Türkçe kurallarıyla: i → İ)
+  return s.replace(/(^|[ -])(\p{L})/gu, (_, sep: string, ch: string) => sep + ch.toLocaleUpperCase("tr-TR"));
+}
+
+/** Kayıtlı adı (ad + soyad) iki parçaya ayırır: son kelime soyad, öncesi ad. */
+export function splitFullName(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length < 2) return { firstName: parts[0] ?? "", lastName: "" };
+  return { firstName: parts.slice(0, -1).join(" "), lastName: parts[parts.length - 1] };
 }

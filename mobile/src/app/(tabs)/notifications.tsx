@@ -1,12 +1,13 @@
-import { router } from "expo-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { router, useFocusEffect } from "expo-router";
 import { Pressable, View } from "react-native";
 import { Body, Button, Card, ErrorView, H1, Label, Loading, Muted, Row, Screen, Title } from "@/components/ui";
-import { useAction, useApi } from "@/lib/api";
+import { useAction, useApi, useApiFetch } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
 import { useColors } from "@/lib/theme";
-import { describePenalty, teamsActive, type NotificationsResponse } from "@/lib/types";
+import { describePenalty, teamsActive, type MeResponse, type NotificationsResponse } from "@/lib/types";
 import { TeamPicker } from "@/components/team-picker";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 
 /** Web bağlantısını (/gruplar/x/yonetim) uygulama içi rotaya çevirir */
 function toAppRoute(url: string | null) {
@@ -23,9 +24,25 @@ export default function NotificationsScreen() {
   const { data, isLoading, error, refetch, isRefetching } = useApi<NotificationsResponse>("/api/m/notifications");
   const action = useAction();
   const [teams, setTeams] = useState<Record<string, string>>({});
+  const fetcher = useApiFetch();
+  const qc = useQueryClient();
+  // Sekme açılır açılmaz rozet sıfırlanır; liste bu açılışta yenileri vurgulu göstermeye devam eder
+  useFocusEffect(
+    useCallback(() => {
+      qc.setQueryData<MeResponse>(["/api/m/me"], (d) => (d ? { ...d, badge: 0 } : d));
+      (async () => {
+        // Yeni sunucuda listeyi yeniden çizmeden okundu işaretler; eski sunucuda "tümünü okundu yap"a düşer
+        await fetcher(`/api/m/action/markNotificationsSeen`, { method: "POST", body: "{}" }).catch(() =>
+          fetcher(`/api/m/action/markAllRead`, { method: "POST", body: "{}" }).catch(() => {}),
+        );
+        // Sunucu sıfırladıktan sonra rozet kaynağını tazele (eski sayı geri gelmesin)
+        qc.setQueryData<MeResponse>(["/api/m/me"], (d) => (d ? { ...d, badge: 0 } : d));
+        qc.invalidateQueries({ queryKey: ["/api/m/me"] });
+      })();
+    }, [fetcher, qc]),
+  );
   if (isLoading) return <Loading />;
   if (error || !data) return <ErrorView message={error?.message ?? "Yüklenemedi"} onRetry={refetch} />;
-  const unread = data.notes.some((n) => !n.read);
   const busy = (inviteId: string, accept: string) =>
     action.isPending && action.variables?.body?.inviteId === inviteId && action.variables.body?.accept === accept;
 
@@ -33,7 +50,6 @@ export default function NotificationsScreen() {
     <Screen refreshing={isRefetching} onRefresh={refetch}>
       <Row style={{ justifyContent: "space-between" }}>
         <H1>Bildirimler</H1>
-        {unread && <Button title="Tümünü okundu yap" small variant="ghost" onPress={() => action.mutate({ name: "markAllRead" })} />}
       </Row>
 
       {data.invites.length > 0 && <Label>Grup davetleri</Label>}

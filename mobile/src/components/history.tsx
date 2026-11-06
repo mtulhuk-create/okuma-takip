@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { BookOpen, CalendarRange, Check, CheckCheck, ChevronDown, EyeOff, Layers, X } from "lucide-react-native";
+import { BookOpen, CalendarRange, Check, CheckCheck, ChevronDown, EyeOff, Flame, Layers, X } from "lucide-react-native";
 import { useState } from "react";
 import { ActivityIndicator, Modal, Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -14,25 +14,45 @@ const MONTHS = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl",
 const addDays = (key: string, n: number) => new Date(Date.parse(key) + n * 86_400_000).toISOString().slice(0, 10);
 const fmt = (key: string) => `${Number(key.slice(8))} ${MONTHS[Number(key.slice(5, 7)) - 1]}`;
 
+const DOW_MON = ["Pt", "Sa", "Ça", "Pe", "Cu", "Ct", "Pz"];
+
 function useCellColor() {
   const c = useColors();
-  return (ch: string) => ({ r: c.success, m: "#f59e0b", n: c.destructive, p: "transparent", "-": c.muted })[ch] ?? c.muted;
+  return (ch: string) => ({ r: c.success, m: "#f59e0b", n: c.destructive, p: "transparent", "-": c.muted, x: c.muted + "66" })[ch] ?? c.muted;
 }
 
-/** Kısa aralıkta gün kutuları, uzun aralıkta haftalık ısı haritası */
+/** Pazartesi başlayan tam haftalara tamamlanmış gün listesi (x: aralık dışı) */
+function weeksOf(start: string, cells: string) {
+  const lead = (new Date(Date.parse(start)).getUTCDay() + 6) % 7;
+  const total = Math.ceil((lead + cells.length) / 7) * 7;
+  return Array.from({ length: total }, (_, i) => {
+    const j = i - lead;
+    return { key: addDays(start, j), c: j >= 0 && j < cells.length ? cells[j] : "x", today: j === cells.length - 1 };
+  });
+}
+
+/** Gün durumları kartın genişliğini boşluksuz doldurur: 7 gün şerit, 1 ay takvim, daha uzun aralık haftalık ısı haritası */
 export function HistoryGrid({ start, cells }: { start: string; cells: string }) {
   const c = useColors();
   const color = useCellColor();
+  const [width, setWidth] = useState(0);
+  const todayRing = { borderWidth: 2, borderColor: c.primary + "99" };
   if (cells.length <= 14) {
     return (
       <Row gap={4}>
         {[...cells].map((ch, i) => {
           const key = addDays(start, i);
+          const today = i === cells.length - 1;
           const Icon = ch === "r" ? CheckCheck : ch === "m" ? Check : ch === "n" ? X : null;
           return (
-            <View key={key} style={{ flex: 1, alignItems: "center", gap: 3 }}>
-              <Text style={{ fontFamily: fonts.semibold, fontSize: 10, color: i === cells.length - 1 ? c.primary : c.mutedForeground }}>{DOW[new Date(Date.parse(key)).getUTCDay()]}</Text>
-              <View style={{ width: "100%", maxWidth: 36, aspectRatio: 1, borderRadius: 7, backgroundColor: color(ch), borderWidth: ch === "p" ? 1 : 0, borderColor: c.mutedForeground, alignItems: "center", justifyContent: "center" }}>
+            <View key={key} style={{ flex: 1, alignItems: "center", gap: 2 }}>
+              <Text style={{ fontFamily: fonts.semibold, fontSize: 10, color: today ? c.primary : c.mutedForeground }}>{DOW[new Date(Date.parse(key)).getUTCDay()]}</Text>
+              <View
+                style={[
+                  { width: "100%", height: 28, borderRadius: 7, backgroundColor: color(ch), borderWidth: ch === "p" ? 1 : 0, borderColor: c.mutedForeground, alignItems: "center", justifyContent: "center" },
+                  today && todayRing,
+                ]}
+              >
                 {Icon && <Icon size={14} color="#fff" strokeWidth={3} />}
               </View>
               <Text style={{ fontFamily: fonts.regular, fontSize: 10, color: c.mutedForeground }}>{Number(key.slice(8))}</Text>
@@ -42,17 +62,67 @@ export function HistoryGrid({ start, cells }: { start: string; cells: string }) 
       </Row>
     );
   }
-  const firstDow = (new Date(Date.parse(start)).getUTCDay() + 6) % 7; // pazartesi başlar
-  const padded = "x".repeat(firstDow) + cells;
-  const weeks = Array.from({ length: Math.ceil(padded.length / 7) }, (_, w) => padded.slice(w * 7, w * 7 + 7));
+
+  const days = weeksOf(start, cells);
+  const weeks = days.length / 7;
+
+  // ~1 ay: haftalar satır, günler sütun (takvim)
+  if (weeks <= 6) {
+    return (
+      <View style={{ gap: 4 }}>
+        <Row gap={4}>
+          {DOW_MON.map((d) => (
+            <Text key={d} style={{ flex: 1, textAlign: "center", fontFamily: fonts.semibold, fontSize: 10, color: c.mutedForeground }}>
+              {d}
+            </Text>
+          ))}
+        </Row>
+        {Array.from({ length: weeks }, (_, w) => (
+          <Row key={w} gap={4}>
+            {days.slice(w * 7, w * 7 + 7).map(({ key, c: ch, today }) => (
+              <View
+                key={key}
+                style={[
+                  { flex: 1, height: 24, borderRadius: 6, backgroundColor: color(ch), borderWidth: ch === "p" ? 1 : 0, borderColor: c.mutedForeground, alignItems: "center", justifyContent: "center" },
+                  today && todayRing,
+                ]}
+              >
+                <Text style={{ fontFamily: fonts.semibold, fontSize: 11, color: "rnm".includes(ch) ? "#fff" : ch === "x" ? c.mutedForeground + "66" : c.mutedForeground }}>{Number(key.slice(8))}</Text>
+              </View>
+            ))}
+          </Row>
+        ))}
+      </View>
+    );
+  }
+
+  // Uzun aralık: haftalar sütun × günler satır; sütunlar kartı doldurur, sığmazsa yatay kaydırılır
+  const GAP = 3;
+  const LABEL = 18;
+  const size = width ? Math.max(10, Math.floor((width - LABEL - GAP * weeks) / weeks)) : 12;
+  const cell = Math.min(size, 20);
+  const months = Array.from({ length: weeks }, (_, w) => {
+    const first = days.slice(w * 7, w * 7 + 7).find((d) => d.key.endsWith("-01") || (w === 0 && d.c !== "x"));
+    return first ? MONTHS[Number(first.key.slice(5, 7)) - 1] : "";
+  });
   return (
-    <View>
+    <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        <Row gap={3} style={{ alignItems: "flex-start" }}>
-          {weeks.map((wk, w) => (
-            <View key={w} style={{ gap: 3 }}>
-              {[...wk].map((ch, d) => (
-                <View key={d} style={{ width: 12, height: 12, borderRadius: 3, backgroundColor: ch === "x" ? "transparent" : color(ch), borderWidth: ch === "p" ? 1 : 0, borderColor: c.mutedForeground }} />
+        <Row gap={GAP} style={{ alignItems: "flex-start" }}>
+          <View style={{ width: LABEL - GAP, gap: GAP, paddingTop: 12 + GAP }}>
+            {DOW_MON.map((d, i) => (
+              <View key={d} style={{ height: cell, justifyContent: "center" }}>
+                <Text style={{ fontFamily: fonts.regular, fontSize: 9, color: c.mutedForeground }}>{i % 2 === 0 ? d : ""}</Text>
+              </View>
+            ))}
+          </View>
+          {Array.from({ length: weeks }, (_, w) => (
+            <View key={w} style={{ gap: GAP, width: size }}>
+              <Text numberOfLines={1} style={{ height: 12, width: 40, fontFamily: fonts.regular, fontSize: 9, color: c.mutedForeground }}>
+                {months[w]}
+              </Text>
+              {days.slice(w * 7, w * 7 + 7).map(({ key, c: ch, today }) => (
+                <View key={key} style={[{ width: size, height: cell, borderRadius: 3, backgroundColor: color(ch), borderWidth: ch === "p" ? 1 : 0, borderColor: c.mutedForeground }, today && todayRing]} />
               ))}
             </View>
           ))}
@@ -75,14 +145,29 @@ export function StatsLine({ stats }: { stats: Stats }) {
     { Icon: BookOpen, n: stats.pages, color: c.mutedForeground, label: "sayfa" },
   ];
   return (
-    <Row style={{ flexWrap: "wrap" }} gap={12}>
+    <Row style={{ flexWrap: "wrap", rowGap: 2 }} gap={10}>
       {items.map(({ Icon, n, color, label }) => (
-        <Row key={label} gap={3}>
-          <Icon size={13} color={color} />
-          <Text style={{ fontFamily: fonts.semibold, fontSize: 12, color }}>{n}</Text>
-          <Muted>{label}</Muted>
+        <Row key={label} gap={2}>
+          <Icon size={12} color={color} />
+          <Text style={{ fontFamily: fonts.semibold, fontSize: 11, color }}>{n}</Text>
+          <Text style={{ fontFamily: fonts.regular, fontSize: 11, color: c.mutedForeground }}>{label}</Text>
         </Row>
       ))}
+    </Row>
+  );
+}
+
+/** Okuma serisi rozeti */
+export function StreakBadge({ n, small }: { n: number; small?: boolean }) {
+  const c = useColors();
+  const on = n > 0;
+  const color = on ? "#c2410c" : c.mutedForeground;
+  return (
+    <Row gap={3} style={{ backgroundColor: on ? "#f9731620" : c.muted, borderRadius: 99, paddingHorizontal: small ? 6 : 10, paddingVertical: small ? 2 : 4 }}>
+      <Flame size={small ? 11 : 14} color={color} fill={on ? color : "none"} />
+      <Text style={{ fontFamily: fonts.bold, fontSize: small ? 10 : 12, color }}>
+        {n} gün seri
+      </Text>
     </Row>
   );
 }
@@ -94,7 +179,7 @@ export function RangePicker({ value, onChange, labels = RANGE_LABELS }: { value:
     <>
       <Pressable onPress={() => setOpen(true)} hitSlop={8}>
         <Row gap={4}>
-          <Text style={{ fontFamily: fonts.bold, fontSize: 15, color: c.foreground }}>{labels[value]}</Text>
+          <Text style={{ fontFamily: fonts.bold, fontSize: 14, color: c.foreground }}>{labels[value]}</Text>
           <ChevronDown size={16} color={c.foreground} />
         </Row>
       </Pressable>
@@ -121,38 +206,78 @@ export function RangePicker({ value, onChange, labels = RANGE_LABELS }: { value:
   );
 }
 
-/** Bugün ekranı: yalnızca kullanıcının kendi geçmişi */
+/** Açılır seçim (grup seçimi) */
+function GroupPicker({ value, options, onChange }: { value: string; options: { value: string; label: string }[]; onChange: (v: string) => void }) {
+  const c = useColors();
+  const [open, setOpen] = useState(false);
+  const current = options.find((o) => o.value === value);
+  return (
+    <>
+      <Pressable onPress={() => setOpen(true)} hitSlop={6} style={{ flexShrink: 1, flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: c.muted, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 }}>
+        <Layers size={13} color={c.primary} />
+        <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: fonts.semibold, fontSize: 12, color: c.foreground }}>
+          {current?.label}
+        </Text>
+        <ChevronDown size={14} color={c.foreground} />
+      </Pressable>
+      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+        <Pressable onPress={() => setOpen(false)} style={{ flex: 1, backgroundColor: "#0005", justifyContent: "center", padding: 32 }}>
+          <View style={{ backgroundColor: c.card, borderRadius: 16, padding: 6, maxHeight: "70%" }}>
+            <ScrollView>
+              {options.map((o) => (
+                <Pressable
+                  key={o.value}
+                  onPress={() => {
+                    onChange(o.value);
+                    setOpen(false);
+                  }}
+                  style={({ pressed }) => [{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 14, borderRadius: 10, backgroundColor: pressed ? c.muted : "transparent" }]}
+                >
+                  <Text numberOfLines={1} style={{ flex: 1, fontFamily: o.value === value ? fonts.bold : fonts.regular, fontSize: 15, color: o.value === value ? c.primary : c.foreground }}>
+                    {o.label}
+                  </Text>
+                  {o.value === value && <Check size={18} color={c.primary} />}
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        </Pressable>
+      </Modal>
+    </>
+  );
+}
+
+/** Bugün ekranı: kendi okuma geçmişin. Varsayılan tüm gruplar; menüden tek grup seçilebilir. */
 export function MyHistorySection() {
   const c = useColors();
   const fetcher = useApiFetch();
   const [range, setRange] = useState<HistoryRange>("7d");
+  const [sel, setSel] = useState("all");
   const { data, isFetching } = useQuery({ queryKey: ["/api/m/history", range], queryFn: () => fetcher<MyHistory>(`/api/m/history?range=${range}`), placeholderData: (p) => p });
   if (!data?.groups.length) return null;
+  const multi = !!data.all && data.groups.length > 1;
+  const group = data.groups.find((g) => g.group.id === sel);
+  const row = (sel === "all" || !group) && multi ? data.all! : (group ?? data.groups[0]);
   return (
-    <Card style={{ gap: 14, opacity: isFetching ? 0.7 : 1 }}>
-      <Row style={{ justifyContent: "space-between" }}>
+    <Card style={{ gap: 8, padding: 10, opacity: isFetching ? 0.7 : 1 }}>
+      <Row gap={6}>
         <RangePicker value={range} onChange={setRange} />
-        <Muted>Yalnızca senin okumaların</Muted>
+        <View style={{ flex: 1, flexDirection: "row" }}>
+          {multi ? (
+            <GroupPicker value={group ? sel : "all"} onChange={setSel} options={[{ value: "all", label: "Tüm gruplar" }, ...data.groups.map((g) => ({ value: g.group.id, label: g.group.name }))]} />
+          ) : (
+            <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: fonts.semibold, fontSize: 12, color: c.mutedForeground }}>
+              {data.groups[0].group.name}
+            </Text>
+          )}
+        </View>
+        <StreakBadge n={row.streak ?? 0} small />
       </Row>
-      {data.all && data.groups.length > 1 && (
-        <View style={{ gap: 8, backgroundColor: c.muted, borderRadius: 12, padding: 10 }}>
-          <Row gap={6}>
-            <Layers size={15} color={c.primary} />
-            <Text style={{ fontFamily: fonts.semibold, fontSize: 14, color: c.foreground }}>Tüm gruplar</Text>
-          </Row>
-          <HistoryGrid start={data.all.start} cells={data.all.cells} />
-          <StatsLine stats={data.all.stats} />
-        </View>
-      )}
-      {data.groups.map((g) => (
-        <View key={g.group.id} style={{ gap: 8 }}>
-          <Text numberOfLines={1} style={{ fontFamily: fonts.semibold, fontSize: 14, color: c.foreground }}>
-            {g.group.name}
-          </Text>
-          <HistoryGrid start={g.start} cells={g.cells} />
-          <StatsLine stats={g.stats} />
-        </View>
-      ))}
+      <HistoryGrid start={row.start} cells={row.cells} />
+      <Row style={{ flexWrap: "wrap", justifyContent: "space-between", rowGap: 2 }}>
+        <StatsLine stats={row.stats} />
+        <Text style={{ fontFamily: fonts.regular, fontSize: 10, color: c.mutedForeground }}>Yalnızca senin okumaların</Text>
+      </Row>
     </Card>
   );
 }

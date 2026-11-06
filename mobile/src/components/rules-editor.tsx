@@ -74,7 +74,7 @@ function BooksEditor({ books, onChange }: { books: Book[]; onChange: (b: Book[])
             <TextInput
               value={b.title}
               onChangeText={(title) => update(b.id, { title })}
-              placeholder={i === 0 ? "Kitap adı (örn. Suç ve Ceza)" : `${i + 1}. kitap adı`}
+              placeholder={i === 0 ? "Eser adı" : `${i + 1}. eser adı`}
               placeholderTextColor={c.mutedForeground}
               maxLength={80}
               style={{ flex: 1, height: 40, borderWidth: 1, borderColor: b.title.trim() ? c.border : "#f59e0b", borderRadius: radius + 2, paddingHorizontal: 10, fontFamily: fonts.regular, fontSize: 14, color: c.foreground, backgroundColor: c.card }}

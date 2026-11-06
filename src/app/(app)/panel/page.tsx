@@ -6,6 +6,8 @@ import { DayCardMini } from "@/components/day-card";
 import { PushToggle } from "@/components/push-toggle";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { MyHistory } from "@/components/my-history";
+import { DebtButton } from "@/components/pay-sheet";
+import { DueBadge } from "@/components/due-badge";
 import { requireUser } from "@/lib/auth";
 import { getMyHistory } from "@/lib/history";
 import { myGroupsToday, myMoney } from "@/lib/queries";
@@ -22,10 +24,11 @@ export default async function PanelPage() {
       <header className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm text-muted-foreground">Merhaba,</p>
-          <h1 className="truncate font-serif text-2xl font-bold">{user.name.split(" ")[0]}</h1>
+          <h1 className="truncate font-serif text-2xl font-bold">{user.name}</h1>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <ThemeToggle compact />
+          <DebtButton total={money.unpaidTotal} items={money.debts} />
           <UserButton />
         </div>
       </header>
@@ -43,9 +46,9 @@ export default async function PanelPage() {
             <p className="truncate text-sm font-semibold">
               {d.group.name} · {d.amount} TL ödeme
             </p>
-            <p className="text-xs text-muted-foreground">
-              {d.status === "SUBMITTED" ? "Onay bekleniyor" : `Son ödeme ${formatDateTime(d.dueAt, d.group.tzOffset)}`} · <Countdown to={d.dueAt.toISOString()} />
-            </p>
+            <div className="mt-0.5">
+              <DueBadge due={d} />
+            </div>
           </div>
         </Link>
       ))}

@@ -39,6 +39,7 @@ enum DueStatus {
   PENDING // ödeme bekleniyor
   SUBMITTED // üye "ödedim" dedi, admin onayı bekleniyor
   CONFIRMED // admin onayladı
+  OVERDUE // vade geçti, yöneticinin kararı bekleniyor (ek süre / indirim / çıkarma)
   EXPIRED // vade geçti, üye gruptan atıldı
   CANCELLED
 }
@@ -64,7 +65,8 @@ enum RequestStatus {
 model User {
   id        String   @id // Clerk user id
   username  String?  @unique
-  name      String
+  name      String // ad soyad
+  nameConfirmed Boolean @default(false) // kullanıcı ad soyadını onayladı mı
   email     String?
   imageUrl  String?
   createdAt DateTime @default(now())
@@ -112,6 +114,8 @@ model Group {
   reminderHours Int         @default(2) // son saatten kaç saat önce uyarı
   tzOffset      Int         @default(180) // dakika, Türkiye = UTC+3
   chatPolicy    ChatPolicy  @default(ALL)
+  dueOffsetDays Int         @default(0) // varsayılan ödeme vadesi: ay sonundan kaç gün önce (-) / sonra (+)
+  kickOnExpire  Boolean     @default(true) // vadesinde ödemeyen (yönetici kararından sonra) gruptan çıkarılır
   lastSettledDay String? // ceza hesaplaması yapılan son okuma günü (YYYY-MM-DD)
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
@@ -174,6 +178,7 @@ model Penalty {
   user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   dayKey        String
   amount        Int // TL
+  originalAmount Int? // indirim yapıldıysa ilk tutar
   pagesRead     Int
   requiredPages Int
   status        PenaltyStatus @default(UNPAID)
@@ -193,6 +198,9 @@ model PaymentDue {
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   amount      Int
   dueAt       DateTime
+  originalDueAt DateTime? // ek süre verildiyse ilk vade
+  extensions  Int       @default(0) // kaç kez ek süre verildi
+  decisionUntil DateTime? // vade dolunca yöneticinin karar vermesi için son an
   status      DueStatus @default(PENDING)
   paymentNote String? // üyenin dekont/açıklama notu
   submittedAt DateTime?

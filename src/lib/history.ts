@@ -17,6 +17,38 @@ export const parseRange = (v: string | null): HistoryRange => (v && v in RANGES 
 export type Stats = { read: number; min: number; none: number; pages: number };
 export type HistoryRow = { start: string; cells: string; stats: Stats };
 
+/** Bugünden geriye kesintisiz okunan (hedef ya da alt sınır) gün sayısı; bugün henüz bildirilmediyse seriyi bozmaz. */
+export function streakOf(cells: string) {
+  let i = cells.length - 1;
+  if (cells[i] === "p") i--;
+  let n = 0;
+  for (; i >= 0 && (cells[i] === "r" || cells[i] === "m"); i--) n++;
+  return n;
+}
+
+/** Birden çok satırı gün gün birleştirir: o gün en kötü durum (okumadı > bekleniyor > alt sınır > okudu) */
+function combine(rows: HistoryRow[]): HistoryRow {
+  const end = rows.reduce((a, r) => {
+    const last = shiftDayKey(r.start, r.cells.length - 1);
+    return last > a ? last : a;
+  }, "0000");
+  const start = rows.reduce((a, r) => (r.start < a ? r.start : a), "9999");
+  let cells = "";
+  const stats: Stats = { read: 0, min: 0, none: 0, pages: rows.reduce((s, r) => s + r.stats.pages, 0) };
+  for (let k = start; k <= end; k = shiftDayKey(k, 1)) {
+    const day = rows.map((r) => {
+      const i = Math.round((Date.parse(k) - Date.parse(r.start)) / 86_400_000);
+      return i >= 0 && i < r.cells.length ? r.cells[i] : "-";
+    });
+    const c = day.includes("n") ? "n" : day.includes("p") ? "p" : day.includes("m") ? "m" : day.includes("r") ? "r" : "-";
+    if (c === "r") stats.read++;
+    else if (c === "m") stats.min++;
+    else if (c === "n") stats.none++;
+    cells += c;
+  }
+  return { start, cells, stats };
+}
+
 type G = { id: string; startMinute: number; deadlineMinute: number; tzOffset: number; reminderHours: number; createdAt: Date };
 type Log = { userId: string; dayKey: string; pages: number; requiredPages: number; minPages: number };
 
@@ -45,44 +77,29 @@ function startFor(range: HistoryRange, endKey: string, since: Date, g: G) {
   return range === "all" ? (sinceKey > byRange ? sinceKey : byRange) : byRange;
 }
 
-/** Kullanıcının yalnızca kendi geçmişi: tüm gruplar ve grup grup */
+/** Kullanıcının yalnızca kendi geçmişi: tüm gruplar ve grup grup (+ seçilen aralıktan bağımsız okuma serisi) */
 export async function getMyHistory(userId: string, range: HistoryRange) {
   const db = getDb();
   const memberships = await db.groupMember.findMany({ where: { userId, status: "ACTIVE" }, include: { group: true }, orderBy: { joinedAt: "asc" } });
   const now = new Date();
   const plans = memberships.map((m) => {
     const endKey = currentPeriod(now, m.group).dayKey;
-    return { m, endKey, startKey: startFor(range, endKey, m.joinedAt, m.group) };
+    // Seri için üyelik başından (en fazla 2 yıl) itibaren bakılır
+    return { m, endKey, startKey: startFor(range, endKey, m.joinedAt, m.group), streakKey: startFor("all", endKey, m.joinedAt, m.group) };
   });
-  const minKey = plans.reduce((a, p) => (p.startKey < a ? p.startKey : a), "9999");
+  const minKey = plans.reduce((a, p) => (p.startKey < a ? p.startKey : a), plans.reduce((a, p) => (p.streakKey < a ? p.streakKey : a), "9999"));
   const logs = plans.length
     ? await db.readingLog.findMany({ where: { userId, groupId: { in: plans.map((p) => p.m.groupId) }, dayKey: { gte: minKey } } })
     : [];
-  const groups = plans.map(({ m, endKey, startKey }) => {
+  const full: HistoryRow[] = [];
+  const groups = plans.map(({ m, endKey, startKey, streakKey }) => {
     const mine = new Map(logs.filter((l) => l.groupId === m.groupId).map((l) => [l.dayKey, l]));
-    return { group: { id: m.group.id, name: m.group.name }, ...row(m.group, m.joinedAt, startKey, endKey, mine, now) };
+    const long = row(m.group, m.joinedAt, streakKey, endKey, mine, now);
+    full.push(long);
+    return { group: { id: m.group.id, name: m.group.name }, ...row(m.group, m.joinedAt, startKey, endKey, mine, now), streak: streakOf(long.cells) };
   });
 
-  // Tüm gruplar: o gün en kötü durum (okumadı > bekleniyor > alt sınır > okudu)
-  let all: HistoryRow | null = null;
-  if (groups.length) {
-    const end = plans.reduce((a, p) => (p.endKey > a ? p.endKey : a), "0000");
-    const start = groups.reduce((a, g) => (g.start < a ? g.start : a), "9999");
-    let cells = "";
-    const stats: Stats = { read: 0, min: 0, none: 0, pages: groups.reduce((s, g) => s + g.stats.pages, 0) };
-    for (let k = start; k <= end; k = shiftDayKey(k, 1)) {
-      const day = groups.map((g) => {
-        const i = Math.round((Date.parse(k) - Date.parse(g.start)) / 86_400_000);
-        return i >= 0 && i < g.cells.length ? g.cells[i] : "-";
-      });
-      const c = day.includes("n") ? "n" : day.includes("p") ? "p" : day.includes("m") ? "m" : day.includes("r") ? "r" : "-";
-      if (c === "r") stats.read++;
-      else if (c === "m") stats.min++;
-      else if (c === "n") stats.none++;
-      cells += c;
-    }
-    all = { start, cells, stats };
-  }
+  const all = groups.length ? { ...combine(groups), streak: streakOf(combine(full).cells) } : null;
   return { range, all, groups };
 }
 

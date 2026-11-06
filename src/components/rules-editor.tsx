@@ -117,7 +117,7 @@ function BooksEditor({ books, onChange }: { books: Book[]; onChange: (b: Book[])
               value={b.title}
               maxLength={80}
               onChange={(e) => update(b.id, { title: e.target.value })}
-              placeholder={i === 0 ? "Kitap adı (örn. Suç ve Ceza)" : `${i + 1}. kitap adı`}
+              placeholder={i === 0 ? "Eser adı" : `${i + 1}. eser adı`}
               className={`input h-9 ${b.title.trim() ? "" : "border-amber-400"}`}
             />
             {books.length > 1 && (

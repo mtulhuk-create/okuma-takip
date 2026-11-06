@@ -1,5 +1,6 @@
 import { SignOutButton, UserButton } from "@clerk/nextjs";
-import { Bell, BookOpen, CalendarCheck, LogOut, Palette, Users, Wallet } from "lucide-react";
+import { Bell, BookOpen, CalendarCheck, LogOut, Palette, Pencil, Users, Wallet } from "lucide-react";
+import Link from "next/link";
 import { PushToggle } from "@/components/push-toggle";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { requireUser } from "@/lib/auth";
@@ -20,10 +21,13 @@ export default async function ProfilePage() {
     <main className="space-y-5 pt-4">
       <header className="flex items-center gap-3">
         <UserButton appearance={{ elements: { avatarBox: { width: 52, height: 52 } } }} />
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <h1 className="truncate font-serif text-2xl font-bold">{user.name}</h1>
           {user.username && <p className="text-sm text-muted-foreground">@{user.username}</p>}
         </div>
+        <Link href="/ad-soyad?duzenle=1" className="btn-ghost btn-sm" aria-label="Ad soyadı düzenle">
+          <Pencil /> Düzenle
+        </Link>
       </header>
 
       <div className="grid grid-cols-2 gap-3">

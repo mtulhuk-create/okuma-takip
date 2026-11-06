@@ -12,7 +12,7 @@ export async function POST(req: Request) {
   try {
     const { log, rules } = await submitReading(t.userId, t.groupId, { choice: body.choice, pages: body.pages }, t.dayKey);
     await publish(t.groupId, { type: "refresh", reason: "day" });
-    return Response.json({ ok: true, pages: log.pages, required: rules.targetPages });
+    return Response.json({ ok: true, pages: log?.pages ?? 0, required: rules.targetPages });
   } catch (e) {
     return Response.json({ error: (e as Error).message }, { status: 400 });
   }

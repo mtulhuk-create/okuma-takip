@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, Check, CheckCheck, ChevronDown, X } from "lucide-react";
+import { BookOpen, Check, CheckCheck, ChevronDown, Flame, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 export type Range = "7d" | "1m" | "3m" | "1y" | "all";
@@ -13,50 +13,102 @@ const COLOR: Record<string, string> = {
   n: "bg-rose-500",
   p: "bg-transparent ring-1 ring-inset ring-muted-foreground/40",
   "-": "bg-muted",
+  x: "bg-muted/40", // aralık dışı (takvimi tamamlayan) günler
 };
-const TITLE: Record<string, string> = { r: "Okudu", m: "Alt sınır", n: "Okumadı", p: "Bekleniyor", "-": "Üye değildi" };
+const TEXT: Record<string, string> = { r: "text-white", m: "text-white", n: "text-white", p: "text-muted-foreground", "-": "text-muted-foreground/70", x: "text-muted-foreground/40" };
+const TITLE: Record<string, string> = { r: "Okudu", m: "Alt sınır", n: "Okumadı", p: "Bekleniyor", "-": "Üye değildi", x: "Aralık dışı" };
 const DOW = ["Pz", "Pt", "Sa", "Ça", "Pe", "Cu", "Ct"];
+const DOW_MON = ["Pt", "Sa", "Ça", "Pe", "Cu", "Ct", "Pz"];
 const MONTHS = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"];
 
 const addDays = (key: string, n: number) => new Date(Date.parse(key) + n * 86_400_000).toISOString().slice(0, 10);
 const fmt = (key: string) => `${Number(key.slice(8))} ${MONTHS[Number(key.slice(5, 7)) - 1]}`;
 
-/** Gün durumlarını gösterir: kısa aralıkta kutular, uzunda haftalık ısı haritası */
+/** Pazartesi başlayan tam haftalara tamamlanmış gün listesi (x: aralık dışı) */
+function weeksOf(start: string, cells: string) {
+  const lead = (new Date(Date.parse(start)).getUTCDay() + 6) % 7;
+  const total = Math.ceil((lead + cells.length) / 7) * 7;
+  return Array.from({ length: total }, (_, i) => {
+    const key = addDays(start, i - lead);
+    const j = i - lead;
+    return { key, c: j >= 0 && j < cells.length ? cells[j] : "x", today: j === cells.length - 1 };
+  });
+}
+
+/** Gün durumları kartın genişliğini boşluksuz doldurur: 7 gün şerit, 1 ay takvim, daha uzun aralık haftalık ısı haritası */
 export function HistoryGrid({ start, cells }: { start: string; cells: string }) {
   if (cells.length <= 14) {
     return (
-      <div className="flex gap-1">
+      <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${cells.length}, minmax(0, 1fr))` }}>
         {[...cells].map((c, i) => {
           const key = addDays(start, i);
-          const dow = new Date(Date.parse(key)).getUTCDay();
           const today = i === cells.length - 1;
           return (
-            <div key={key} className="flex flex-1 flex-col items-center gap-1" title={`${fmt(key)} · ${TITLE[c]}`}>
-              <span className={`text-[10px] font-semibold ${today ? "text-primary" : "text-muted-foreground"}`}>{DOW[dow]}</span>
-              <span className={`flex aspect-square w-full max-w-9 items-center justify-center rounded-md ${COLOR[c]}`}>
+            <div key={key} className="flex flex-col items-center gap-0.5" title={`${fmt(key)} · ${TITLE[c]}`}>
+              <span className={`text-[10px] font-semibold leading-none ${today ? "text-primary" : "text-muted-foreground"}`}>{DOW[new Date(Date.parse(key)).getUTCDay()]}</span>
+              <span className={`flex h-7 w-full items-center justify-center rounded-md ${COLOR[c]} ${today ? "outline-2 outline-offset-1 outline-primary/60" : ""}`}>
                 {c === "r" && <CheckCheck className="size-3.5 text-white" strokeWidth={3} />}
                 {c === "m" && <Check className="size-3.5 text-white" strokeWidth={3} />}
                 {c === "n" && <X className="size-3.5 text-white" strokeWidth={3} />}
               </span>
-              <span className="text-[10px] text-muted-foreground">{Number(key.slice(8))}</span>
+              <span className="text-[10px] leading-none text-muted-foreground">{Number(key.slice(8))}</span>
             </div>
           );
         })}
       </div>
     );
   }
-  // Pazartesi başlayan haftalar (sütun) × günler (satır)
-  const firstDow = (new Date(Date.parse(start)).getUTCDay() + 6) % 7;
-  const padded = "x".repeat(firstDow) + cells;
-  const weeks = Math.ceil(padded.length / 7);
+
+  const days = weeksOf(start, cells);
+  const weeks = days.length / 7;
+
+  // ~1 ay: haftalar satır, günler sütun (takvim); kutular kart genişliğine yayılır
+  if (weeks <= 6) {
+    return (
+      <div className="grid grid-cols-7 gap-1">
+        {DOW_MON.map((d) => (
+          <span key={d} className="text-center text-[10px] font-semibold leading-none text-muted-foreground">
+            {d}
+          </span>
+        ))}
+        {days.map(({ key, c, today }) => (
+          <span
+            key={key}
+            title={`${fmt(key)} · ${TITLE[c]}`}
+            className={`flex h-6 items-center justify-center rounded-md text-[11px] font-semibold ${COLOR[c]} ${TEXT[c]} ${today ? "outline-2 outline-offset-1 outline-primary/60" : ""}`}
+          >
+            {Number(key.slice(8))}
+          </span>
+        ))}
+      </div>
+    );
+  }
+
+  // Uzun aralık: haftalar sütun × günler satır; sütunlar kartı doldurur, çok uzunsa yatay kaydırılır
+  const months = Array.from({ length: weeks }, (_, w) => {
+    const first = days.slice(w * 7, w * 7 + 7).find((d) => d.key.endsWith("-01") || (w === 0 && d.c !== "x"));
+    return first ? MONTHS[Number(first.key.slice(5, 7)) - 1] : "";
+  });
   return (
     <div className="-mx-1 overflow-x-auto px-1 pb-1">
-      <div className="inline-grid grid-flow-col grid-rows-7 gap-[3px]" style={{ gridTemplateColumns: `repeat(${weeks}, 12px)` }}>
-        {[...padded].map((c, i) => {
-          if (c === "x") return <span key={i} className="size-3" />;
-          const key = addDays(start, i - firstDow);
-          return <span key={i} title={`${fmt(key)} · ${TITLE[c]}`} className={`size-3 rounded-[3px] ${COLOR[c]}`} />;
-        })}
+      <div
+        className="grid grid-flow-col gap-[3px]"
+        style={{ gridTemplateRows: "auto repeat(7, auto)", gridTemplateColumns: `auto repeat(${weeks}, minmax(10px, 1fr))`, minWidth: weeks * 13 + 24 }}
+      >
+        <span />
+        {DOW_MON.map((d, i) => (
+          <span key={d} className="pr-1 text-[9px] leading-none text-muted-foreground self-center">
+            {i % 2 === 0 ? d : ""}
+          </span>
+        ))}
+        {Array.from({ length: weeks }, (_, w) => [
+          <span key={`m${w}`} className="h-3 overflow-visible whitespace-nowrap text-[9px] leading-none text-muted-foreground">
+            {months[w]}
+          </span>,
+          ...days.slice(w * 7, w * 7 + 7).map(({ key, c, today }) => (
+            <span key={key} title={`${fmt(key)} · ${TITLE[c]}`} className={`aspect-square max-h-5 w-full rounded-[3px] ${COLOR[c]} ${today ? "outline-2 outline-offset-1 outline-primary/60" : ""}`} />
+          )),
+        ])}
       </div>
       <div className="mt-1 flex justify-between text-[10px] text-muted-foreground">
         <span>{fmt(start)}</span>
@@ -74,13 +126,27 @@ export function StatsLine({ stats }: { stats: Stats }) {
     { Icon: BookOpen, n: stats.pages, cls: "text-muted-foreground", label: "sayfa" },
   ];
   return (
-    <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
+    <div className="flex flex-wrap gap-x-2.5 gap-y-1 text-[11px]">
       {items.map(({ Icon, n, cls, label }) => (
-        <span key={label} className={`flex items-center gap-1 font-semibold ${cls}`}>
+        <span key={label} className={`flex items-center gap-0.5 font-semibold ${cls}`} title={label}>
           <Icon className="size-3.5" /> {n} <span className="font-normal text-muted-foreground">{label}</span>
         </span>
       ))}
     </div>
+  );
+}
+
+/** Okuma serisi rozeti */
+export function StreakBadge({ n, size = "sm" }: { n: number; size?: "sm" | "xs" }) {
+  const on = n > 0;
+  return (
+    <span
+      title="Bugünden geriye kesintisiz okunan gün sayısı"
+      className={`inline-flex shrink-0 items-center gap-1 rounded-full font-bold ${size === "sm" ? "px-2.5 py-1 text-xs" : "px-1.5 py-0.5 text-[10px]"} ${on ? "bg-orange-500/12 text-orange-700 dark:text-orange-400" : "bg-muted text-muted-foreground"}`}
+    >
+      <Flame className={size === "sm" ? "size-3.5" : "size-3"} fill={on ? "currentColor" : "none"} />
+      {n} gün seri
+    </span>
   );
 }
 
@@ -133,7 +199,7 @@ export function useHistory<T>(url: (r: Range) => string, initial?: T) {
     const ctrl = new AbortController();
     setLoading(true);
     fetch(url(range), { signal: ctrl.signal, cache: "no-store" })
-      .then((r) => r.json())
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then((d) => setData(d))
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -141,4 +207,44 @@ export function useHistory<T>(url: (r: Range) => string, initial?: T) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [range]);
   return { range, setRange, data, loading };
+}
+
+/** Açılır seçim menüsü (grup seçimi vb.) */
+export function MenuPicker<T extends string>({ value, options, onChange, icon }: { value: T; options: { value: T; label: string }[]; onChange: (v: T) => void; icon?: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const close = (e: MouseEvent) => ref.current && !ref.current.contains(e.target as Node) && setOpen(false);
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, []);
+  const current = options.find((o) => o.value === value);
+  return (
+    <div ref={ref} className="relative min-w-0">
+      <button onClick={() => setOpen((o) => !o)} className="flex max-w-full items-center gap-1 rounded-lg bg-muted px-2 py-1 text-xs font-semibold hover:bg-muted/70" aria-haspopup="menu" aria-expanded={open}>
+        {icon}
+        <span className="truncate">{current?.label}</span>
+        <ChevronDown className={`size-3.5 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div role="menu" className="absolute left-0 z-30 mt-1 max-h-72 w-60 overflow-y-auto rounded-xl border border-border bg-card p-1 shadow-lg">
+          {options.map((o) => (
+            <button
+              key={o.value}
+              role="menuitemradio"
+              aria-checked={o.value === value}
+              onClick={() => {
+                onChange(o.value);
+                setOpen(false);
+              }}
+              className={`flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-muted ${o.value === value ? "font-semibold text-primary" : ""}`}
+            >
+              <span className="truncate">{o.label}</span>
+              {o.value === value && <Check className="size-4 shrink-0" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }

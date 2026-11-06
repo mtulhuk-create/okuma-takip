@@ -1,7 +1,8 @@
-import { Bell, CheckCheck, Mail } from "lucide-react";
+import { Bell, Mail } from "lucide-react";
 import Link from "next/link";
-import { markAllRead, respondInvite } from "@/app/actions";
+import { respondInvite } from "@/app/actions";
 import { ActionForm, SubmitButton } from "@/components/action-form";
+import { MarkSeen } from "@/components/mark-seen";
 import { TeamSelect } from "@/components/team-select";
 import { requireUser } from "@/lib/auth";
 import { getNotificationsData } from "@/lib/queries";
@@ -13,19 +14,13 @@ export const metadata = { title: "Bildirimler" };
 export default async function NotificationsPage() {
   const user = await requireUser();
   const { invites, notes } = await getNotificationsData(user.id);
-  const unread = notes.some((n) => !n.read);
 
   return (
     <main className="space-y-5 pt-4">
+      {/* Sayfa açılır açılmaz bildirimler okundu sayılır (rozet sıfırlanır); bu açılışta yeniler yine vurgulu görünür */}
+      {notes.some((n) => !n.read) && <MarkSeen />}
       <header className="flex items-center justify-between">
         <h1 className="font-serif text-2xl font-bold">Bildirimler</h1>
-        {unread && (
-          <ActionForm action={markAllRead}>
-            <SubmitButton className="btn-quiet btn-sm">
-              <CheckCheck /> Tümünü okundu yap
-            </SubmitButton>
-          </ActionForm>
-        )}
       </header>
 
       {invites.map((inv) => (

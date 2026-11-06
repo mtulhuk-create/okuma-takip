@@ -7,6 +7,7 @@ type Fn = (fd: FormData) => Promise<ActionState>;
 const wrap = (a: (prev: ActionState, fd: FormData) => Promise<ActionState>): Fn => (fd) => a(null, fd);
 
 const ACTIONS: Record<string, Fn> = {
+  saveFullName: wrap(actions.saveFullName),
   createGroup: actions.createGroupState,
   updateGroup: wrap(actions.updateGroup),
   deleteGroup: actions.deleteGroupState,
@@ -24,7 +25,14 @@ const ACTIONS: Record<string, Fn> = {
   submitPayment: wrap(actions.submitPayment),
   resolvePayment: wrap(actions.resolvePayment),
   waivePenalty: wrap(actions.waivePenalty),
+  extendDue: wrap(actions.extendDueAction),
+  discount: wrap(actions.discountAction),
+  kickOverdue: wrap(actions.kickOverdueAction),
   markAllRead: wrap(actions.markAllRead),
+  markNotificationsSeen: async () => {
+    await actions.markNotificationsSeen();
+    return { ok: true };
+  },
   sendMessage: wrap(actions.sendMessage),
   createPoll: wrap(actions.createPoll),
   votePoll: wrap(actions.votePoll),

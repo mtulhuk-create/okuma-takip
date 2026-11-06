@@ -1,12 +1,15 @@
 "use client";
 
-import { ArrowDown, ArrowLeft, BarChart3, CalendarRange, Info, Lock, Receipt, SendHorizontal, Settings } from "lucide-react";
+import { ArrowDown, ArrowLeft, BarChart3, CalendarRange, ChevronDown, Info, Landmark, Lock, SendHorizontal, Settings } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { sendMessage } from "@/app/actions";
 import type { ChatPage } from "@/lib/chat";
 import { formatDayLong } from "@/lib/schedule";
-import { DayCardFull } from "../day-card";
+import { DayCardFull, DayShortcut } from "../day-card";
+import { Countdown } from "../countdown";
+import { DueBadge } from "../due-badge";
+import { PaySheet } from "../pay-sheet";
 import { Bubble, PollBody, type UiMessage } from "./message-items";
 import { GroupHistory } from "./group-history";
 import { PollDialog } from "./poll-dialog";
@@ -24,8 +27,14 @@ function dayLabel(day: string) {
   return formatDayLong(day);
 }
 
-export function ChatView({ initial, dueBanner }: { initial: Page; dueBanner: { amount: number } | null }) {
+export function ChatView({ initial }: { initial: Page }) {
   const groupId = initial.group.id;
+  const [group, setGroup] = useState(initial.group);
+  const [kasa, setKasa] = useState(initial.kasa);
+  const [todayCard, setTodayCard] = useState(initial.todayCard);
+  const [payOpen, setPayOpen] = useState(false);
+  const [kasaOpen, setKasaOpen] = useState(false);
+  const [cardVisible, setCardVisible] = useState(true);
   const [messages, setMessages] = useState<UiMessage[]>(initial.messages);
   const [hasMore, setHasMore] = useState(initial.hasMore);
   const [me, setMe] = useState(initial.me!);
@@ -50,6 +59,10 @@ export function ChatView({ initial, dueBanner }: { initial: Page; dueBanner: { a
     if (!res.ok) return;
     const page = (await res.json()) as Page;
     setMe(page.me!);
+    // Ayarlar (ad, kurallar, eserler), kasa ve bugünün kartı da güncellenir
+    setGroup(page.group);
+    setKasa(page.kasa);
+    setTodayCard(page.todayCard);
     setMessages((prev) => {
       const first = page.messages[0]?.createdAt;
       const older = first ? prev.filter((m) => !m.pending && m.createdAt < first) : [];
@@ -86,6 +99,36 @@ export function ChatView({ initial, dueBanner }: { initial: Page; dueBanner: { a
     } else scrollToBottom();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Bugünün gün kartı ekranda mı? Değilse başlığın altında kısayol gösterilir
+  const todayKey = group.today;
+  useEffect(() => {
+    const root = scroller.current;
+    const el = root?.querySelector(`#gun-${todayKey}`);
+    if (!root || !el) {
+      setCardVisible(false);
+      return;
+    }
+    const io = new IntersectionObserver(([e]) => setCardVisible(e.isIntersecting), { root, threshold: 0.15 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [todayKey, messages]);
+
+  /** Kısayola basınca sohbetteki gün kartına git (gerekirse eski mesajları yükle) */
+  async function jumpToToday() {
+    for (let i = 0; i < 6; i++) {
+      const el = document.getElementById(`gun-${todayKey}`);
+      if (el) {
+        stickBottom.current = false;
+        el.scrollIntoView({ block: "center", behavior: "smooth" });
+        el.classList.add("ring-2", "ring-primary");
+        setTimeout(() => el.classList.remove("ring-2", "ring-primary"), 1600);
+        return;
+      }
+      if (!(await loadOlder())) return;
+      await new Promise((r) => setTimeout(r, 120));
+    }
+  }
 
   // Yeni mesaj gelince alttaysak aşağı kaydır
   useEffect(() => {
@@ -153,22 +196,26 @@ export function ChatView({ initial, dueBanner }: { initial: Page; dueBanner: { a
   let lastDay = "";
   let lastAuthor: string | null = null;
 
+  const payItems = kasa
+    ? [{ group: { id: groupId, name: group.name, iban: kasa.iban, ibanName: kasa.ibanName }, amount: kasa.myDebt, due: kasa.myDue }].filter((d) => d.amount > 0)
+    : [];
+
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-background">
-      <header className="pt-safe border-b border-border bg-card/95 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-3xl items-center gap-2 px-2">
+      <header className="pt-safe z-20 bg-card shadow-sm">
+        <div className="mx-auto flex h-14 max-w-3xl items-center gap-1 px-1.5">
           <Link href="/gruplar" className="btn-icon" aria-label="Geri">
             <ArrowLeft />
           </Link>
-          <Link href={`/gruplar/${groupId}/bilgi`} className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-1 py-1 hover:bg-muted/60">
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary font-serif text-base font-bold text-primary-foreground">
-              {initial.group.name[0]?.toUpperCase()}
+          <Link href={`/gruplar/${groupId}/bilgi`} className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-1 py-1 hover:bg-muted/60">
+            <span className="relative flex size-10 shrink-0 items-center justify-center rounded-full bg-primary font-serif text-base font-bold text-primary-foreground">
+              {group.name[0]?.toUpperCase()}
+              <span className={`absolute bottom-0 right-0 size-2.5 rounded-full ring-2 ring-card ${live ? "bg-emerald-500" : "bg-muted-foreground/40"}`} />
             </span>
             <span className="min-w-0">
-              <span className="block truncate font-semibold leading-tight">{initial.group.name}</span>
-              <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                <span className={`size-1.5 rounded-full ${live ? "bg-emerald-500" : "bg-muted-foreground/40"}`} />
-                {initial.group.memberCount} üye
+              <span className="block truncate font-semibold leading-tight">{group.name}</span>
+              <span className="block truncate text-xs text-muted-foreground">
+                {group.memberCount} üye{live ? " · çevrimiçi" : ""}
               </span>
             </span>
           </Link>
@@ -184,13 +231,56 @@ export function ChatView({ initial, dueBanner }: { initial: Page; dueBanner: { a
             </Link>
           )}
         </div>
-        {dueBanner && (
-          <Link href={`/gruplar/${groupId}/bilgi`} className="flex items-center justify-center gap-2 bg-destructive/10 px-3 py-1.5 text-xs font-semibold text-destructive">
-            <Receipt className="size-3.5" /> {dueBanner.amount} TL ceza ödemen var · ödeme bilgileri
-          </Link>
+        {kasa && (
+          <div className="mx-auto flex max-w-3xl items-center gap-2 border-t border-border px-3 py-1.5">
+            <button onClick={() => setKasaOpen((o) => !o)} className="flex min-w-0 flex-1 items-center gap-1.5 text-left" aria-expanded={kasaOpen} title="Grup kasası">
+              <Landmark className="size-4 shrink-0 text-primary" />
+              <span className="min-w-0 truncate text-xs text-muted-foreground">
+                Kasa <b className="text-foreground">{kasa.paidTotal ?? 0} TL</b> toplandı · <b className="text-foreground">{kasa.expected} TL</b> bekleniyor
+              </span>
+              <ChevronDown className={`size-3.5 shrink-0 text-muted-foreground transition-transform ${kasaOpen ? "rotate-180" : ""}`} />
+            </button>
+            {kasa.myDebt > 0 ? (
+              <>
+                {kasa.myDue && (
+                  <span className="hidden shrink-0 min-[420px]:inline-flex">
+                    <DueBadge due={kasa.myDue} compact />
+                  </span>
+                )}
+                <button onClick={() => setPayOpen(true)} className="btn-danger btn-sm h-7 shrink-0 rounded-full px-3">
+                  Borcunu öde · {kasa.myDebt} TL
+                </button>
+              </>
+            ) : (
+              <span className="shrink-0 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">Borcun yok</span>
+            )}
+          </div>
         )}
+        {kasa && kasaOpen && (
+          <div className="mx-auto grid max-w-3xl grid-cols-3 gap-1.5 border-t border-border px-3 py-2 text-center">
+            <div className="rounded-lg bg-emerald-500/10 px-1 py-1.5">
+              <p className="text-sm font-bold text-emerald-700 dark:text-emerald-400">{kasa.paidTotal ?? 0} TL</p>
+              <p className="text-[10px] leading-tight text-muted-foreground">Grup kurulduğundan beri kasaya giren</p>
+            </div>
+            <div className="rounded-lg bg-amber-500/10 px-1 py-1.5">
+              <p className="text-sm font-bold text-amber-700 dark:text-amber-400">{kasa.inDue ?? 0} TL</p>
+              <p className="text-[10px] leading-tight text-muted-foreground">
+                Vade süresince girmesi gereken{kasa.inDueCount ? ` (${kasa.inDueCount} kişi)` : ""}
+              </p>
+              {kasa.nextDueAt && (
+                <p className="mt-0.5 text-[10px] font-semibold">
+                  <Countdown to={kasa.nextDueAt} />
+                </p>
+              )}
+            </div>
+            <div className="rounded-lg bg-rose-500/10 px-1 py-1.5">
+              <p className="text-sm font-bold text-rose-700 dark:text-rose-400">{kasa.expected} TL</p>
+              <p className="text-[10px] leading-tight text-muted-foreground">Ödenmemiş toplam ceza (vadeli + vadesiz)</p>
+            </div>
+          </div>
+        )}
+        {todayCard && !cardVisible && <DayShortcut card={todayCard} groupId={groupId} onJump={jumpToToday} onReported={refresh} />}
       </header>
-
       <div
         ref={scroller}
         onScroll={(e) => {
@@ -200,14 +290,14 @@ export function ChatView({ initial, dueBanner }: { initial: Page; dueBanner: { a
           setAtBottom(bottom);
           if (el.scrollTop < 200) loadOlder();
         }}
-        className="relative flex-1 overflow-y-auto overscroll-contain bg-[radial-gradient(var(--border)_1px,transparent_1px)] [background-size:18px_18px]"
+        className="chat-wallpaper relative flex-1 overflow-y-auto overscroll-contain"
       >
         <div className="mx-auto max-w-3xl px-3 py-4">
           {hasMore ? (
             <p className="py-2 text-center text-xs text-muted-foreground">Eski mesajlar yükleniyor…</p>
           ) : (
-            <p className="mx-auto mb-4 w-fit rounded-lg bg-card px-3 py-1.5 text-center text-xs text-muted-foreground shadow-xs">
-              Sohbetin başlangıcı
+            <p className="mx-auto mb-4 w-fit max-w-xs rounded-lg bg-amber-100/90 px-3 py-1.5 text-center text-[11px] text-amber-900 shadow-xs dark:bg-amber-500/15 dark:text-amber-200">
+              🔒 Sohbetin başlangıcı. Her okuma günü burada bir gün kartıyla başlar.
             </p>
           )}
           {messages.map((m) => {
@@ -230,13 +320,19 @@ export function ChatView({ initial, dueBanner }: { initial: Page; dueBanner: { a
             return (
               <div key={m.id}>
                 {sep && (
-                  <p className="mx-auto my-3 w-fit rounded-lg bg-card px-3 py-1 text-xs font-medium text-muted-foreground shadow-xs">{dayLabel(day)}</p>
+                  <p className="sticky top-2 z-10 mx-auto my-3 w-fit rounded-lg bg-card/95 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground shadow-xs backdrop-blur">
+                    {dayLabel(day)}
+                  </p>
                 )}
                 <Bubble m={m} mine={mine} showAuthor={!!showAuthor} canDelete={canDelete} onChanged={refresh}>
                   {m.kind === "POLL" && m.poll ? (
                     <PollBody m={m} mine={mine} onChanged={refresh} />
                   ) : (
-                    <p className="whitespace-pre-wrap break-words text-[15px] leading-snug">{m.text}</p>
+                    <p className="whitespace-pre-wrap break-words text-[15px] leading-snug">
+                      {m.text}
+                      {/* saat için yer aç */}
+                      <span className="inline-block w-12" />
+                    </p>
                   )}
                 </Bubble>
               </div>
@@ -246,13 +342,13 @@ export function ChatView({ initial, dueBanner }: { initial: Page; dueBanner: { a
       </div>
 
       {!atBottom && (
-        <button onClick={() => scrollToBottom(true)} className="btn-icon absolute bottom-24 right-4 z-10 border border-border bg-card shadow-md" aria-label="En alta in">
+        <button onClick={() => scrollToBottom(true)} className="btn-icon fixed bottom-24 right-4 z-10 rounded-full bg-card shadow-md" aria-label="En alta in">
           <ArrowDown />
         </button>
       )}
 
-      <footer className="pb-safe border-t border-border bg-card">
-        <div className="mx-auto max-w-3xl px-2 py-2">
+      <footer className="pb-safe bg-[var(--chat-bg)]">
+        <div className="mx-auto max-w-3xl px-2 py-1.5">
           {me.canPost ? (
             <form
               className="flex items-end gap-1.5"
@@ -261,29 +357,31 @@ export function ChatView({ initial, dueBanner }: { initial: Page; dueBanner: { a
                 send();
               }}
             >
-              <button type="button" className="btn-icon shrink-0" onClick={() => setPollOpen(true)} aria-label="Anket oluştur">
-                <BarChart3 />
-              </button>
-              <textarea
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey && !("ontouchstart" in window)) {
-                    e.preventDefault();
-                    send();
-                  }
-                }}
-                rows={1}
-                maxLength={2000}
-                placeholder="Mesaj yaz"
-                className="input max-h-32 min-h-10 flex-1 resize-none rounded-2xl py-2.5 [field-sizing:content]"
-              />
-              <button type="submit" disabled={!text.trim()} className="btn-primary size-10 shrink-0 rounded-full p-0" aria-label="Gönder">
+              <div className="flex min-h-11 flex-1 items-end rounded-3xl bg-card pl-1 shadow-xs">
+                <button type="button" className="btn-icon size-10 shrink-0 rounded-full" onClick={() => setPollOpen(true)} aria-label="Anket oluştur" title="Anket">
+                  <BarChart3 />
+                </button>
+                <textarea
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey && !("ontouchstart" in window)) {
+                      e.preventDefault();
+                      send();
+                    }
+                  }}
+                  rows={1}
+                  maxLength={2000}
+                  placeholder="Mesaj"
+                  className="max-h-32 min-h-11 flex-1 resize-none bg-transparent py-3 pr-3 text-[15px] outline-none placeholder:text-muted-foreground [field-sizing:content]"
+                />
+              </div>
+              <button type="submit" disabled={!text.trim()} className="btn-primary size-11 shrink-0 rounded-full p-0 shadow-md [&_svg]:size-5" aria-label="Gönder">
                 <SendHorizontal />
               </button>
             </form>
           ) : (
-            <p className="flex items-center justify-center gap-2 py-2 text-sm text-muted-foreground">
+            <p className="flex items-center justify-center gap-2 rounded-full bg-card py-2.5 text-sm text-muted-foreground shadow-xs">
               <Lock className="size-4" /> Bu grupta yalnızca yöneticiler mesaj gönderebilir
             </p>
           )}
@@ -292,6 +390,7 @@ export function ChatView({ initial, dueBanner }: { initial: Page; dueBanner: { a
 
       {pollOpen && <PollDialog groupId={groupId} onClose={() => setPollOpen(false)} onCreated={refresh} />}
       {historyOpen && <GroupHistory groupId={groupId} onClose={() => setHistoryOpen(false)} />}
+      {payOpen && <PaySheet title="Borcunu öde" items={payItems} onClose={() => setPayOpen(false)} />}
     </div>
   );
 }

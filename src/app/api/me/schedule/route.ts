@@ -31,13 +31,16 @@ export async function GET() {
         start: p.start.toISOString(),
         deadline: p.deadline.toISOString(),
         reported: reported.has(p.dayKey),
-        token: await signQuickToken(userId, g.id, p.dayKey, p.deadline),
+        // Token üretilemese de (APP_SECRET eksik) bildirimler planlansın; butonlar o zaman uygulamayı açar
+        token: await signQuickToken(userId, g.id, p.dayKey, p.deadline).catch(() => ""),
       });
     }
     result.push({
       groupId: g.id,
       name: g.name,
       dailyPages: rulesFor(g, m).targetPages,
+      minPages: rulesFor(g, m).minPages,
+      books: rulesFor(g, m).books.map((b) => b.title),
       reminderHours: g.reminderHours,
       eligibleFrom: m.joinedAt.toISOString(),
       periods,

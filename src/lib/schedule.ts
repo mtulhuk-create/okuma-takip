@@ -109,3 +109,23 @@ export function formatClock(iso: string | Date, tzOffset = 180) {
   const d = new Date(new Date(iso).getTime() + tzOffset * MIN);
   return `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
 }
+
+/**
+ * Varsayılan ceza ödeme vadesi: içinde bulunulan ayın son günü 23:59 (yerel) + grubun kaydırma günü.
+ * Vade bir saatten yakınsa (ya da geçmişse) bir sonraki ayınki kullanılır.
+ */
+export function defaultDueAt(g: { tzOffset: number; dueOffsetDays: number }, now = new Date()) {
+  const local = new Date(now.getTime() + g.tzOffset * MIN);
+  for (let add = -1; add < 3; add++) {
+    // Date.UTC(y, m + 1, 0) = m ayının son günü
+    const end = Date.UTC(local.getUTCFullYear(), local.getUTCMonth() + 1 + add, 0, 23, 59) + g.dueOffsetDays * DAY - g.tzOffset * MIN;
+    if (end > now.getTime() + 60 * MIN) return new Date(end);
+  }
+  return new Date(now.getTime() + 30 * DAY);
+}
+
+/** "Ay sonu", "Ay sonundan 3 gün önce" ... */
+export function describeDueOffset(days: number) {
+  if (!days) return "Her ayın son günü";
+  return days < 0 ? `Ay sonundan ${-days} gün önce` : `Ay sonundan ${days} gün sonra`;
+}

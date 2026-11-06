@@ -3,12 +3,12 @@ import { router, Stack, useLocalSearchParams } from "expo-router";
 import { Copy, Crown, LogOut, Receipt, Shield, Wallet } from "lucide-react-native";
 import { useState } from "react";
 import { Alert, View } from "react-native";
-import { Countdown } from "@/components/countdown";
+import { DueBadge } from "@/components/due-badge";
 import { GroupRules } from "@/components/group-rules";
 import { TeamPicker } from "@/components/team-picker";
 import { Avatar, Badge, Body, Button, Card, Divider, ErrorView, Input, Label, Loading, Muted, Row, Screen, Title } from "@/components/ui";
 import { toast, useAction, useApi } from "@/lib/api";
-import { formatDateTime, formatDayKey, formatIban } from "@/lib/format";
+import { formatDayKey, formatIban } from "@/lib/format";
 import { fonts, useColors } from "@/lib/theme";
 import { teamsActive, type GroupDetailResponse } from "@/lib/types";
 
@@ -24,7 +24,7 @@ export default function GroupInfoScreen() {
   const { group, me, myRules, teamChange, board } = data;
   const unpaid = board.penalties.filter((p) => p.status === "UNPAID" || p.status === "IN_DUE");
   const total = unpaid.reduce((s, p) => s + p.amount, 0);
-  const openDues = board.dues.filter((d) => d.status === "PENDING" || d.status === "SUBMITTED");
+  const openDues = board.dues.filter((d) => d.status === "PENDING" || d.status === "SUBMITTED" || d.status === "OVERDUE");
   const myTeam = group.teams.find((t) => t.id === me.teamId);
 
   return (
@@ -38,11 +38,9 @@ export default function GroupInfoScreen() {
             <Receipt size={20} color={c.destructive} />
             <Title style={{ flex: 1 }}>{d.amount} TL ceza ödemesi</Title>
           </Row>
-          <Body>
-            Son ödeme {formatDateTime(d.dueAt, group.tzOffset)} · <Countdown to={d.dueAt} style={{ fontSize: 13 }} />
-          </Body>
+          <DueBadge due={d} />
           <Card style={{ gap: 4 }}>
-            <Label>IBAN</Label>
+            <Label>Grup kasası IBAN</Label>
             <Body style={{ fontFamily: fonts.semibold, letterSpacing: 0.5 }}>{formatIban(group.iban)}</Body>
             <Body>{group.ibanName}</Body>
             <Button
@@ -57,13 +55,18 @@ export default function GroupInfoScreen() {
               }}
             />
           </Card>
-          {d.status === "SUBMITTED" ? (
+          {d.status === "OVERDUE" ? (
+            <Body style={{ color: c.destructive, fontFamily: fonts.semibold }}>
+              Vaden doldu. Ödediysen yöneticiye haber ver; yönetici ek süre ya da indirim verebilir.
+              {group.kickOnExpire !== false && d.decisionUntil ? " Karar süresi bitince gruptan çıkarılabilirsin." : ""}
+            </Body>
+          ) : d.status === "SUBMITTED" ? (
             <Body style={{ color: c.warning, fontFamily: fonts.semibold }}>Ödeme bildirdin, yönetici onayı bekleniyor.</Body>
           ) : (
             <>
               <Input placeholder="Not: gönderen ad, saat vb. (isteğe bağlı)" value={note} onChangeText={setNote} maxLength={300} />
               <Button title="Ödedim" variant="success" loading={action.isPending} onPress={() => action.mutate({ name: "submitPayment", body: { dueId: d.id, note } })} />
-              <Muted>Vade bitene kadar onaylanmazsan gruptan otomatik çıkarılırsın.</Muted>
+              {group.kickOnExpire !== false && <Muted>Vade bitene kadar ödenmezse, yönetici ek süre vermezse gruptan çıkarılırsın.</Muted>}
             </>
           )}
         </Card>

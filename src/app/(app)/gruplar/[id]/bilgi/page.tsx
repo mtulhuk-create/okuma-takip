@@ -5,6 +5,7 @@ import { leaveGroup, requestTeamChange, submitPayment } from "@/app/actions";
 import { ActionForm, SubmitButton } from "@/components/action-form";
 import { Avatar } from "@/components/avatar";
 import { CopyButton } from "@/components/copy-button";
+import { DueBadge } from "@/components/due-badge";
 import { Countdown } from "@/components/countdown";
 import { GroupRules } from "@/components/group-rules";
 import { TeamSelect } from "@/components/team-select";
@@ -27,7 +28,7 @@ export default async function GroupInfoPage({ params }: { params: Promise<{ id: 
   const { penalties, dues } = board;
   const unpaid = penalties.filter((p) => p.status === "UNPAID" || p.status === "IN_DUE");
   const unpaidTotal = unpaid.reduce((s, p) => s + p.amount, 0);
-  const openDues = dues.filter((d) => d.status === "PENDING" || d.status === "SUBMITTED");
+  const openDues = dues.filter((d) => d.status === "PENDING" || d.status === "SUBMITTED" || d.status === "OVERDUE");
 
   return (
     <main className="space-y-5 pt-4">
@@ -52,9 +53,9 @@ export default async function GroupInfoPage({ params }: { params: Promise<{ id: 
             </span>
             <div>
               <h2 className="font-bold">{d.amount} TL ceza ödemesi</h2>
-              <p className="text-sm text-muted-foreground">
-                Son ödeme {formatDateTime(d.dueAt, group.tzOffset)} · <Countdown to={d.dueAt.toISOString()} />
-              </p>
+              <div className="mt-1">
+                <DueBadge due={d} />
+              </div>
             </div>
           </div>
           <div className="rounded-lg bg-muted p-3">
@@ -64,14 +65,19 @@ export default async function GroupInfoPage({ params }: { params: Promise<{ id: 
             </div>
             <p className="mt-1 text-sm">{group.ibanName}</p>
           </div>
-          {d.status === "SUBMITTED" ? (
+          {d.status === "OVERDUE" ? (
+            <p className="text-sm font-semibold text-destructive">
+              Vaden doldu. Ödediysen yöneticiye haber ver; yönetici ek süre ya da indirim verebilir.
+              {group.kickOnExpire && d.decisionUntil ? " Karar süresi bitince gruptan çıkarılabilirsin." : ""}
+            </p>
+          ) : d.status === "SUBMITTED" ? (
             <p className="text-sm font-semibold text-amber-600">Ödeme bildirdin, yönetici onayı bekleniyor.</p>
           ) : (
             <ActionForm action={submitPayment} className="space-y-2">
               <input type="hidden" name="dueId" value={d.id} />
               <input name="note" maxLength={300} placeholder="Not: gönderen ad, saat vb. (isteğe bağlı)" className="input" />
               <SubmitButton className="btn-success w-full">Ödedim</SubmitButton>
-              <p className="text-xs text-muted-foreground">Vade bitene kadar onaylanmazsan gruptan otomatik çıkarılırsın.</p>
+              {group.kickOnExpire && <p className="text-xs text-muted-foreground">Vade bitene kadar ödenmezse yönetici ek süre vermezse gruptan çıkarılırsın.</p>}
             </ActionForm>
           )}
         </section>

@@ -1,7 +1,9 @@
 import { ArrowLeft, Ban, Check, Crown, MoreVertical, Receipt, Trash2, UserMinus, X } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { cancelInvite, createDue, deleteGroup, removeMember, resolvePayment, respondJoinRequest, respondTeamChange, setMemberTeam, toggleAdmin, waivePenalty } from "@/app/actions";
+import { cancelInvite, createDue, deleteGroup, kickOverdueAction, removeMember, resolvePayment, respondJoinRequest, respondTeamChange, setMemberTeam, toggleAdmin, waivePenalty } from "@/app/actions";
+import { DiscountForm, ExtendForm } from "@/components/due-admin";
+import { DueBadge } from "@/components/due-badge";
 import { ActionForm, SubmitButton } from "@/components/action-form";
 import { Avatar } from "@/components/avatar";
 import { GroupForm } from "@/components/group-form";
@@ -20,7 +22,8 @@ const DUE: Record<string, [string, string]> = {
   PENDING: ["Ödeme bekleniyor", "bg-amber-500/10 text-amber-700 dark:text-amber-400"],
   SUBMITTED: ["Onayını bekliyor", "bg-sky-500/10 text-sky-700 dark:text-sky-400"],
   CONFIRMED: ["Onaylandı", "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"],
-  EXPIRED: ["Süresi doldu", "bg-rose-500/10 text-rose-700 dark:text-rose-400"],
+  OVERDUE: ["Vade doldu · karar bekliyor", "bg-rose-500/10 text-rose-700 dark:text-rose-400"],
+  EXPIRED: ["Ödemedi · çıkarıldı", "bg-rose-500/10 text-rose-700 dark:text-rose-400"],
   CANCELLED: ["İptal", "bg-muted text-muted-foreground"],
 };
 
@@ -33,8 +36,9 @@ export default async function AdminPage({ params, searchParams }: { params: Prom
   const { group, members, requests, invites, dues, unpaidPenalties, money, teamChanges } = data;
   const hasTeams = teamsActive(group);
   const teamName = (id: string | null) => group.teams.find((t) => t.id === id)?.name;
+  const overdue = dues.filter((d) => d.status === "OVERDUE");
   const openDues = dues.filter((d) => d.status === "PENDING" || d.status === "SUBMITTED");
-  const waiting = openDues.filter((d) => d.status === "SUBMITTED").length;
+  const waiting = openDues.filter((d) => d.status === "SUBMITTED").length + overdue.length;
   const tabs = [
     { key: "uyeler", label: "Üyeler", count: 0 },
     { key: "davet", label: "Davet", count: requests.length + teamChanges.length },
@@ -89,7 +93,7 @@ export default async function AdminPage({ params, searchParams }: { params: Prom
                       {mm?.inDue ? <span className="font-semibold text-amber-600"> · {mm.inDue} TL vadede</span> : null}
                     </p>
                   </div>
-                  {(removable || mm?.unpaid || hasTeams) && (
+                  {(removable || mm?.unpaid || mm?.inDue || hasTeams) && (
                     <details className="relative">
                       <summary className="btn-icon size-9 list-none [&::-webkit-details-marker]:hidden" aria-label="İşlemler">
                         <MoreVertical />
@@ -102,10 +106,11 @@ export default async function AdminPage({ params, searchParams }: { params: Prom
                             <p className="flex items-center gap-1.5 text-xs font-semibold">
                               <Receipt className="size-3.5" /> {mm.unpaid} TL için son ödeme tarihi
                             </p>
-                            <input type="datetime-local" name="dueAt" defaultValue={localInputValue(new Date(Date.now() + 3 * DAY), group.tzOffset)} className="input h-9" required />
+                            <input type="datetime-local" name="dueAt" defaultValue={localInputValue(data.defaultDueAt, group.tzOffset)} className="input h-9" required />
                             <SubmitButton className="btn-primary btn-sm w-full">Vade ver</SubmitButton>
                           </ActionForm>
                         ) : null}
+                        {mm?.unpaid || mm?.inDue ? <DiscountForm groupId={id} userId={m.userId} title="Bu üyenin cezalarına indirim" /> : null}
                         {hasTeams && (
                           <ActionForm action={setMemberTeam} className="flex gap-1.5 p-1">
                             <input type="hidden" name="memberId" value={m.id} />
@@ -219,21 +224,66 @@ export default async function AdminPage({ params, searchParams }: { params: Prom
 
       {tab === "odemeler" && (
         <>
-          {openDues.length === 0 && unpaidPenalties.length === 0 && <p className="card text-center text-sm text-muted-foreground">Bekleyen ödeme ya da ceza yok.</p>}
+          {overdue.length === 0 && openDues.length === 0 && unpaidPenalties.length === 0 && <p className="card text-center text-sm text-muted-foreground">Bekleyen ödeme ya da ceza yok.</p>}
+
+          {/* Vadesi dolanlar: gruptan çıkarılmadan önce yöneticiye sorulur */}
+          {overdue.map((d) => (
+            <section key={d.id} className="card space-y-3 border-rose-500/40">
+              <div className="flex items-center gap-3">
+                <Avatar name={d.user.name} src={d.user.imageUrl} size={40} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold">{d.user.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Vade {formatDateTime(d.dueAt, group.tzOffset)}
+                    {d.extensions ? ` · ${d.extensions} kez ek süre verildi` : ""}
+                  </p>
+                </div>
+                <p className="text-lg font-bold text-destructive">{d.amount} TL</p>
+              </div>
+              <div className="space-y-1">
+                <DueBadge due={d} />
+                <p className="text-xs text-muted-foreground">
+                  {group.kickOnExpire
+                    ? d.decisionUntil
+                      ? "Ek süre verebilir, indirim yapabilir, ikisini birden ya da hiçbirini uygulayabilirsin. Karar süresi bitince gruptan çıkarılır."
+                      : "Karar bekleniyor."
+                    : "Grup ayarında “vadesi dolanı çıkar” kapalı; borç açık kalır. İstersen ek süre ya da indirim uygulayabilirsin."}
+                </p>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <ExtendForm dueId={d.id} defaultValue={localInputValue(new Date(Date.now() + 3 * DAY), group.tzOffset)} />
+                <DiscountForm groupId={id} userId={d.userId} title={`${d.user.name.split(" ")[0]} için indirim`} />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <ActionForm action={resolvePayment}>
+                  <input type="hidden" name="dueId" value={d.id} />
+                  <SubmitButton name="decision" value="confirm" className="btn-success btn-sm">
+                    <Check /> Ödedi, onayla
+                  </SubmitButton>
+                </ActionForm>
+                <ActionForm action={kickOverdueAction} confirm={`${d.user.name} gruptan çıkarılsın mı?`}>
+                  <input type="hidden" name="dueId" value={d.id} />
+                  <SubmitButton className="btn-ghost btn-sm text-destructive">
+                    <UserMinus /> Gruptan çıkar
+                  </SubmitButton>
+                </ActionForm>
+              </div>
+            </section>
+          ))}
+
           {openDues.map((d) => (
             <section key={d.id} className="card space-y-3">
               <div className="flex items-center gap-3">
                 <Avatar name={d.user.name} src={d.user.imageUrl} size={40} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold">{d.user.name}</p>
-                  <p className="text-xs text-muted-foreground">Vade {formatDateTime(d.dueAt, group.tzOffset)}</p>
+                  <div className="mt-0.5">
+                    <DueBadge due={d} />
+                  </div>
                 </div>
                 <p className="text-lg font-bold">{d.amount} TL</p>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <span className={`badge ${DUE[d.status][1]}`}>{DUE[d.status][0]}</span>
-                {d.paymentNote && <span className="truncate text-xs text-muted-foreground">“{d.paymentNote}”</span>}
-              </div>
+              {d.paymentNote && <p className="truncate text-xs text-muted-foreground">“{d.paymentNote}”</p>}
               <ActionForm action={resolvePayment} className="flex flex-wrap gap-2">
                 <input type="hidden" name="dueId" value={d.id} />
                 <SubmitButton name="decision" value="confirm" className="btn-success btn-sm">
@@ -248,40 +298,57 @@ export default async function AdminPage({ params, searchParams }: { params: Prom
                   <Ban /> Vadeyi iptal et
                 </SubmitButton>
               </ActionForm>
+              <details>
+                <summary className="cursor-pointer text-xs font-semibold text-muted-foreground">Ek süre ya da indirim</summary>
+                <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                  <ExtendForm dueId={d.id} defaultValue={localInputValue(new Date(d.dueAt.getTime() + 3 * DAY), group.tzOffset)} />
+                  <DiscountForm groupId={id} userId={d.userId} title={`${d.user.name.split(" ")[0]} için indirim`} />
+                </div>
+              </details>
             </section>
           ))}
-          {unpaidPenalties.some((p) => p.status === "UNPAID") && (
-            <section className="card">
-              <h2 className="mb-2 font-bold">Vadesi verilmemiş cezalar</h2>
+
+          {unpaidPenalties.length > 0 && (
+            <section className="card space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 className="font-bold">Ödenmemiş cezalar</h2>
+                <span className="text-sm font-semibold text-destructive">{unpaidPenalties.reduce((s, p) => s + p.amount, 0)} TL</span>
+              </div>
+              <DiscountForm groupId={id} title="Toplu indirim (tüm grubun ödenmemiş cezaları)" />
               <ul className="divide-y divide-border">
-                {unpaidPenalties
-                  .filter((p) => p.status === "UNPAID")
-                  .map((p) => (
-                    <li key={p.id} className="flex items-center gap-2 py-2 text-sm">
-                      <span className="min-w-0 flex-1 truncate">
-                        {p.user.name.split(" ")[0]} <span className="text-muted-foreground">· {formatDayKey(p.dayKey)}</span>
-                      </span>
-                      <b>{p.amount} TL</b>
+                {unpaidPenalties.map((p) => (
+                  <li key={p.id} className="flex flex-wrap items-center gap-2 py-2 text-sm">
+                    <span className="min-w-0 flex-1 truncate">
+                      {p.user.name} <span className="text-muted-foreground">· {formatDayKey(p.dayKey)}</span>
+                      {p.status === "IN_DUE" && <span className="ml-1 text-[11px] text-amber-600">· vadede</span>}
+                    </span>
+                    <b>
+                      {p.originalAmount != null && p.originalAmount !== p.amount && <s className="mr-1 font-normal text-muted-foreground">{p.originalAmount}</s>}
+                      {p.amount} TL
+                    </b>
+                    <DiscountForm groupId={id} penaltyId={p.id} compact />
+                    {p.status === "UNPAID" && (
                       <ActionForm action={waivePenalty}>
                         <input type="hidden" name="penaltyId" value={p.id} />
                         <SubmitButton className="btn-quiet btn-sm">Affet</SubmitButton>
                       </ActionForm>
-                    </li>
-                  ))}
+                    )}
+                  </li>
+                ))}
               </ul>
-              <p className="mt-2 text-xs text-muted-foreground">Vade vermek için Üyeler sekmesinde kişinin menüsünü kullan.</p>
+              <p className="text-xs text-muted-foreground">Bir kişinin tüm cezalarına indirim ya da vade için Üyeler sekmesinde kişinin menüsünü kullan.</p>
             </section>
           )}
-          {dues.some((d) => !["PENDING", "SUBMITTED"].includes(d.status)) && (
+          {dues.some((d) => !["PENDING", "SUBMITTED", "OVERDUE"].includes(d.status)) && (
             <details className="card">
               <summary className="cursor-pointer text-sm font-bold">Ödeme geçmişi</summary>
               <ul className="mt-2 divide-y divide-border text-sm">
                 {dues
-                  .filter((d) => !["PENDING", "SUBMITTED"].includes(d.status))
+                  .filter((d) => !["PENDING", "SUBMITTED", "OVERDUE"].includes(d.status))
                   .map((d) => (
                     <li key={d.id} className="flex items-center justify-between py-2">
                       <span>
-                        {d.user.name.split(" ")[0]} · {d.amount} TL
+                        {d.user.name} · {d.amount} TL
                       </span>
                       <span className={`badge ${DUE[d.status][1]}`}>{DUE[d.status][0]}</span>
                     </li>

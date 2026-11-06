@@ -79,7 +79,7 @@ function Toggle({ checked, onChange, title, desc }: { checked: boolean; onChange
 }
 
 type TeamDraft = Rules & { id?: string; name: string; key: string };
-const DEFAULT_RULES: Rules = { penaltyMode: "FIXED", targetPages: 20, minPages: 10, penaltyAmount: 20, minDiscount: 50, books: [{ id: "kitap1", title: "", targetPages: 20, minPages: 10 }] };
+const DEFAULT_RULES: Rules = { penaltyMode: "FIXED", targetPages: 20, minPages: 10, penaltyAmount: 20, minDiscount: 50, books: [{ id: "kitap1", title: "Risale-i Nur Külliyatı", targetPages: 20, minPages: 10 }] };
 
 function TeamCard({ team, index, canRemove, onChange, onRemove }: { team: TeamDraft; index: number; canRemove: boolean; onChange: (t: TeamDraft) => void; onRemove: () => void }) {
   const [open, setOpen] = useState(index === 0);
@@ -111,6 +111,8 @@ function TeamCard({ team, index, canRemove, onChange, onRemove }: { team: TeamDr
   );
 }
 
+const dueOffsetText = (d: number) => (d === 0 ? "Her ayın son günü" : d < 0 ? `Ay sonundan ${-d} gün önce` : `Ay sonundan ${d} gün sonra`);
+
 export function GroupForm({ group }: { group?: Group & { teams?: Team[] } }) {
   const [visibility, setVisibility] = useState<"PRIVATE" | "PUBLIC">(group?.visibility ?? "PRIVATE");
   const [chatPolicy, setChatPolicy] = useState<"ALL" | "ADMINS">(group?.chatPolicy ?? "ALL");
@@ -124,6 +126,8 @@ export function GroupForm({ group }: { group?: Group & { teams?: Team[] } }) {
   const [deadline, setDeadline] = useState(group?.deadlineMinute ?? 1439);
   const [reminderHours, setReminderHours] = useState(group?.reminderHours ?? 2);
   const [iban, setIban] = useState(group?.iban ?? "");
+  const [dueOffset, setDueOffset] = useState(group?.dueOffsetDays ?? 0);
+  const [kickOnExpire, setKickOnExpire] = useState(group?.kickOnExpire ?? true);
 
   const nextDay = deadline <= start;
   const newTeam = (n: number): TeamDraft => ({
@@ -154,6 +158,8 @@ export function GroupForm({ group }: { group?: Group & { teams?: Team[] } }) {
       <input type="hidden" name="startTime" value={minuteToTime(start)} />
       <input type="hidden" name="deadlineTime" value={minuteToTime(deadline)} />
       <input type="hidden" name="reminderHours" value={reminderHours} />
+      <input type="hidden" name="dueOffsetDays" value={dueOffset} />
+      <input type="hidden" name="kickOnExpire" value={kickOnExpire ? "1" : "0"} />
 
       <Section Icon={PencilLine} title="Temel bilgiler">
         <div>
@@ -258,9 +264,9 @@ export function GroupForm({ group }: { group?: Group & { teams?: Team[] } }) {
         </p>
       </Section>
 
-      <Section Icon={Landmark} title="Ceza ödemeleri" hint="Cezalar bu hesaba ödenir; yalnızca üyeler görür.">
+      <Section Icon={Landmark} title="Ceza ödemeleri" hint="Cezalar grubun kasasında toplanır; yönetici de herkes gibi okur ve ceza öder. Yalnızca üyeler görür.">
         <div>
-          <label className="label">IBAN</label>
+          <label className="label">Grup kasası IBAN</label>
           <input
             name="iban"
             className="input font-mono tracking-wide"
@@ -270,9 +276,30 @@ export function GroupForm({ group }: { group?: Group & { teams?: Team[] } }) {
           />
         </div>
         <div>
-          <label className="label">Alıcı adı soyadı</label>
+          <label className="label">Hesap sahibi adı soyadı</label>
           <input name="ibanName" className="input" defaultValue={group?.ibanName} />
         </div>
+        <div>
+          <label className="label">Varsayılan ödeme vadesi</label>
+          <div className="flex items-center gap-2">
+            <button type="button" className="btn-ghost size-10 p-0 text-lg" onClick={() => setDueOffset((d) => Math.max(-25, d - 1))} aria-label="Bir gün öne al">
+              −
+            </button>
+            <div className="flex-1 rounded-lg border border-border bg-card px-3 py-2 text-center">
+              <p className="text-sm font-semibold">{dueOffsetText(dueOffset)}</p>
+              <p className="text-[11px] text-muted-foreground">Vade verirken bu tarih önerilir, istersen değiştirirsin</p>
+            </div>
+            <button type="button" className="btn-ghost size-10 p-0 text-lg" onClick={() => setDueOffset((d) => Math.min(25, d + 1))} aria-label="Bir gün ertele">
+              +
+            </button>
+          </div>
+        </div>
+        <Toggle
+          checked={kickOnExpire}
+          onChange={setKickOnExpire}
+          title="Vadesinde ödemeyen gruptan çıkarılsın"
+          desc="Vade dolunca önce sana sorulur: ek süre ver, indirim yap ya da çıkar. 24 saat içinde karar vermezsen çıkarılır. Kapalıysa borç açık kalır."
+        />
       </Section>
 
       <div className="sticky bottom-[calc(env(safe-area-inset-bottom)+5rem)] z-10 rounded-xl bg-background/80 p-1 backdrop-blur">

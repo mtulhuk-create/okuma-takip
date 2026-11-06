@@ -2,12 +2,13 @@ import "server-only";
 import { ensureDayCard } from "./chat";
 import { getDayCards } from "./day";
 import { maintainLater } from "./maintenance";
-import { rulesFor } from "./rules";
+import { dueView } from "./due-view";
+import { describePenalty, rulesFor } from "./rules";
 import { getDb } from "./db";
 
 // Diğer kullanıcılar hakkında dışarıya yalnızca bu alanlar verilir
 const publicUser = { select: { id: true, name: true, username: true, imageUrl: true } } as const;
-import { currentPeriod, openPeriod, periodFor, shiftDayKey } from "./schedule";
+import { currentPeriod, defaultDueAt, openPeriod, periodFor, shiftDayKey } from "./schedule";
 
 /** Bugün sayfası: her grup için güncel gün kartı ve son 7 günün özeti. */
 export async function myGroupsToday(userId: string) {
@@ -47,15 +48,28 @@ export async function myGroupsToday(userId: string) {
 
 export async function myMoney(userId: string) {
   const db = getDb();
-  const [unpaid, dues] = await Promise.all([
+  const [unpaid, dues, byGroup] = await Promise.all([
     db.penalty.aggregate({ where: { userId, status: { in: ["UNPAID", "IN_DUE"] } }, _sum: { amount: true } }),
     db.paymentDue.findMany({
-      where: { userId, status: { in: ["PENDING", "SUBMITTED"] } },
+      where: { userId, status: { in: ["PENDING", "SUBMITTED", "OVERDUE"] } },
       include: { group: { select: { name: true, tzOffset: true } } },
       orderBy: { dueAt: "asc" },
     }),
+    db.penalty.groupBy({ by: ["groupId"], where: { userId, status: { in: ["UNPAID", "IN_DUE"] } }, _sum: { amount: true } }),
   ]);
-  return { unpaidTotal: unpaid._sum.amount ?? 0, dues };
+  // Grup grup borç ve ödeme bilgileri (Bugün ekranındaki borç penceresi için)
+  const groups = byGroup.length
+    ? await db.group.findMany({ where: { id: { in: byGroup.map((g) => g.groupId) } }, select: { id: true, name: true, iban: true, ibanName: true } })
+    : [];
+  const debts = byGroup
+    .map((b) => {
+      const g = groups.find((x) => x.id === b.groupId)!;
+      const due = dues.find((d) => d.groupId === b.groupId);
+      return { group: g, amount: b._sum.amount ?? 0, due: due ? dueView(due) : null };
+    })
+    .filter((d) => d.group && d.amount > 0)
+    .sort((a, b) => b.amount - a.amount);
+  return { unpaidTotal: unpaid._sum.amount ?? 0, dues, debts };
 }
 
 /** Grup sayfası verisi. Üye değilse yalnızca davet/istek bilgisi döner. */
@@ -115,15 +129,21 @@ export async function getAdminData(id: string, userId: string) {
     if (p.status === "UNPAID") e.unpaid += p.amount;
     else e.inDue += p.amount;
   }
-  return { group, members, requests, invites, dues, unpaidPenalties, money, teamChanges };
+  return { group, members, requests, invites, dues, unpaidPenalties, money, teamChanges, defaultDueAt: defaultDueAt(group) };
 }
 
+const teamRules = { id: true, name: true, penaltyMode: true, targetPages: true, minPages: true, penaltyAmount: true, minDiscount: true, books: true } as const;
+
+/** Gruplar sayfası: üye olduğum gruplar (bugünkü durumla) ve keşfedilecek herkese açık gruplar (kurallar ve ekip hedefleriyle) */
 export async function getGroupsOverview(userId: string, q: string) {
   const db = getDb();
   const [mine, publicGroups, myRequests] = await Promise.all([
     db.groupMember.findMany({
       where: { userId, status: "ACTIVE" },
-      include: { group: { include: { _count: { select: { members: { where: { status: "ACTIVE" } } } } } } },
+      include: {
+        group: { include: { _count: { select: { members: { where: { status: "ACTIVE" } } } }, teams: { select: teamRules, orderBy: { position: "asc" } } } },
+      },
+      orderBy: { joinedAt: "asc" },
     }),
     db.group.findMany({
       where: {
@@ -133,14 +153,49 @@ export async function getGroupsOverview(userId: string, q: string) {
       include: {
         _count: { select: { members: { where: { status: "ACTIVE" } } } },
         owner: { select: { name: true } },
-        teams: { select: { id: true, name: true }, orderBy: { position: "asc" } },
+        teams: { select: teamRules, orderBy: { position: "asc" } },
       },
       orderBy: { createdAt: "desc" },
       take: 50,
     }),
     db.joinRequest.findMany({ where: { userId, status: "PENDING" }, select: { groupId: true } }),
   ]);
-  return { mine, publicGroups, requestedIds: myRequests.map((r) => r.groupId) };
+
+  // Bugünkü durum: kaç kişi bildirdi, ben bildirdim mi, grupta borcum
+  const now = new Date();
+  const periods = new Map(mine.map((m) => [m.groupId, currentPeriod(now, m.group)]));
+  const ids = mine.map((m) => m.groupId);
+  const [logs, debts, openDues] = ids.length
+    ? await Promise.all([
+        db.readingLog.findMany({ where: { groupId: { in: ids }, dayKey: { in: [...new Set([...periods.values()].map((p) => p.dayKey))] } }, select: { groupId: true, userId: true, dayKey: true, pages: true, minPages: true } }),
+        db.penalty.groupBy({ by: ["groupId"], where: { userId, groupId: { in: ids }, status: { in: ["UNPAID", "IN_DUE"] } }, _sum: { amount: true } }),
+        db.paymentDue.findMany({ where: { userId, groupId: { in: ids }, status: { in: ["PENDING", "SUBMITTED", "OVERDUE"] } }, orderBy: { dueAt: "asc" } }),
+      ])
+    : [[], [], []];
+  const today = mine.map((m) => {
+    const p = periods.get(m.groupId)!;
+    const dayLogs = logs.filter((l) => l.groupId === m.groupId && l.dayKey === p.dayKey);
+    const myLog = dayLogs.find((l) => l.userId === userId);
+    const rules = rulesFor(m.group, m);
+    return {
+      groupId: m.groupId,
+      dayKey: p.dayKey,
+      deadline: p.deadline.toISOString(),
+      open: now >= p.start && now < p.deadline,
+      reported: dayLogs.filter((l) => l.pages >= l.minPages && l.pages > 0).length,
+      myPages: myLog?.pages ?? null,
+      myTarget: rules.targetPages,
+      myMin: rules.minPages,
+      teamName: rules.teamName,
+      penalty: describePenalty(rules),
+      debt: debts.find((d) => d.groupId === m.groupId)?._sum.amount ?? 0,
+      due: (() => {
+        const d = openDues.find((x) => x.groupId === m.groupId);
+        return d ? dueView(d) : null;
+      })(),
+    };
+  });
+  return { mine, today, publicGroups, requestedIds: myRequests.map((r) => r.groupId) };
 }
 
 export async function getNotificationsData(userId: string) {
@@ -149,7 +204,7 @@ export async function getNotificationsData(userId: string) {
     db.invitation.findMany({
       where: { inviteeId: userId, status: "PENDING" },
       include: {
-        group: { include: { _count: { select: { members: { where: { status: "ACTIVE" } } } }, teams: { select: { id: true, name: true }, orderBy: { position: "asc" } } } },
+        group: { include: { _count: { select: { members: { where: { status: "ACTIVE" } } } }, teams: { select: teamRules, orderBy: { position: "asc" } } } },
         inviter: publicUser,
       },
       orderBy: { createdAt: "desc" },
@@ -171,10 +226,6 @@ export async function getProfileStats(userId: string) {
 }
 
 export async function getBadgeCounts(userId: string) {
-  const db = getDb();
-  const [unread, invites] = await Promise.all([
-    db.notification.count({ where: { userId, read: false } }),
-    db.invitation.count({ where: { inviteeId: userId, status: "PENDING" } }),
-  ]);
-  return unread + invites;
+  // Davetler de uygulama içi bildirim oluşturur; rozet yalnızca okunmamış bildirimleri sayar
+  return getDb().notification.count({ where: { userId, read: false } });
 }

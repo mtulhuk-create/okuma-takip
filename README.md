@@ -16,6 +16,9 @@ Okuma grubu kur, her gün sayfanı bildir, hedefin altında kalırsan ceza öde.
 - **Gruplar:** özel (davetle) ya da herkese açık (katılma isteği). Kullanıcı arayıp uygulama içi davet.
 - **Cezalar:** yönetici vade verir; üye IBAN'a öder, "Ödedim" der; vadesinde onaylanmazsa otomatik gruptan çıkarılır.
 - **Bildirimler:** web push (PWA) ve Android'de cihazda planlanan native bildirimler (uyarı + son 10 dk geri sayım, butonlu).
+- **Ad soyad:** kayıtta ad ve soyad alınır (Clerk → *User & authentication → First and last name* açık ve zorunlu olmalı);
+  eksikse web'de `/ad-soyad`, mobilde açılan pencere bir kez sorar. Profilden düzenlenebilir, her yerde ad soyad görünür.
+- **Okuma serisi:** Bugün ekranında kesintisiz okunan gün sayısı; 7 gün şerit, 1 ay takvim, 3 ay+ ısı haritası (kartı boşluksuz doldurur).
 - Açık / koyu / sistem teması.
 
 ## Mimari notları
@@ -38,6 +41,7 @@ node scripts/e2e.mts http://localhost:3000   # uçtan uca test (geçici Clerk ku
 
 ## Yayın
 Vercel projesi: `okuma-takip` (ortam değişkenleri Vercel'de). Elle dağıtım: `npx vercel deploy --prod`.
+Vercel derlemesi `vercel-build` betiğini çalıştırır: `prisma migrate deploy` ile bekleyen migration'lar otomatik uygulanır.
 
 ## Android APK
 ```bash

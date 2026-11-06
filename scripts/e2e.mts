@@ -37,8 +37,13 @@ try {
     return out;
   };
 
-  ok((await api(tA, "/api/m/me")).status === 200, "Clerk token ile API'ye giriş");
+  const meA = await api(tA, "/api/m/me");
+  ok(meA.status === 200, "Clerk token ile API'ye giriş");
+  ok(meA.json.user?.nameConfirmed === true, "Kayıtta ad soyad alınan kullanıcıdan tekrar istenmez");
   await api(tB, "/api/m/me");
+  const nm = await api(tB, "/api/m/action/saveFullName", { firstName: "mehmet ali", lastName: "ışık" });
+  ok(nm.status === 200 && (await api(tB, "/api/m/me")).json.user?.name === "Mehmet Ali Işık", "Ad soyad kaydı (Türkçe büyük harf)");
+  ok((await api(tB, "/api/m/action/saveFullName", { firstName: "A", lastName: "" })).status === 400, "Eksik ad soyad reddedilir");
   const teams = JSON.stringify([
     { name: "Hızlılar", penaltyMode: "FIXED", targetPages: 30, minPages: 15, penaltyAmount: 40, minDiscount: 50 },
     { name: "Yavaşlar", penaltyMode: "FIXED", targetPages: 10, minPages: 5, penaltyAmount: 20, minDiscount: 25 },

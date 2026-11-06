@@ -5,12 +5,10 @@ import { groupAdminIds, notifyEach, notifyUsers } from "./notify";
 import { publish } from "./realtime";
 import { penaltyFor, rulesFor } from "./rules";
 import { DAY, MIN, currentPeriod, formatDateTime, formatDayKey, lastClosedPeriod, minuteToTime, openPeriod, periodFor, shiftDayKey } from "./schedule";
+import { DAY_ACTIONS, sendDayStart } from "./day-push";
+import { processDues } from "./dues";
 import { signQuickToken } from "./token";
 
-const QUICK_ACTIONS = [
-  { action: "min", title: "✅ Alt sınırı okudum" },
-  { action: "none", title: "❌ Okumadım" },
-];
 
 type G = Group & { teams: Team[] };
 
@@ -75,13 +73,16 @@ export async function runCron(now = new Date()) {
     // Hatırlatma ve geri sayım (web push)
     const open = openPeriod(now, g);
     if (!open) continue;
+    // Yeni gün başladı: gün kartı bildirimi (ilk 3 saat içinde, bir kez)
+    if (now.getTime() - open.start.getTime() < 3 * 3_600_000) await sendDayStart(g, open).catch(() => 0);
     const minsLeft = Math.ceil((open.deadline.getTime() - now.getTime()) / MIN);
     let kind: string | null = null;
     if (minsLeft <= 10 && minsLeft >= 1) kind = "CD";
     else if (g.reminderHours > 0 && minsLeft <= g.reminderHours * 60) kind = "REMINDER";
     if (!kind) continue;
 
-    const members = await db.groupMember.findMany({ where: { groupId: g.id, status: "ACTIVE", joinedAt: { lte: open.start } } });
+    // Gün başladıktan sonra katılanlar da hatırlatılır (ceza yazılmasa da bildirebilirler)
+    const members = await db.groupMember.findMany({ where: { groupId: g.id, status: "ACTIVE" } });
     if (!members.length) continue;
     const reported = new Set((await db.readingLog.findMany({ where: { groupId: g.id, dayKey: open.dayKey }, select: { userId: true } })).map((l) => l.userId));
     const sent = new Set((await db.notificationLog.findMany({ where: { groupId: g.id, key: open.dayKey, kind }, select: { userId: true } })).map((a) => a.userId));
@@ -98,7 +99,7 @@ export async function runCron(now = new Date()) {
           kind === "REMINDER"
             ? { title: `📚 ${g.name}: okuma hatırlatması`, body: `Bugünkü ${r.targetPages} sayfanı henüz bildirmedin. Son bildirim saati ${deadlineText}.`, tag: `rem-${g.id}` }
             : { title: `⏳ ${minsLeft} dakika kaldı · ${g.name}`, body: `Son bildirim ${deadlineText}. Okuduysan hemen bildir, yoksa ceza yazılacak!`, tag: `cd-${g.id}`, renotify: true };
-        return { userId: m.userId, msg: { ...msg, url: `/bildir/${g.id}?t=${encodeURIComponent(token)}`, token, actions: QUICK_ACTIONS } };
+        return { userId: m.userId, msg: { ...msg, url: `/bildir/${g.id}?t=${encodeURIComponent(token)}`, token, actions: DAY_ACTIONS } };
       }),
     );
     await notifyEach(items);
@@ -112,37 +113,4 @@ export async function runCron(now = new Date()) {
   return stats;
 }
 
-export async function processDues(now = new Date()) {
-  const db = getDb();
-  const soon = await db.paymentDue.findMany({ where: { status: "PENDING", dueAt: { gt: now, lte: new Date(now.getTime() + DAY) } }, include: { group: true } });
-  for (const d of soon) {
-    const log = await db.notificationLog.createMany({ data: [{ groupId: d.groupId, userId: d.userId, key: d.id, kind: "DUE24" }], skipDuplicates: true });
-    if (!log.count) continue;
-    await notifyUsers(
-      [d.userId],
-      {
-        title: `⚠️ Ceza ödemesi için son 24 saat`,
-        body: `${d.group.name}: ${d.amount} TL ödemenin vadesi ${formatDateTime(d.dueAt, d.group.tzOffset)}. Ödemezsen gruptan çıkarılacaksın.`,
-        url: `/gruplar/${d.groupId}/bilgi`,
-      },
-      { inApp: true },
-    );
-  }
-
-  const expired = await db.paymentDue.findMany({ where: { status: { in: ["PENDING", "SUBMITTED"] }, dueAt: { lte: now } }, include: { group: true, user: true } });
-  for (const d of expired) {
-    await db.paymentDue.update({ where: { id: d.id }, data: { status: "EXPIRED", resolvedAt: now } });
-    await db.penalty.updateMany({ where: { dueId: d.id, status: "IN_DUE" }, data: { status: "UNPAID", dueId: null } });
-    const member = await db.groupMember.findUnique({ where: { groupId_userId: { groupId: d.groupId, userId: d.userId } } });
-    if (member && member.status === "ACTIVE" && member.role !== "ADMIN") {
-      await db.groupMember.update({ where: { id: member.id }, data: { status: "KICKED", leftAt: now } });
-    }
-    await notifyUsers([d.userId], { title: `🚫 ${d.group.name} grubundan çıkarıldın`, body: `${d.amount} TL ceza ödemesi vadesinde onaylanmadı.`, url: "/gruplar" }, { inApp: true });
-    await notifyUsers(
-      (await groupAdminIds(d.groupId)).filter((id) => id !== d.userId),
-      { title: `${d.group.name}: ${d.user.name} gruptan çıkarıldı`, body: `${d.amount} TL ödemenin vadesi doldu.`, url: `/gruplar/${d.groupId}/yonetim` },
-      { inApp: true },
-    );
-  }
-  return expired.length;
-}
+export { processDues } from "./dues";

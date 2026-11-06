@@ -1,12 +1,14 @@
 import { BarChart3, Plus, Trash2, X } from "lucide-react-native";
 import { useState } from "react";
 import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Switch, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAction } from "@/lib/api";
 import { fonts, useColors } from "@/lib/theme";
 import { Button, Input, Row } from "../ui";
 
 export function PollModal({ groupId, visible, onClose }: { groupId: string; visible: boolean; onClose: () => void }) {
   const c = useColors();
+  const insets = useSafeAreaInsets();
   const action = useAction();
   const [question, setQuestion] = useState("");
   const [options, setOptions] = useState(["", ""]);
@@ -19,7 +21,7 @@ export function PollModal({ groupId, visible, onClose }: { groupId: string; visi
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "#0006" }}>
-        <View style={{ backgroundColor: c.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 18, maxHeight: "85%" }}>
+        <View style={{ backgroundColor: c.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 18, paddingBottom: 18 + insets.bottom, maxHeight: "85%" }}>
           <Row style={{ justifyContent: "space-between", marginBottom: 12 }}>
             <Row>
               <BarChart3 size={20} color={c.primary} />

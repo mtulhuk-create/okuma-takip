@@ -1,10 +1,10 @@
 "use client";
 
-import { BookOpen, Check, CheckCheck, ChevronRight, Clock, Lock, X } from "lucide-react";
+import { BookOpen, Check, CheckCheck, ChevronRight, Clock, Lock, Wallet, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { reportReading } from "@/app/actions";
-import type { DayCard as Card, DayPerson } from "@/lib/day";
+import type { DayCard as Card } from "@/lib/day";
 import { formatClock, formatDayLong } from "@/lib/schedule";
 import { AvatarStack } from "./avatar";
 import { Countdown } from "./countdown";
@@ -48,6 +48,8 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
     start(async () => {
       const fd = new FormData();
       fd.set("groupId", groupId);
+      // Aynı butona tekrar basılırsa sunucu bildirimi geri alır (beklemeye döner)
+      fd.set("toggle", "1");
       for (const [k, v] of Object.entries(fields)) fd.set(k, v);
       const res = await reportReading(null, fd);
       setBusy(null);
@@ -58,20 +60,21 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
 
   const total = me.pages ?? 0;
   const status = me.pages == null ? null : total >= me.target ? "Hedef tamam" : total >= me.min ? "Alt sınır tamam" : "Alt sınırın altında";
-  // Dar ekranda sığsın: ikon üstte, yazı altta (gerekirse iki satır)
-  const btn = "h-auto min-h-11 flex-col gap-0.5 whitespace-normal px-1.5 py-2 text-center text-xs leading-tight";
+  const active = wholeChoice(me.books);
+  // Dar ekranda sığsın: ikon ve yazı yan yana, gerekirse yazı iki satıra iner
+  const btn = "h-auto min-h-9 gap-1 whitespace-normal px-1.5 py-1 text-center text-[11px] leading-tight [&_svg]:size-3.5";
 
   return (
-    <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
-      <ul className="divide-y divide-border rounded-xl border border-border">
+    <div className={compact ? "space-y-1.5" : "space-y-2"} onClick={(e) => e.stopPropagation()}>
+      <ul className="divide-y divide-border rounded-lg border border-border">
         {me.books.map((b) => {
           const st = bookState(b);
           return (
-            <li key={b.id} className="flex items-center gap-2 px-3 py-2">
-              <BookOpen className="size-4 shrink-0 text-primary" />
+            <li key={b.id} className="flex items-center gap-2 px-2.5 py-1.5">
+              <BookOpen className="size-3.5 shrink-0 text-primary" />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold">{b.title}</p>
-                <p className="text-[11px] text-muted-foreground">
+                <p className="truncate text-[13px] font-semibold leading-snug">{b.title}</p>
+                <p className="text-[10px] leading-tight text-muted-foreground">
                   Hedef {b.target} · alt sınır {b.min}
                   {b.pages != null && <b className="text-foreground"> · {b.pages} sf</b>}
                 </p>
@@ -85,9 +88,9 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
                     aria-pressed={st === key}
                     disabled={pending}
                     onClick={() => send({ bookId: b.id, bookChoice: key }, `${b.id}-${key}`)}
-                    className={`flex size-8 items-center justify-center rounded-lg border transition-colors disabled:opacity-60 ${st === key ? on : "border-border text-muted-foreground hover:bg-muted"}`}
+                    className={`flex size-7 items-center justify-center rounded-md border transition-colors disabled:opacity-60 ${st === key ? on : "border-border text-muted-foreground hover:bg-muted"}`}
                   >
-                    {busy === `${b.id}-${key}` ? <Spinner /> : <Icon className="size-4" strokeWidth={2.5} />}
+                    {busy === `${b.id}-${key}` ? <Spinner /> : <Icon className="size-3.5" strokeWidth={2.5} />}
                   </button>
                 ))}
               </div>
@@ -96,19 +99,19 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
         })}
       </ul>
       <div className="grid grid-cols-3 gap-1.5">
-        <button className={`btn-success px-2 ${btn}`} disabled={pending} onClick={() => send({ choice: "all" }, "all")}>
+        <button className={`btn-success ${btn} ${ring(active === "all")}`} aria-pressed={active === "all"} title={active === "all" ? "Tekrar bas: geri al" : undefined} disabled={pending} onClick={() => send({ choice: "all" }, "all")}>
           {busy === "all" ? <Spinner /> : <CheckCheck />} {single ? "Okudum" : "Hepsini okudum"}
         </button>
-        <button className={`btn-primary px-2 ${btn}`} disabled={pending} onClick={() => send({ choice: "min" }, "min")}>
+        <button className={`btn-primary ${btn} ${ring(active === "min")}`} aria-pressed={active === "min"} title={active === "min" ? "Tekrar bas: geri al" : undefined} disabled={pending} onClick={() => send({ choice: "min" }, "min")}>
           {busy === "min" ? <Spinner /> : <Check />} Alt sınırı okudum
         </button>
-        <button className={`btn-ghost px-2 ${btn}`} disabled={pending} onClick={() => send({ choice: "none" }, "none")}>
+        <button className={`btn-ghost ${btn} ${active === "none" ? "border-rose-500 bg-rose-500/10 text-rose-700 dark:text-rose-400" : ""} ${ring(active === "none")}`} aria-pressed={active === "none"} title={active === "none" ? "Tekrar bas: geri al" : undefined} disabled={pending} onClick={() => send({ choice: "none" }, "none")}>
           {busy === "none" ? <Spinner /> : <X />} Okuyamadım
         </button>
       </div>
       {status && (
-        <p className="text-center text-xs text-muted-foreground">
-          Bugün <b className="text-foreground">{total}</b>/{me.target} sayfa · {status}
+        <p className="text-center text-[11px] leading-tight text-muted-foreground">
+          Bugün <b className="text-foreground">{total}</b>/{me.target} sayfa · {status} · <span className="opacity-80">seçili butona tekrar basarak geri alabilirsin</span>
         </p>
       )}
       {error && <p className="text-xs font-medium text-destructive">{error}</p>}
@@ -116,30 +119,95 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
   );
 }
 
+/** Tüm eserler için hangi toplu seçim aktif (geri almak için aynı butona basılır) */
+function wholeChoice(books: { pages: number | null; target: number; min: number }[]): Choice | null {
+  if (!books.length || books.some((b) => b.pages == null)) return null;
+  if (books.every((b) => b.pages! >= b.target)) return "all";
+  if (books.every((b) => b.pages === 0)) return "none";
+  if (books.every((b) => b.pages === b.min)) return "min";
+  return null;
+}
+const ring = (on: boolean) => (on ? "ring-2 ring-offset-1 ring-offset-card ring-foreground/40" : "");
+
 function Spinner() {
-  return <span className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />;
+  return <span className="size-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />;
 }
 
-function CategoryRow({ label, Icon, tone, bg, people }: { label: string; Icon: typeof Check; tone: string; bg: string; people: DayPerson[] }) {
-  const [open, setOpen] = useState(false);
-  if (!people.length) return null;
+/** O günün toplam cezası: gün kapanınca kesin, açıkken şu ana kadarki bildirimlere göre */
+function PenaltyPill({ card }: { card: Card }) {
+  const total = card.penaltyTotal ?? 0;
+  const label = card.penaltyFinal ? "toplam ceza" : card.open ? "ceza (şu ana kadar)" : "ceza (hesaplanıyor)";
   return (
-    <div>
-      <button onClick={() => setOpen((o) => !o)} className="flex w-full items-center gap-3 rounded-lg px-1 py-1.5 text-left transition-colors hover:bg-muted/60">
-        <span className={`flex size-7 items-center justify-center rounded-full ${bg} ${tone}`}>
-          <Icon className="size-4" />
-        </span>
-        <span className="flex-1 text-sm font-semibold">
-          {label} <span className="font-normal text-muted-foreground">· {people.length}</span>
-        </span>
-        <AvatarStack people={people} size={26} />
-        <ChevronRight className={`size-4 text-muted-foreground transition-transform ${open ? "rotate-90" : ""}`} />
-      </button>
-      {open && (
-        <div className="flex flex-wrap gap-1.5 px-1 pb-1 pt-1">
-          {people.map((p) => (
-            <span key={p.id} className={`badge ${bg} ${tone}`}>
-              {p.name.split(" ")[0]}
+    <span
+      title={card.open ? "Bildirmeyenler gün sonunda eklenir" : undefined}
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${total ? "bg-rose-500/10 text-rose-700 dark:text-rose-400" : "bg-muted text-muted-foreground"}`}
+    >
+      <Wallet className="size-3" /> {total} TL <span className="font-normal opacity-80">{label}</span>
+    </span>
+  );
+}
+
+/** Süre / kapandı göstergesi */
+function DeadlinePill({ card, withClock }: { card: Card; withClock?: boolean }) {
+  if (!card.open)
+    return (
+      <span className="badge shrink-0 bg-muted text-muted-foreground">
+        <Lock /> Kapandı
+      </span>
+    );
+  return (
+    <span className="shrink-0 text-right leading-tight">
+      <span className="flex items-center justify-end gap-1 text-xs">
+        <Clock className="size-3.5 text-muted-foreground" />
+        <Countdown to={card.deadline} className="font-bold" />
+      </span>
+      {withClock && <span className="block text-[10px] text-muted-foreground">Son bildirim {formatClock(card.deadline)}</span>}
+    </span>
+  );
+}
+
+/** Kategori çipleri: üst üste profil resimleri + sayı; dokununca isimler açılır */
+function CategoryChips({ card, interactive }: { card: Card; interactive?: boolean }) {
+  const [open, setOpen] = useState<(typeof CATS)[number]["key"] | null>(null);
+  const cats = CATS.filter((c) => card[c.key].length);
+  if (!cats.length) return null;
+  const sel = CATS.find((c) => c.key === open && card[c.key].length);
+  return (
+    <div className="space-y-1.5">
+      <div className="flex flex-wrap gap-1.5">
+        {cats.map(({ key, label, Icon, tone, bg }) => {
+          const people = card[key];
+          const body = (
+            <>
+              <AvatarStack people={people} size={20} max={3} />
+              <span className={`flex items-center gap-0.5 text-[11px] font-bold ${tone}`}>
+                <Icon className="size-3.5" strokeWidth={2.5} />
+                {interactive && <span className="font-semibold">{label}</span>}
+                {people.length}
+              </span>
+            </>
+          );
+          return interactive ? (
+            <button
+              key={key}
+              onClick={() => setOpen((o) => (o === key ? null : key))}
+              aria-expanded={open === key}
+              className={`flex items-center gap-1.5 rounded-full py-0.5 pl-0.5 pr-2 transition-colors ${bg} ${open === key ? "ring-1 ring-inset ring-current " + tone : "hover:brightness-95"}`}
+            >
+              {body}
+            </button>
+          ) : (
+            <span key={key} title={label} className={`flex items-center gap-1.5 rounded-full py-0.5 pl-0.5 pr-2 ${bg}`}>
+              {body}
+            </span>
+          );
+        })}
+      </div>
+      {sel && (
+        <div className={`flex flex-wrap gap-1 rounded-lg p-1.5 ${sel.bg}`}>
+          {card[sel.key].map((p) => (
+            <span key={p.id} className={`inline-flex items-center gap-1 rounded-full bg-card/70 px-2 py-0.5 text-[11px] font-semibold ${sel.tone}`}>
+              {p.name}
               {p.pages != null && p.pages > 0 && <span className="opacity-70">· {p.pages}</span>}
             </span>
           ))}
@@ -154,44 +222,35 @@ export function DayCardFull({ card, groupId, onReported }: { card: Card; groupId
   const total = card.read.length + card.min.length + card.none.length + card.pending.length;
   const done = card.read.length + card.min.length;
   return (
-    <div id={`gun-${card.dayKey}`} className="mx-auto w-full max-w-md scroll-mt-24 rounded-2xl border border-border bg-card p-4 shadow-sm">
-      <div className="mb-3 flex items-start justify-between gap-3">
-        <div>
-          <p className="text-[11px] font-bold uppercase tracking-wider text-primary">Okuma günü</p>
-          <h3 className="font-serif text-lg font-bold">{formatDayLong(card.dayKey)}</h3>
+    <div id={`gun-${card.dayKey}`} className="mx-auto w-full max-w-md scroll-mt-24 space-y-2.5 rounded-2xl border border-border bg-card p-3 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[10px] font-bold uppercase leading-tight tracking-wider text-primary">Okuma günü</p>
+          <h3 className="truncate font-serif text-[15px] font-bold leading-snug">{formatDayLong(card.dayKey)}</h3>
         </div>
-        {card.open ? (
-          <div className="text-right">
-            <p className="text-[11px] text-muted-foreground">Son bildirim {formatClock(card.deadline)}</p>
-            <Countdown to={card.deadline} className="text-sm font-bold" />
-          </div>
-        ) : (
-          <span className="badge bg-muted text-muted-foreground">
-            <Lock /> Kapandı
-          </span>
-        )}
+        <DeadlinePill card={card} withClock />
       </div>
       {total > 0 && (
-        <div className="mb-3">
-          <div className="mb-2 flex h-1.5 overflow-hidden rounded-full bg-muted">
+        <div className="flex items-center gap-2">
+          <div className="flex h-1.5 min-w-10 flex-1 overflow-hidden rounded-full bg-muted">
             <span className="bg-emerald-500" style={{ width: `${(card.read.length / total) * 100}%` }} />
             <span className="bg-amber-500" style={{ width: `${(card.min.length / total) * 100}%` }} />
             <span className="bg-rose-500" style={{ width: `${(card.none.length / total) * 100}%` }} />
           </div>
-          <p className="text-xs text-muted-foreground">
-            {done}/{total} kişi en az alt sınırı okudu
+          <p className="shrink-0 text-[11px] text-muted-foreground">
+            <b className="text-foreground">
+              {done}/{total}
+            </b>{" "}
+            kişi en az alt sınırı okudu
           </p>
         </div>
       )}
-      <div className="space-y-0.5">
-        {CATS.map(({ key, ...c }) => (
-          <CategoryRow key={key} {...c} people={card[key]} />
-        ))}
-      </div>
+      <CategoryChips card={card} interactive />
+      <PenaltyPill card={card} />
       {card.open && card.me && (
-        <div className="mt-3 space-y-2 border-t border-border pt-3">
+        <div className="space-y-1.5 border-t border-border pt-2.5">
           {(card.me.teamName || !card.me.eligible) && (
-            <p className="text-xs text-muted-foreground">
+            <p className="text-[11px] text-muted-foreground">
               {card.me.teamName && <b className="text-foreground">{card.me.teamName} ekibi</b>}
               {card.me.teamName && !card.me.eligible && " · "}
               {!card.me.eligible && "bugün katıldığın için ceza yazılmaz"}
@@ -215,43 +274,96 @@ export function DayCardMini({ card, groupId, groupName }: { card: Card; groupId:
       onClick={() => router.push(href)}
       onKeyDown={(e) => e.key === "Enter" && router.push(href)}
       onMouseEnter={() => router.prefetch(href)}
-      className="card cursor-pointer space-y-3 transition-colors hover:border-primary/40"
+      className="card cursor-pointer space-y-2.5 p-3 transition-colors hover:border-primary/40"
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="truncate font-serif text-base font-bold">{groupName}</p>
-          <p className="text-xs text-muted-foreground">{formatDayLong(card.dayKey)}</p>
+          <p className="truncate font-serif text-[15px] font-bold leading-snug">{groupName}</p>
+          <p className="text-[11px] leading-tight text-muted-foreground">{formatDayLong(card.dayKey)}</p>
         </div>
-        {card.open ? (
-          <span className="flex items-center gap-1 text-xs text-muted-foreground">
-            <Clock className="size-3.5" />
-            <Countdown to={card.deadline} className="font-semibold" />
-          </span>
-        ) : (
-          <span className="badge bg-muted text-muted-foreground">
-            <Lock /> Kapandı
-          </span>
-        )}
+        <DeadlinePill card={card} />
       </div>
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        {CATS.map(({ key, Icon, tone }) =>
-          card[key].length ? (
-            <span key={key} className="flex items-center gap-1.5">
-              <AvatarStack people={card[key]} size={22} max={3} />
-              <span className={`flex items-center text-xs font-bold ${tone}`}>
-                <Icon className="size-3.5" />
-                {card[key].length}
-              </span>
-            </span>
-          ) : null,
-        )}
-        <ChevronRight className="ml-auto size-4 text-muted-foreground" />
+      <div className="flex items-center gap-2">
+        <div className="min-w-0 flex-1 space-y-1.5">
+          <CategoryChips card={card} />
+          <PenaltyPill card={card} />
+        </div>
+        <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
       </div>
       {card.open && card.me && (
         <>
           {!card.me.eligible && <p className="text-[11px] text-muted-foreground">Bugün katıldığın için ceza yazılmaz</p>}
           <ReportControls groupId={groupId} card={card} compact />
         </>
+      )}
+    </div>
+  );
+}
+
+/** Sohbette gün kartı ekranda değilken başlığın altında duran kısayol: temel bilgi + temel butonlar */
+export function DayShortcut({ card, groupId, onJump, onReported }: { card: Card; groupId: string; onJump: () => void; onReported?: () => void }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [busy, setBusy] = useState<string | null>(null);
+  const total = card.read.length + card.min.length + card.none.length + card.pending.length;
+  const done = card.read.length + card.min.length;
+  const me = card.me;
+  const myState = me?.pages == null ? null : me.pages >= me.target ? "read" : me.pages >= me.min && me.pages > 0 ? "min" : "none";
+
+  function send(choice: Choice) {
+    setBusy(choice);
+    start(async () => {
+      const fd = new FormData();
+      fd.set("groupId", groupId);
+      fd.set("choice", choice);
+      fd.set("toggle", "1");
+      await reportReading(null, fd);
+      setBusy(null);
+      onReported ? onReported() : router.refresh();
+    });
+  }
+
+  const btns: { key: Choice; state: string; label: string; Icon: typeof Check; on: string }[] = [
+    { key: "all", state: "read", label: "Okudum", Icon: CheckCheck, on: "bg-emerald-600 text-white border-emerald-600" },
+    { key: "min", state: "min", label: "Alt sınır", Icon: Check, on: "bg-amber-500 text-white border-amber-500" },
+    { key: "none", state: "none", label: "Okumadım", Icon: X, on: "bg-rose-600 text-white border-rose-600" },
+  ];
+
+  return (
+    <div className="flex items-center gap-2 border-b border-border bg-card/95 px-3 py-1.5 backdrop-blur">
+      <button onClick={onJump} className="flex min-w-0 flex-1 items-center gap-2 text-left" aria-label="Gün kartına git">
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <BookOpen className="size-4" />
+        </span>
+        <span className="min-w-0 leading-tight">
+          <span className="block truncate text-xs font-bold">{formatDayLong(card.dayKey)}</span>
+          <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+            {card.open ? <Countdown to={card.deadline} className="font-semibold" /> : "Kapandı"}
+            <span>·</span>
+            <span>
+              {done}/{total} okudu
+            </span>
+          </span>
+        </span>
+      </button>
+      {card.open && me ? (
+        <div className="flex shrink-0 gap-1">
+          {btns.map(({ key, state, label, Icon, on }) => (
+            <button
+              key={key}
+              disabled={pending}
+              onClick={() => send(key)}
+              aria-pressed={myState === state}
+              title={label}
+              className={`flex h-8 items-center gap-1 rounded-lg border px-2 text-[11px] font-semibold transition-colors disabled:opacity-60 ${myState === state ? on : "border-border bg-card hover:bg-muted"}`}
+            >
+              {busy === key ? <Spinner /> : <Icon className="size-3.5" strokeWidth={2.5} />}
+              <span className="hidden min-[400px]:inline">{label}</span>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
       )}
     </div>
   );

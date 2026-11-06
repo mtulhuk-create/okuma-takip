@@ -1,12 +1,12 @@
 import { router } from "expo-router";
 import { CalendarDays, Plus, Receipt, Search, Wallet } from "lucide-react-native";
 import { Pressable, Text, View } from "react-native";
-import { Countdown } from "@/components/countdown";
 import { DayCardMini } from "@/components/day-card";
 import { MyHistorySection } from "@/components/history";
+import { DebtButton } from "@/components/pay-sheet";
+import { DueBadge } from "@/components/due-badge";
 import { Avatar, Button, Card, ErrorView, H1, Loading, Muted, Row, Screen, Title } from "@/components/ui";
 import { useApi } from "@/lib/api";
-import { formatDateTime } from "@/lib/format";
 import { fonts, useColors } from "@/lib/theme";
 import type { MeResponse } from "@/lib/types";
 
@@ -19,13 +19,16 @@ export default function TodayScreen() {
   return (
     <Screen refreshing={isRefetching} onRefresh={refetch}>
       <Row style={{ justifyContent: "space-between" }}>
-        <View>
+        <View style={{ flex: 1 }}>
           <Muted>Merhaba,</Muted>
-          <H1>{data.user.name.split(" ")[0]}</H1>
+          <H1 numberOfLines={1}>{data.user.name}</H1>
         </View>
-        <Pressable onPress={() => router.push("/profile")}>
-          <Avatar name={data.user.name} uri={data.user.imageUrl} size={42} />
-        </Pressable>
+        <Row gap={8}>
+          <DebtButton total={data.money.unpaidTotal} items={data.money.debts ?? []} />
+          <Pressable onPress={() => router.push("/profile")}>
+            <Avatar name={data.user.name} uri={data.user.imageUrl} size={42} />
+          </Pressable>
+        </Row>
       </Row>
 
       <MyHistorySection />
@@ -38,8 +41,7 @@ export default function TodayScreen() {
               <Title style={{ fontSize: 14 }}>
                 {d.group.name} · {d.amount} TL ödeme
               </Title>
-              <Muted>{d.status === "SUBMITTED" ? "Onay bekleniyor" : `Son ödeme ${formatDateTime(d.dueAt, d.group.tzOffset)}`}</Muted>
-              <Countdown to={d.dueAt} style={{ fontSize: 12 }} />
+              <DueBadge due={d} />
             </View>
           </Card>
         </Pressable>

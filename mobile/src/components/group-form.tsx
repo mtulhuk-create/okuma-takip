@@ -9,7 +9,7 @@ import { Button, Card, Input, Muted, Row, Segmented } from "./ui";
 
 export type GroupFormValues = Record<string, string | number>;
 type TeamDraft = Rules & { id?: string; name: string; key: string };
-const DEFAULT_RULES: Rules = { penaltyMode: "FIXED", targetPages: 20, minPages: 10, penaltyAmount: 20, minDiscount: 50, books: [{ id: "kitap1", title: "", targetPages: 20, minPages: 10 }] };
+const DEFAULT_RULES: Rules = { penaltyMode: "FIXED", targetPages: 20, minPages: 10, penaltyAmount: 20, minDiscount: 50, books: [{ id: "kitap1", title: "Risale-i Nur Külliyatı", targetPages: 20, minPages: 10 }] };
 const pick = (r: Omit<Rules, "books"> & { books?: unknown }): Rules => {
   const books = booksOf(r);
   return { penaltyMode: r.penaltyMode, targetPages: books.reduce((s, b) => s + b.targetPages, 0), minPages: books.reduce((s, b) => s + b.minPages, 0), penaltyAmount: r.penaltyAmount, minDiscount: r.minDiscount, books };
@@ -78,6 +78,8 @@ export function GroupForm({ group, onSubmit, submitting, submitLabel }: { group?
   const [reminderHours, setReminderHours] = useState(group?.reminderHours ?? 2);
   const [iban, setIban] = useState(group?.iban ?? "");
   const [ibanName, setIbanName] = useState(group?.ibanName ?? "");
+  const [dueOffset, setDueOffset] = useState(group?.dueOffsetDays ?? 0);
+  const [kickOnExpire, setKickOnExpire] = useState(group?.kickOnExpire ?? true);
   const time = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
   const newTeam = (n: number): TeamDraft => ({ ...rules, books: rules.books.map((b) => ({ ...b, id: `${b.id}-${n}` })), name: `${String.fromCharCode(65 + n)} Ekibi`, key: `new-${Date.now()}-${n}` });
 
@@ -174,9 +176,29 @@ export function GroupForm({ group, onSubmit, submitting, submitLabel }: { group?
         </Muted>
       </Section>
 
-      <Section icon={Landmark} title="Ceza ödemeleri" hint="Cezalar bu hesaba ödenir; yalnızca üyeler görür.">
-        <Input label="IBAN" value={iban.replace(/(.{4})/g, "$1 ").trim()} onChangeText={(v) => setIban(v.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 26))} autoCapitalize="characters" placeholder="TR00 0000 0000 0000 0000 0000 00" />
-        <Input label="Alıcı adı soyadı" value={ibanName} onChangeText={setIbanName} />
+      <Section icon={Landmark} title="Ceza ödemeleri" hint="Cezalar grubun kasasında toplanır; yönetici de herkes gibi okur ve ceza öder. Yalnızca üyeler görür.">
+        <Input label="Grup kasası IBAN" value={iban.replace(/(.{4})/g, "$1 ").trim()} onChangeText={(v) => setIban(v.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 26))} autoCapitalize="characters" placeholder="TR00 0000 0000 0000 0000 0000 00" />
+        <Input label="Hesap sahibi adı soyadı" value={ibanName} onChangeText={setIbanName} />
+        <View>
+          <Muted style={{ marginBottom: 6 }}>Varsayılan ödeme vadesi</Muted>
+          <Row gap={8}>
+            <Button title="−" variant="ghost" onPress={() => setDueOffset((d) => Math.max(-25, d - 1))} style={{ width: 46 }} />
+            <View style={{ flex: 1, alignItems: "center", borderWidth: 1, borderColor: c.border, borderRadius: 10, paddingVertical: 6, backgroundColor: c.card }}>
+              <Text style={{ fontFamily: fonts.semibold, fontSize: 14, color: c.foreground }}>
+                {dueOffset === 0 ? "Her ayın son günü" : dueOffset < 0 ? `Ay sonundan ${-dueOffset} gün önce` : `Ay sonundan ${dueOffset} gün sonra`}
+              </Text>
+              <Text style={{ fontFamily: fonts.regular, fontSize: 11, color: c.mutedForeground }}>Vade verirken bu tarih önerilir</Text>
+            </View>
+            <Button title="+" variant="ghost" onPress={() => setDueOffset((d) => Math.min(25, d + 1))} style={{ width: 46 }} />
+          </Row>
+        </View>
+        <Row style={{ justifyContent: "space-between" }}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontFamily: fonts.semibold, fontSize: 14, color: c.foreground }}>Vadesinde ödemeyen gruptan çıkarılsın</Text>
+            <Muted>Vade dolunca önce sana sorulur: ek süre ver, indirim yap ya da çıkar. 24 saat içinde karar vermezsen çıkarılır. Kapalıysa borç açık kalır.</Muted>
+          </View>
+          <Switch value={kickOnExpire} onValueChange={setKickOnExpire} trackColor={{ true: c.primary, false: c.muted }} thumbColor="#fff" />
+        </Row>
       </Section>
 
       <Button
@@ -199,6 +221,8 @@ export function GroupForm({ group, onSubmit, submitting, submitLabel }: { group?
             reminderHours,
             iban,
             ibanName,
+            dueOffsetDays: dueOffset,
+            kickOnExpire: kickOnExpire ? "1" : "0",
           })
         }
       />

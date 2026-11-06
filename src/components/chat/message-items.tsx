@@ -20,11 +20,11 @@ function DeleteButton({ id, onDone }: { id: string; onDone: () => void }) {
   const [pending, start] = useTransition();
   return (
     <button
-      className="btn-icon size-7 opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100 [&_svg]:size-3.5"
+      className="btn-icon size-7 opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100 [@media(hover:none)]:opacity-60 [&_svg]:size-3.5"
       aria-label="Mesajı sil"
       disabled={pending}
       onClick={() => {
-        if (!confirm("Bu mesaj silinsin mi?")) return;
+        if (!confirm("Bu mesaj herkes için silinsin mi?")) return;
         start(async () => {
           const fd = new FormData();
           fd.set("messageId", id);
@@ -38,7 +38,7 @@ function DeleteButton({ id, onDone }: { id: string; onDone: () => void }) {
   );
 }
 
-/** Metin ve anket mesajları için balon çerçevesi */
+/** Metin ve anket mesajları için balon çerçevesi (grubun ilk mesajında kuyruklu) */
 export function Bubble({
   m,
   mine,
@@ -55,17 +55,18 @@ export function Bubble({
   children: React.ReactNode;
 }) {
   return (
-    <div className={`group flex items-end gap-2 ${mine ? "flex-row-reverse" : ""} ${showAuthor ? "mt-3" : "mt-0.5"}`}>
-      {!mine && <div className="w-8 shrink-0">{showAuthor && m.user && <Avatar name={m.user.name} src={m.user.imageUrl} size={32} />}</div>}
+    <div className={`group flex items-end gap-1.5 ${mine ? "flex-row-reverse" : ""} ${showAuthor ? "mt-2.5" : "mt-0.5"}`}>
+      {!mine && <div className="w-8 shrink-0 self-start">{showAuthor && m.user && <Avatar name={m.user.name} src={m.user.imageUrl} size={32} />}</div>}
       <div
-        className={`relative max-w-[80%] rounded-2xl px-3 py-2 shadow-xs sm:max-w-[70%] ${
-          mine ? "rounded-br-md bg-primary text-primary-foreground" : "rounded-bl-md border border-border bg-card"
+        className={`relative max-w-[80%] rounded-xl px-2.5 pb-1 pt-1.5 shadow-[0_1px_0.5px_rgb(0_0_0/0.13)] sm:max-w-[65%] ${
+          mine ? `bg-[var(--chat-mine)] text-[var(--chat-mine-fg)] ${showAuthor ? "bubble-tail-out rounded-tr-none" : ""}` : `bg-card ${showAuthor ? "bubble-tail-in rounded-tl-none" : ""}`
         } ${m.pending ? "opacity-70" : ""} ${m.failed ? "ring-2 ring-destructive" : ""}`}
       >
-        {!mine && showAuthor && m.user && <p className={`mb-0.5 text-xs font-bold ${nameColor(m.user.id)}`}>{m.user.name}</p>}
+        {!mine && showAuthor && m.user && <p className={`mb-0.5 text-[13px] font-bold leading-tight ${nameColor(m.user.id)}`}>{m.user.name}</p>}
         {children}
-        <p className={`mt-0.5 text-right text-[10px] ${mine ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
+        <p className={`-mt-0.5 flex items-center justify-end gap-0.5 text-[10px] leading-4 ${mine ? "opacity-60" : "text-muted-foreground"}`}>
           {m.failed ? "Gönderilemedi" : m.pending ? "Gönderiliyor…" : formatClock(m.createdAt)}
+          {mine && !m.pending && !m.failed && <Check className="size-3" strokeWidth={2.5} />}
         </p>
       </div>
       {canDelete && !m.pending && <DeleteButton id={m.id} onDone={onChanged} />}
@@ -80,7 +81,7 @@ export function PollBody({ m, mine, onChanged }: { m: UiMessage; mine: boolean; 
   return (
     <div className="min-w-[14rem] space-y-2">
       <p className="font-semibold">{poll.question}</p>
-      <p className={`text-[11px] ${mine ? "text-primary-foreground/70" : "text-muted-foreground"}`}>{poll.multiple ? "Birden fazla seçebilirsin" : "Bir seçenek seç"}</p>
+      <p className={`text-[11px] ${mine ? "opacity-70" : "text-muted-foreground"}`}>{poll.multiple ? "Birden fazla seçebilirsin" : "Bir seçenek seç"}</p>
       <div className="space-y-1.5">
         {poll.options.map((o) => (
           <button
@@ -96,15 +97,15 @@ export function PollBody({ m, mine, onChanged }: { m: UiMessage; mine: boolean; 
               })
             }
             className={`relative w-full overflow-hidden rounded-lg border px-3 py-2 text-left text-sm transition-colors ${
-              mine ? "border-primary-foreground/30 hover:bg-primary-foreground/10" : "border-border hover:bg-muted"
+              mine ? "border-current/20 hover:bg-black/5" : "border-border hover:bg-muted"
             }`}
           >
             <span
-              className={`absolute inset-y-0 left-0 ${mine ? "bg-primary-foreground/20" : "bg-primary/10"} transition-all`}
+              className={`absolute inset-y-0 left-0 ${mine ? "bg-primary/15" : "bg-primary/10"} transition-all`}
               style={{ width: `${(o.votes / max) * 100}%` }}
             />
             <span className="relative flex items-center gap-2">
-              <span className={`flex size-4 shrink-0 items-center justify-center rounded-full border ${o.mine ? (mine ? "border-primary-foreground bg-primary-foreground text-primary" : "border-primary bg-primary text-primary-foreground") : mine ? "border-primary-foreground/60" : "border-muted-foreground/50"}`}>
+              <span className={`flex size-4 shrink-0 items-center justify-center rounded-full border ${o.mine ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/50"}`}>
                 {o.mine && <Check className="size-3" strokeWidth={3} />}
               </span>
               <span className="flex-1">{o.text}</span>
@@ -113,7 +114,7 @@ export function PollBody({ m, mine, onChanged }: { m: UiMessage; mine: boolean; 
           </button>
         ))}
       </div>
-      <p className={`text-[11px] ${mine ? "text-primary-foreground/70" : "text-muted-foreground"}`}>{poll.voters} kişi oy verdi</p>
+      <p className={`text-[11px] ${mine ? "opacity-70" : "text-muted-foreground"}`}>{poll.voters} kişi oy verdi</p>
     </div>
   );
 }

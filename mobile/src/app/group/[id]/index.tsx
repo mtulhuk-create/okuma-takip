@@ -1,19 +1,23 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, Stack, useFocusEffect, useLocalSearchParams } from "expo-router";
-import { BarChart3, CalendarRange, Info, Lock, Receipt, SendHorizontal, Settings } from "lucide-react-native";
+import { BarChart3, CalendarRange, ChevronDown, Info, Landmark, Lock, SendHorizontal, Settings } from "lucide-react-native";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AppState, FlatList, KeyboardAvoidingView, Platform, Pressable, Text, TextInput, View } from "react-native";
+import { AppState, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import Svg, { Defs, Path, Pattern, Rect } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MessageBubble } from "@/components/chat/message";
 import { PollModal } from "@/components/chat/poll-modal";
-import { DayCardFull } from "@/components/day-card";
+import { DayCardFull, DayShortcut } from "@/components/day-card";
+import { Countdown } from "@/components/countdown";
+import { DueBadge } from "@/components/due-badge";
+import { PaySheet } from "@/components/pay-sheet";
 import { GroupHistoryModal } from "@/components/history";
 import { JoinView } from "@/components/join-view";
 import { ErrorView, Loading, Row } from "@/components/ui";
-import { ApiError, useAction, useApi, useApiFetch } from "@/lib/api";
+import { ApiError, useAction, useApiFetch } from "@/lib/api";
 import { formatDayLong } from "@/lib/format";
 import { fonts, useColors } from "@/lib/theme";
-import type { ChatMessage, ChatResponse, MeResponse } from "@/lib/types";
+import type { ChatMessage, ChatResponse } from "@/lib/types";
 
 const trDay = (iso: string) => new Date(new Date(iso).getTime() + 3 * 3_600_000).toISOString().slice(0, 10);
 function dayLabel(day: string) {
@@ -29,13 +33,16 @@ export default function ChatScreen() {
   const fetcher = useApiFetch();
   const action = useAction();
   const chat = useQuery({ queryKey: [`/api/m/groups/${id}/chat`], queryFn: () => fetcher<ChatResponse>(`/api/m/groups/${id}/chat`), retry: (n, e) => !(e instanceof ApiError) && n < 2 });
-  const me = useApi<MeResponse>("/api/m/me");
   const [older, setOlder] = useState<ChatMessage[]>([]);
   const [pending, setPending] = useState<ChatMessage[]>([]);
   const [hasMoreOlder, setHasMoreOlder] = useState<boolean | null>(null);
   const [text, setText] = useState("");
   const [pollOpen, setPollOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [payOpen, setPayOpen] = useState(false);
+  const [kasaOpen, setKasaOpen] = useState(false);
+  const [cardVisible, setCardVisible] = useState(true);
+  const qc = useQueryClient();
   const list = useRef<FlatList<ChatMessage>>(null);
   const cursor = useRef(0);
   const scrolledToDay = useRef(false);
@@ -54,7 +61,14 @@ export default function ChatScreen() {
         try {
           const res = await fetcher<{ cursor: number; events: unknown[] }>(`/api/m/groups/${id}/events?once=1&after=${cursor.current}`);
           cursor.current = res.cursor;
-          if (res.events.length) chat.refetch();
+          if (res.events.length) {
+            chat.refetch();
+            // Ayar, üyelik ya da ödeme değiştiyse ilgili ekranlar da tazelensin
+            if (res.events.some((e) => (e as { type?: string }).type !== "message")) {
+              qc.invalidateQueries({ queryKey: ["/api/m/me"] });
+              qc.invalidateQueries({ queryKey: [`/api/m/groups/${id}`] });
+            }
+          }
         } catch {}
       };
       const t = setInterval(tick, 2000);
@@ -83,6 +97,21 @@ export default function ChatScreen() {
     const t = setTimeout(() => list.current?.scrollToIndex({ index: dayIndex, viewPosition: 0.4, animated: true }), 300);
     return () => clearTimeout(t);
   }, [dayIndex]);
+
+  // Bugünün gün kartı ekranda değilse başlığın altında kısayol göster
+  // Sunucu bugünün kartını göndermiyorsa (eski sürüm) sohbetteki en son gün kartı kullanılır
+  const lastDayCard = useMemo(() => reversed.find((m) => m.kind === "DAY" && m.day)?.day ?? null, [reversed]);
+  const todayKey = chat.data?.group.today ?? lastDayCard?.dayKey;
+  const todayKeyRef = useRef(todayKey);
+  todayKeyRef.current = todayKey;
+  const onViewable = useRef(({ viewableItems }: { viewableItems: { item: ChatMessage }[] }) => {
+    setCardVisible(viewableItems.some((v) => v.item.kind === "DAY" && v.item.day?.dayKey === todayKeyRef.current));
+  }).current;
+  const todayIndex = todayKey ? reversed.findIndex((m) => m.kind === "DAY" && m.day?.dayKey === todayKey) : -1;
+  function jumpToToday() {
+    if (todayIndex >= 0) list.current?.scrollToIndex({ index: todayIndex, viewPosition: 0.3, animated: true });
+    else loadOlder();
+  }
 
   async function loadOlder() {
     if (loadingOlder.current || hasMoreOlder === false || !messages.length || !(chat.data?.hasMore || hasMoreOlder)) return;
@@ -115,7 +144,8 @@ export default function ChatScreen() {
   }
   const data = chat.data!;
   const isAdmin = data.me.role === "ADMIN";
-  const due = me.data?.money.dues.find((d) => d.groupId === id && d.status === "PENDING");
+  const kasa = data.kasa ?? null;
+  const todayCard = data.todayCard ?? (lastDayCard?.dayKey === todayKey ? lastDayCard : null);
 
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: c.background }} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={90}>
@@ -146,12 +176,60 @@ export default function ChatScreen() {
           ),
         }}
       />
-      {due && (
-        <Pressable onPress={() => router.push(`/group/${id}/info`)} style={{ backgroundColor: c.dangerBg, paddingVertical: 7, flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6 }}>
-          <Receipt size={14} color={c.destructive} />
-          <Text style={{ fontFamily: fonts.semibold, fontSize: 12, color: c.destructive }}>{due.amount} TL ceza ödemen var · ödeme bilgileri</Text>
-        </Pressable>
+      {kasa && (
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: c.card, borderBottomWidth: 1, borderBottomColor: c.border, paddingHorizontal: 12, paddingVertical: 6 }}>
+          <Pressable onPress={() => setKasaOpen((o) => !o)} style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 6 }} accessibilityLabel="Grup kasası">
+            <Landmark size={15} color={c.primary} />
+            <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: fonts.regular, fontSize: 12, color: c.mutedForeground }}>
+              {kasa.paidTotal != null ? (
+                <>
+                  Kasa <Text style={{ fontFamily: fonts.bold, color: c.foreground }}>{kasa.paidTotal} TL</Text> · bekleyen <Text style={{ fontFamily: fonts.bold, color: c.foreground }}>{kasa.expected} TL</Text>
+                </>
+              ) : (
+                <>
+                  Kasaya girmesi beklenen <Text style={{ fontFamily: fonts.bold, fontSize: 13, color: c.foreground }}>{kasa.expected} TL</Text>
+                </>
+              )}
+            </Text>
+            <ChevronDown size={14} color={c.mutedForeground} style={{ transform: [{ rotate: kasaOpen ? "180deg" : "0deg" }] }} />
+          </Pressable>
+          {kasa.myDebt > 0 && kasa.myDue && <DueBadge due={kasa.myDue} compact />}
+          {kasa.myDebt > 0 ? (
+            <Pressable onPress={() => setPayOpen(true)} style={({ pressed }) => ({ backgroundColor: c.destructive, borderRadius: 99, paddingHorizontal: 10, paddingVertical: 5, opacity: pressed ? 0.8 : 1 })}>
+              <Text style={{ fontFamily: fonts.semibold, fontSize: 11, color: "#fff" }}>Borcunu öde · {kasa.myDebt} TL</Text>
+            </Pressable>
+          ) : (
+            <Text style={{ fontFamily: fonts.semibold, fontSize: 11, color: c.success }}>Borcun yok</Text>
+          )}
+        </View>
       )}
+      {kasa && kasaOpen && (
+        <View style={{ flexDirection: "row", gap: 6, backgroundColor: c.card, borderBottomWidth: 1, borderBottomColor: c.border, paddingHorizontal: 10, paddingVertical: 8 }}>
+          {[
+            { v: kasa.paidTotal ?? 0, l: "Grup kurulduğundan beri kasaya giren", color: c.success },
+            { v: kasa.inDue ?? 0, l: `Vade süresince girmesi gereken${kasa.inDueCount ? ` (${kasa.inDueCount} kişi)` : ""}`, color: c.warning, at: kasa.nextDueAt },
+            { v: kasa.expected, l: "Ödenmemiş toplam ceza", color: c.destructive },
+          ].map((t) => (
+            <View key={t.l} style={{ flex: 1, alignItems: "center", backgroundColor: t.color + "1a", borderRadius: 10, paddingVertical: 6, paddingHorizontal: 4 }}>
+              <Text style={{ fontFamily: fonts.bold, fontSize: 14, color: t.color }}>{t.v} TL</Text>
+              <Text style={{ fontFamily: fonts.regular, fontSize: 10, lineHeight: 12, textAlign: "center", color: c.mutedForeground }}>{t.l}</Text>
+              {t.at ? <Countdown to={t.at} style={{ fontSize: 10 }} /> : null}
+            </View>
+          ))}
+        </View>
+      )}
+      {todayCard && !cardVisible && <DayShortcut card={todayCard} groupId={id} onJump={jumpToToday} onReported={() => chat.refetch()} />}
+      <View style={{ flex: 1, backgroundColor: c.chatBg }}>
+        {/* Hafif desenli sohbet duvar kağıdı */}
+        <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
+          <Defs>
+            <Pattern id="doodle" width={72} height={72} patternUnits="userSpaceOnUse">
+              <Path d="M10 14h8a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2h-9zM32 14h-8a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h9z" stroke={c.chatPattern} strokeWidth={1.4} fill="none" />
+              <Path d="M50 46l3 6 6 1-4.5 4.5 1 6-5.5-3-5.5 3 1-6L41 53l6-1z" stroke={c.chatPattern} strokeWidth={1.4} fill="none" />
+            </Pattern>
+          </Defs>
+          <Rect width="100%" height="100%" fill="url(#doodle)" />
+        </Svg>
       <FlatList
         ref={list}
         inverted
@@ -161,6 +239,8 @@ export default function ChatScreen() {
         onEndReached={loadOlder}
         onEndReachedThreshold={0.3}
         onScrollToIndexFailed={(info) => setTimeout(() => list.current?.scrollToIndex({ index: info.index, viewPosition: 0.4 }), 400)}
+        onViewableItemsChanged={onViewable}
+        viewabilityConfig={{ itemVisiblePercentThreshold: 15 }}
         renderItem={({ item: m, index }) => {
           const olderItem = reversed[index + 1];
           if (m.kind === "DAY" && m.day) return <DayCardFull card={m.day} groupId={id} highlight={m.day.dayKey === day} onReported={() => chat.refetch()} />;
@@ -171,8 +251,8 @@ export default function ChatScreen() {
           return (
             <View>
               {sep && (
-                <View style={{ alignSelf: "center", backgroundColor: c.card, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 3, marginVertical: 10 }}>
-                  <Text style={{ fontFamily: fonts.medium, fontSize: 11, color: c.mutedForeground }}>{dayLabel(dayKey)}</Text>
+                <View style={{ alignSelf: "center", backgroundColor: c.card, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 3, marginVertical: 10, elevation: 1 }}>
+                  <Text style={{ fontFamily: fonts.semibold, fontSize: 10, letterSpacing: 0.5, color: c.mutedForeground }}>{dayLabel(dayKey).toLocaleUpperCase("tr-TR")}</Text>
                 </View>
               )}
               <MessageBubble m={m} mine={mine} showAuthor={showAuthor} canDelete={mine || isAdmin} />
@@ -180,27 +260,30 @@ export default function ChatScreen() {
           );
         }}
       />
-      <View style={{ borderTopWidth: 1, borderTopColor: c.border, backgroundColor: c.card, paddingHorizontal: 8, paddingTop: 8, paddingBottom: Math.max(8, insets.bottom) }}>
+      </View>
+      <View style={{ backgroundColor: c.chatBg, paddingHorizontal: 6, paddingTop: 6, paddingBottom: Math.max(6, insets.bottom) }}>
         {data.me.canPost ? (
           <Row gap={6} style={{ alignItems: "flex-end" }}>
-            <Pressable onPress={() => setPollOpen(true)} hitSlop={6} style={{ width: 42, height: 42, alignItems: "center", justifyContent: "center" }}>
-              <BarChart3 size={22} color={c.mutedForeground} />
-            </Pressable>
-            <TextInput
-              value={text}
-              onChangeText={setText}
-              placeholder="Mesaj yaz"
-              placeholderTextColor={c.mutedForeground}
-              multiline
-              maxLength={2000}
-              style={{ flex: 1, maxHeight: 120, minHeight: 42, borderRadius: 21, borderWidth: 1, borderColor: c.border, backgroundColor: c.background, paddingHorizontal: 14, paddingTop: 10, paddingBottom: 10, fontFamily: fonts.regular, fontSize: 15, color: c.foreground }}
-            />
-            <Pressable onPress={send} disabled={!text.trim()} style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: c.primary, opacity: text.trim() ? 1 : 0.5, alignItems: "center", justifyContent: "center" }}>
-              <SendHorizontal size={19} color={c.primaryForeground} />
+            <View style={{ flex: 1, flexDirection: "row", alignItems: "flex-end", backgroundColor: c.card, borderRadius: 24, paddingLeft: 4, elevation: 1 }}>
+              <Pressable onPress={() => setPollOpen(true)} hitSlop={6} accessibilityLabel="Anket oluştur" style={{ width: 40, height: 46, alignItems: "center", justifyContent: "center" }}>
+                <BarChart3 size={21} color={c.mutedForeground} />
+              </Pressable>
+              <TextInput
+                value={text}
+                onChangeText={setText}
+                placeholder="Mesaj"
+                placeholderTextColor={c.mutedForeground}
+                multiline
+                maxLength={2000}
+                style={{ flex: 1, maxHeight: 120, minHeight: 46, paddingRight: 14, paddingTop: 12, paddingBottom: 12, fontFamily: fonts.regular, fontSize: 15, color: c.foreground }}
+              />
+            </View>
+            <Pressable onPress={send} disabled={!text.trim()} accessibilityLabel="Gönder" style={{ width: 46, height: 46, borderRadius: 23, backgroundColor: c.primary, opacity: text.trim() ? 1 : 0.6, alignItems: "center", justifyContent: "center", elevation: 2 }}>
+              <SendHorizontal size={20} color={c.primaryForeground} />
             </Pressable>
           </Row>
         ) : (
-          <Row style={{ justifyContent: "center", paddingVertical: 8 }} gap={6}>
+          <Row style={{ justifyContent: "center", paddingVertical: 10, backgroundColor: c.card, borderRadius: 24 }} gap={6}>
             <Lock size={15} color={c.mutedForeground} />
             <Text style={{ fontFamily: fonts.regular, fontSize: 13, color: c.mutedForeground }}>Bu grupta yalnızca yöneticiler mesaj gönderebilir</Text>
           </Row>
@@ -208,6 +291,14 @@ export default function ChatScreen() {
       </View>
       <PollModal groupId={id} visible={pollOpen} onClose={() => setPollOpen(false)} />
       <GroupHistoryModal groupId={id} visible={historyOpen} onClose={() => setHistoryOpen(false)} />
+      {kasa && (
+        <PaySheet
+          visible={payOpen}
+          title="Borcunu öde"
+          items={kasa.myDebt > 0 ? [{ group: { id, name: data.group.name, iban: kasa.iban, ibanName: kasa.ibanName }, amount: kasa.myDebt, due: kasa.myDue }] : []}
+          onClose={() => setPayOpen(false)}
+        />
+      )}
     </KeyboardAvoidingView>
   );
 }
