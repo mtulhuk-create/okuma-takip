@@ -17,7 +17,7 @@ export type DayCard = {
   none: DayPerson[];
   pending: DayPerson[];
   me: { eligible: boolean; pages: number | null; target: number; min: number; teamName: string | null; books: (BookLog & { linked?: string[] })[] } | null;
-  /** O günün toplam cezası (TL). Gün kapandıysa yazılan cezalar, açıksa şu ana kadarki bildirimlere göre */
+  /** Günün hasılatı (TL): kasanın o gün alacağı ceza. Gün kapandıysa yazılan cezalar; açıksa bildirmeyenler okumadı sayılarak */
   penaltyTotal: number;
   /** Kesinleşmiş mi (gün kapandı ve cezalar yazıldı) */
   penaltyFinal: boolean;
@@ -58,8 +58,8 @@ export async function getDayCards(group: Group & { teams: Team[] }, members: Mem
         if (log && !logged.size && books.length === 1) books[0].pages = log.pages;
         card.me = { eligible, pages: log?.pages ?? null, target, min, teamName: r.teamName, books };
       }
-      // Ceza tahmini: bildirenler (gün açıkken) ya da herkes (gün kapandıysa, bildirmeyen 0 sayfa)
-      if (eligible && (log || !open)) projected += penaltyFor({ ...r, targetPages: target, minPages: min }, log?.pages ?? 0);
+      // Günün hasılatı: bildirmeyen herkes "okumadı" sayılır (en kötü durum); okudukça düşer
+      if (eligible) projected += penaltyFor({ ...r, targetPages: target, minPages: min }, log?.pages ?? 0);
       if (!eligible && !log) continue;
       const person = { id: m.user.id, name: m.user.name, imageUrl: m.user.imageUrl, pages: log?.pages ?? null, required: target };
       if (!log) (open ? card.pending : card.none).push(person);

@@ -167,39 +167,44 @@ export function ReportControls({ groupId, card, compact, onDone }: { groupId: st
   );
 }
 
-/**
- * Gün özeti tek blokta: solda kaç kişinin okuduğu (en az alt sınır), sağda o günün cezası; altında ilerleme çubuğu.
- * Rakamlar aynı hizada ve büyük, açıklamalar küçük ve sönük.
- */
-function DaySummary({ card }: { card: Card }) {
+/** Okuyanların oranı: büyük bar + kısa sayı */
+function DayProgress({ card }: { card: Card }) {
   const c = useColors();
   const total = card.read.length + card.min.length + card.none.length + card.pending.length;
   const done = card.read.length + card.min.length;
-  const fine = card.penaltyTotal;
-  const fineColor = fine ? c.destructive : c.mutedForeground;
+  if (!total) return null;
   const seg = (n: number, color: string) => (n ? <View style={{ flex: n, backgroundColor: color }} /> : null);
   return (
-    <View style={{ gap: 6, backgroundColor: c.muted, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8 }}>
-      <Row style={{ justifyContent: "space-between", alignItems: "flex-end" }}>
-        <Text style={{ fontFamily: fonts.regular, fontSize: 11, color: c.mutedForeground }}>
-          <Text style={{ fontFamily: fonts.bold, fontSize: 17, color: c.foreground }}>{done}</Text>
-          <Text style={{ fontFamily: fonts.semibold, fontSize: 12 }}>/{total}</Text> okudu{card.pending.length ? ` · ${card.pending.length} bekleniyor` : ""}
+    <Row gap={8}>
+      <View style={{ flex: 1, height: 10, borderRadius: 5, overflow: "hidden", flexDirection: "row", backgroundColor: c.muted }}>
+        {seg(card.read.length, c.success)}
+        {seg(card.min.length, c.warning)}
+        {seg(card.none.length, c.destructive)}
+        {seg(card.pending.length, c.muted)}
+      </View>
+      <Text style={{ fontFamily: fonts.bold, fontSize: 12, color: c.foreground }}>
+        {done}
+        <Text style={{ fontFamily: fonts.semibold, color: c.mutedForeground }}>/{total}</Text>
+      </Text>
+    </Row>
+  );
+}
+
+/**
+ * Günün hasılatı: kasanın o gün alacağı ceza. Kartın üst kenarının ortasında, kenarlığa bitişik küçük çıkıntı.
+ * Gün açıkken bildirmeyenler okumadı sayılır (en kötü durum); okudukça düşer.
+ */
+function RevenueTab({ card }: { card: Card }) {
+  const c = useColors();
+  if (card.penaltyTotal == null) return null; // eski sunucu
+  const v = card.penaltyTotal;
+  return (
+    <View pointerEvents="none" style={{ position: "absolute", top: -10, left: 0, right: 0, alignItems: "center", zIndex: 2 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 99, paddingHorizontal: 10, paddingVertical: 2 }}>
+        <Text style={{ fontFamily: fonts.semibold, fontSize: 10, color: c.mutedForeground }}>
+          Günün hasılatı <Text style={{ fontFamily: fonts.bold, color: v ? c.destructive : c.success }}>{v} TL</Text>
         </Text>
-        {fine != null && (
-          <Text style={{ fontFamily: fonts.regular, fontSize: 11, color: c.mutedForeground }}>
-            <Text style={{ fontFamily: fonts.bold, fontSize: 17, color: fineColor }}>{fine}</Text>
-            <Text style={{ fontFamily: fonts.semibold, fontSize: 12, color: fineColor }}> TL</Text> {card.penaltyFinal ? "toplam ceza" : card.open ? "ceza · şu ana kadar" : "ceza"}
-          </Text>
-        )}
-      </Row>
-      {total > 0 && (
-        <View style={{ height: 6, borderRadius: 3, overflow: "hidden", flexDirection: "row", backgroundColor: c.background }}>
-          {seg(card.read.length, c.success)}
-          {seg(card.min.length, c.warning)}
-          {seg(card.none.length, c.destructive)}
-          {seg(card.pending.length, c.background)}
-        </View>
-      )}
+      </View>
     </View>
   );
 }
@@ -289,8 +294,9 @@ export function DayCardFull({ card, groupId, onReported, highlight }: { card: Ca
         borderWidth: highlight ? 2 : 1,
         borderColor: highlight ? c.primary : c.border,
         padding: 12,
+        paddingTop: 14,
         gap: 8,
-        marginVertical: 10,
+        marginVertical: 14,
         elevation: 2,
         shadowColor: "#4a1010",
         shadowOpacity: 0.1,
@@ -298,6 +304,7 @@ export function DayCardFull({ card, groupId, onReported, highlight }: { card: Ca
         shadowOffset: { width: 0, height: 2 },
       }}
     >
+      <RevenueTab card={card} />
       <Row style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
         <View style={{ flex: 1 }}>
           <Text style={{ fontFamily: fonts.bold, fontSize: 9, letterSpacing: 1, color: c.primary }}>OKUMA GÜNÜ</Text>
@@ -307,7 +314,7 @@ export function DayCardFull({ card, groupId, onReported, highlight }: { card: Ca
         </View>
         <DeadlinePill card={card} withClock />
       </Row>
-      <DaySummary card={card} />
+      <DayProgress card={card} />
       <CategoryChips card={card} interactive />
       {card.open && card.me && (
         <View style={{ gap: 6, borderTopWidth: 1, borderTopColor: c.border, paddingTop: 8 }}>
@@ -331,8 +338,9 @@ export function DayCardMini({ card, groupId, groupName }: { card: Card; groupId:
   return (
     <Pressable
       onPress={() => router.push({ pathname: "/group/[id]", params: { id: groupId, day: card.dayKey } })}
-      style={({ pressed }) => [{ backgroundColor: c.card, borderColor: c.border, borderWidth: 1, borderRadius: radius + 6, padding: 12, gap: 8, opacity: pressed ? 0.85 : 1 }]}
+      style={({ pressed }) => [{ backgroundColor: c.card, borderColor: c.border, borderWidth: 1, borderRadius: radius + 6, padding: 12, paddingTop: 14, marginTop: 8, gap: 8, opacity: pressed ? 0.85 : 1 }]}
     >
+      <RevenueTab card={card} />
       <Row style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
         <View style={{ flex: 1 }}>
           <Text numberOfLines={1} style={{ fontFamily: fonts.serif, fontSize: 15, color: c.foreground }}>
@@ -342,7 +350,7 @@ export function DayCardMini({ card, groupId, groupName }: { card: Card; groupId:
         </View>
         <DeadlinePill card={card} />
       </Row>
-      <DaySummary card={card} />
+      <DayProgress card={card} />
       <Row gap={6}>
         <View style={{ flex: 1 }}>
           <CategoryChips card={card} />
