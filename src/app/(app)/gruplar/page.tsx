@@ -2,6 +2,7 @@ import { AlarmClock, BookOpen, Check, ChevronRight, Clock, Coins, Crown, Globe, 
 import Link from "next/link";
 import { cancelJoinRequest, requestJoin } from "@/app/actions";
 import { ActionForm, SubmitButton } from "@/components/action-form";
+import { JoinForm } from "@/components/join-form";
 import { Countdown } from "@/components/countdown";
 import { DueBadge } from "@/components/due-badge";
 import { TeamSelect } from "@/components/team-select";
@@ -210,12 +211,12 @@ export default async function GroupsPage({ searchParams }: { searchParams: Promi
                   <SubmitButton className="btn-quiet btn-sm">Geri çek</SubmitButton>
                 </ActionForm>
               ) : (
-                <ActionForm action={requestJoin} className="flex flex-col gap-2 sm:flex-row">
+                <JoinForm action={requestJoin} groupId={g.id} className="flex flex-col gap-2 sm:flex-row">
                   <input type="hidden" name="groupId" value={g.id} />
                   {teams.length > 0 && <TeamSelect teams={teams} />}
                   <input name="message" maxLength={300} placeholder="Not (isteğe bağlı)" className="input" />
                   <SubmitButton className="btn-primary shrink-0">Katılma isteği</SubmitButton>
-                </ActionForm>
+                </JoinForm>
               )}
             </div>
           );

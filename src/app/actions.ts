@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { actionUser, cleanNamePart, getMembership, requireAdmin } from "@/lib/auth";
 import { run, str, int, type ActionState } from "@/lib/action-state";
 import { getDb } from "@/lib/db";
+import { parseLinks, saveBookLinks } from "@/lib/book-links";
 import { discountPenalties, ensureAdmin, extendDue, kickForDue } from "@/lib/dues";
 import { groupAdminIds, notifyUsers } from "@/lib/notify";
 import { canPost } from "@/lib/chat";
@@ -165,6 +166,8 @@ export async function createGroupState(fd: FormData) {
     if (teams.length) await saveTeams(g.id, teams);
     const firstTeam = enabled ? (await db.team.findFirst({ where: { groupId: g.id }, orderBy: { position: "asc" } }))?.id : null;
     await db.groupMember.create({ data: { groupId: g.id, userId: user.id, role: "ADMIN", teamId: firstTeam ?? null } });
+    // Kurucunun diğer gruplarından seçtiği eserler: aynı eser olarak bağlanır
+    await saveBookLinks(user.id, g.id, parseLinks(fd.get("bookLinks")));
     refresh();
     return { id: g.id, message: "Grup oluşturuldu" };
   });
@@ -284,6 +287,8 @@ export async function requestJoin(_: Prev, fd: FormData) {
     if (pending) throw new Error("İsteğiniz zaten beklemede");
     const { teamId } = await resolveTeam(groupId, str(fd, "teamId") || null);
     await db.joinRequest.create({ data: { groupId, userId: user.id, teamId, message: str(fd, "message", 300) || null } });
+    // Katılmadan önce "aynı eser" denilen eşleşmeler (katılınca devreye girer)
+    await saveBookLinks(user.id, groupId, parseLinks(fd.get("bookLinks")));
     await notifyUsers(
       await groupAdminIds(groupId),
       { title: `🙋 ${g.name}: katılım isteği`, body: `${user.name} gruba katılmak istiyor.`, url: `/gruplar/${groupId}/yonetim` },
@@ -370,6 +375,7 @@ export async function respondInvite(_: Prev, fd: FormData) {
     const accept = str(fd, "accept") === "1";
     if (accept) {
       const g = await addMember(inv.groupId, user.id, str(fd, "teamId") || null);
+      await saveBookLinks(user.id, g.id, parseLinks(fd.get("bookLinks")));
       await db.joinRequest.updateMany({ where: { groupId: g.id, userId: user.id, status: "PENDING" }, data: { status: "ACCEPTED" } });
       await notifyUsers(await groupAdminIds(g.id), { title: `${g.name}`, body: `${user.name} davetini kabul etti.`, url: `/gruplar/${g.id}` }, { inApp: true });
     }

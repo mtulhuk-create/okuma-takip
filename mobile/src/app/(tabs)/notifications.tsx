@@ -1,3 +1,4 @@
+import { useBookCheck } from "@/components/book-match";
 import { useQueryClient } from "@tanstack/react-query";
 import { router, useFocusEffect } from "expo-router";
 import { Pressable, View } from "react-native";
@@ -23,6 +24,7 @@ export default function NotificationsScreen() {
   const c = useColors();
   const { data, isLoading, error, refetch, isRefetching } = useApi<NotificationsResponse>("/api/m/notifications");
   const action = useAction();
+  const bookCheck = useBookCheck();
   const [teams, setTeams] = useState<Record<string, string>>({});
   const fetcher = useApiFetch();
   const qc = useQueryClient();
@@ -69,7 +71,7 @@ export default function NotificationsScreen() {
               style={{ flex: 1 }}
               disabled={teamsActive(inv.group) && !teams[inv.id]}
               loading={busy(inv.id, "1")}
-              onPress={() => action.mutate({ name: "respondInvite", body: { inviteId: inv.id, accept: "1", teamId: teams[inv.id] } })}
+              onPress={() => bookCheck.check(inv.group.id, teams[inv.id], (bookLinks) => action.mutate({ name: "respondInvite", body: { inviteId: inv.id, accept: "1", teamId: teams[inv.id], bookLinks } }))}
             />
             <Button title="Reddet" variant="ghost" style={{ flex: 1 }} loading={busy(inv.id, "0")} onPress={() => action.mutate({ name: "respondInvite", body: { inviteId: inv.id, accept: "0" } })} />
           </Row>
@@ -91,6 +93,7 @@ export default function NotificationsScreen() {
           </Pressable>
         );
       })}
+      {bookCheck.modal}
     </Screen>
   );
 }

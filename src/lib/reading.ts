@@ -1,3 +1,4 @@
+import { propagateLinkedBooks } from "./book-links";
 import { getDb } from "./db";
 import { parseBookLogs, rulesFor, type BookLog } from "./rules";
 import { openPeriod } from "./schedule";
@@ -62,5 +63,7 @@ export async function submitReading(userId: string, groupId: string, input: Repo
     create: { groupId, userId, dayKey: period.dayKey, ...snapshot },
     update: snapshot,
   });
+  // Diğer gruplarda "aynı eser" olarak bağlanan kitaplar da işaretlenir (orada hedef kadar)
+  await propagateLinkedBooks(userId, groupId, books).catch(() => {});
   return { log, period, member, rules, undone: false as const };
 }

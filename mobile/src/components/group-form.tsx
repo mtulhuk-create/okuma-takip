@@ -1,3 +1,4 @@
+import { BookSuggestProvider, useBookSuggest } from "./book-match";
 import { AlarmClock, BookOpen, ChevronDown, Globe, Landmark, Lock, PencilLine, Plus, Shield, ShieldCheck, Trash2, Users, type LucideIcon } from "lucide-react-native";
 import { useState } from "react";
 import { Pressable, Switch, Text, View } from "react-native";
@@ -79,6 +80,7 @@ export function GroupForm({ group, onSubmit, submitting, submitLabel }: { group?
   const [iban, setIban] = useState(group?.iban ?? "");
   const [ibanName, setIbanName] = useState(group?.ibanName ?? "");
   const [dueOffset, setDueOffset] = useState(group?.dueOffsetDays ?? 0);
+  const suggest = useBookSuggest(!group);
   const [kickOnExpire, setKickOnExpire] = useState(group?.kickOnExpire ?? true);
   const time = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
   const newTeam = (n: number): TeamDraft => ({ ...rules, books: rules.books.map((b) => ({ ...b, id: `${b.id}-${n}` })), name: `${String.fromCharCode(65 + n)} Ekibi`, key: `new-${Date.now()}-${n}` });
@@ -89,6 +91,7 @@ export function GroupForm({ group, onSubmit, submitting, submitLabel }: { group?
   }
 
   return (
+    <BookSuggestProvider value={suggest}>
     <View style={{ gap: 14 }}>
       <Section icon={PencilLine} title="Temel bilgiler">
         <Input label="Grup adı" value={name} onChangeText={setName} placeholder="Örn. Sabah Okurları" maxLength={80} />
@@ -223,9 +226,11 @@ export function GroupForm({ group, onSubmit, submitting, submitLabel }: { group?
             ibanName,
             dueOffsetDays: dueOffset,
             kickOnExpire: kickOnExpire ? "1" : "0",
+            ...(group ? {} : { bookLinks: suggest.linksJson() }),
           })
         }
       />
     </View>
+    </BookSuggestProvider>
   );
 }

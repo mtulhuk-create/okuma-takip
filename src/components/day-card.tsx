@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, Check, CheckCheck, ChevronRight, Clock, Lock, Wallet, X } from "lucide-react";
+import { BookOpen, Check, CheckCheck, ChevronRight, Clock, Link2, Lock, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { reportReading } from "@/app/actions";
@@ -78,6 +78,11 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
                   Hedef {b.target} · alt sınır {b.min}
                   {b.pages != null && <b className="text-foreground"> · {b.pages} sf</b>}
                 </p>
+                {b.linked?.length ? (
+                  <p className="flex items-center gap-0.5 truncate text-[10px] font-semibold leading-tight text-sky-700 dark:text-sky-400" title="Burada işaretlediğin sayfa o gruplara da yansır (orada hedef kadar)">
+                    <Link2 className="size-3 shrink-0" /> {b.linked.join(", ")} ile ortak
+                  </p>
+                ) : null}
               </div>
               <div className="flex gap-1">
                 {BOOK_BTNS.map(({ key, Icon, label, on }) => (
@@ -133,17 +138,39 @@ function Spinner() {
   return <span className="size-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />;
 }
 
-/** O günün toplam cezası: gün kapanınca kesin, açıkken şu ana kadarki bildirimlere göre */
-function PenaltyPill({ card }: { card: Card }) {
-  const total = card.penaltyTotal ?? 0;
-  const label = card.penaltyFinal ? "toplam ceza" : card.open ? "ceza (şu ana kadar)" : "ceza (hesaplanıyor)";
+/**
+ * Gün özeti tek blokta: solda kaç kişinin okuduğu (en az alt sınır), sağda o günün cezası; altında ilerleme çubuğu.
+ * Rakamlar aynı hizada ve büyük, açıklamalar küçük ve sönük.
+ */
+function DaySummary({ card }: { card: Card }) {
+  const total = card.read.length + card.min.length + card.none.length + card.pending.length;
+  const done = card.read.length + card.min.length;
+  const fine = card.penaltyTotal ?? 0;
+  const fineLabel = card.penaltyFinal ? "toplam ceza" : card.open ? "ceza · şu ana kadar" : "ceza · hesaplanıyor";
   return (
-    <span
-      title={card.open ? "Bildirmeyenler gün sonunda eklenir" : undefined}
-      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${total ? "bg-rose-500/10 text-rose-700 dark:text-rose-400" : "bg-muted text-muted-foreground"}`}
-    >
-      <Wallet className="size-3" /> {total} TL <span className="font-normal opacity-80">{label}</span>
-    </span>
+    <div className="space-y-1.5 rounded-xl bg-muted/50 px-2.5 py-2">
+      <div className="flex items-end justify-between gap-3">
+        <p className="leading-none" title="Hedefi ya da en az alt sınırı okuyanlar">
+          <b className="text-lg leading-none">{done}</b>
+          <span className="text-xs font-semibold text-muted-foreground">/{total}</span>
+          <span className="ml-1 text-[11px] text-muted-foreground">
+            okudu{card.pending.length ? ` · ${card.pending.length} bekleniyor` : ""}
+          </span>
+        </p>
+        <p className="text-right leading-none" title={card.open ? "Bildirmeyenler gün sonunda eklenir" : undefined}>
+          <b className={`text-lg leading-none ${fine ? "text-rose-600 dark:text-rose-400" : "text-muted-foreground"}`}>{fine}</b>
+          <span className={`text-xs font-semibold ${fine ? "text-rose-600 dark:text-rose-400" : "text-muted-foreground"}`}> TL</span>
+          <span className="ml-1 text-[11px] text-muted-foreground">{fineLabel}</span>
+        </p>
+      </div>
+      {total > 0 && (
+        <div className="flex h-1.5 overflow-hidden rounded-full bg-background">
+          <span className="bg-emerald-500" style={{ width: `${(card.read.length / total) * 100}%` }} />
+          <span className="bg-amber-500" style={{ width: `${(card.min.length / total) * 100}%` }} />
+          <span className="bg-rose-500" style={{ width: `${(card.none.length / total) * 100}%` }} />
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -219,8 +246,6 @@ function CategoryChips({ card, interactive }: { card: Card; interactive?: boolea
 
 /** Sohbetin ortasında duran gün kartı */
 export function DayCardFull({ card, groupId, onReported }: { card: Card; groupId: string; onReported?: () => void }) {
-  const total = card.read.length + card.min.length + card.none.length + card.pending.length;
-  const done = card.read.length + card.min.length;
   return (
     <div id={`gun-${card.dayKey}`} className="mx-auto w-full max-w-md scroll-mt-24 space-y-2.5 rounded-2xl border border-border bg-card p-3 shadow-sm">
       <div className="flex items-start justify-between gap-3">
@@ -230,23 +255,8 @@ export function DayCardFull({ card, groupId, onReported }: { card: Card; groupId
         </div>
         <DeadlinePill card={card} withClock />
       </div>
-      {total > 0 && (
-        <div className="flex items-center gap-2">
-          <div className="flex h-1.5 min-w-10 flex-1 overflow-hidden rounded-full bg-muted">
-            <span className="bg-emerald-500" style={{ width: `${(card.read.length / total) * 100}%` }} />
-            <span className="bg-amber-500" style={{ width: `${(card.min.length / total) * 100}%` }} />
-            <span className="bg-rose-500" style={{ width: `${(card.none.length / total) * 100}%` }} />
-          </div>
-          <p className="shrink-0 text-[11px] text-muted-foreground">
-            <b className="text-foreground">
-              {done}/{total}
-            </b>{" "}
-            kişi en az alt sınırı okudu
-          </p>
-        </div>
-      )}
+      <DaySummary card={card} />
       <CategoryChips card={card} interactive />
-      <PenaltyPill card={card} />
       {card.open && card.me && (
         <div className="space-y-1.5 border-t border-border pt-2.5">
           {(card.me.teamName || !card.me.eligible) && (
@@ -283,10 +293,10 @@ export function DayCardMini({ card, groupId, groupName }: { card: Card; groupId:
         </div>
         <DeadlinePill card={card} />
       </div>
+      <DaySummary card={card} />
       <div className="flex items-center gap-2">
-        <div className="min-w-0 flex-1 space-y-1.5">
+        <div className="min-w-0 flex-1">
           <CategoryChips card={card} />
-          <PenaltyPill card={card} />
         </div>
         <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
       </div>

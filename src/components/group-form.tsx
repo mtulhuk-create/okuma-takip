@@ -6,6 +6,7 @@ import { useState } from "react";
 import { createGroup, updateGroup } from "@/app/actions";
 import { pickRules, type Rules } from "@/lib/rules";
 import { minuteToTime, periodLengthMinutes, timeToMinute } from "@/lib/schedule";
+import { BookSuggestProvider } from "./book-suggest";
 import { ActionForm, SubmitButton } from "./action-form";
 import { RulesEditor, Tiles } from "./rules-editor";
 
@@ -143,6 +144,7 @@ export function GroupForm({ group }: { group?: Group & { teams?: Team[] } }) {
 
   return (
     <ActionForm action={group ? updateGroup : createGroup} className="space-y-4">
+      <BookSuggestProvider enabled={!group}>
       {group && <input type="hidden" name="groupId" value={group.id} />}
       <input type="hidden" name="visibility" value={visibility} />
       <input type="hidden" name="chatPolicy" value={chatPolicy} />
@@ -305,6 +307,7 @@ export function GroupForm({ group }: { group?: Group & { teams?: Team[] } }) {
       <div className="sticky bottom-[calc(env(safe-area-inset-bottom)+5rem)] z-10 rounded-xl bg-background/80 p-1 backdrop-blur">
         <SubmitButton className="btn-primary h-12 w-full text-base shadow-lg">{group ? "Ayarları kaydet" : "Grubu oluştur"}</SubmitButton>
       </div>
+      </BookSuggestProvider>
     </ActionForm>
   );
 }

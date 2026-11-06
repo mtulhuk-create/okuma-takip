@@ -1,3 +1,4 @@
+import { useBookCheck } from "@/components/book-match";
 import { router } from "expo-router";
 import { AlarmClock, BookOpen, Check, ChevronRight, Clock, Coins, Crown, Globe, Lock, Plus, Search, Shield, UserRound, Users, Wallet } from "lucide-react-native";
 import { useState } from "react";
@@ -37,6 +38,7 @@ export default function GroupsScreen() {
   const [query, setQuery] = useState("");
   const { data, isLoading, error, refetch, isRefetching } = useApi<GroupsResponse>(`/api/m/groups?q=${encodeURIComponent(query)}`);
   const action = useAction();
+  const bookCheck = useBookCheck();
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [teams, setTeams] = useState<Record<string, string>>({});
 
@@ -208,13 +210,14 @@ export default function GroupsScreen() {
                   title={hasTeams && !teams[g.id] ? "Önce ekibini seç" : "Katılma isteği gönder"}
                   disabled={hasTeams && !teams[g.id]}
                   loading={busy("requestJoin", g.id)}
-                  onPress={() => action.mutate({ name: "requestJoin", body: { groupId: g.id, message: notes[g.id], teamId: teams[g.id] } })}
+                  onPress={() => bookCheck.check(g.id, teams[g.id], (bookLinks) => action.mutate({ name: "requestJoin", body: { groupId: g.id, message: notes[g.id], teamId: teams[g.id], bookLinks } }))}
                 />
               </View>
             )}
           </Card>
         );
       })}
+      {bookCheck.modal}
     </Screen>
   );
 }

@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { BookOpen, Check, CheckCheck, ChevronRight, Clock, Lock, Wallet, X, type LucideIcon } from "lucide-react-native";
+import { BookOpen, Check, CheckCheck, ChevronRight, Clock, Link2, Lock, X, type LucideIcon } from "lucide-react-native";
 import { useState } from "react";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import { useAction } from "@/lib/api";
@@ -91,6 +91,14 @@ export function ReportControls({ groupId, card, compact, onDone }: { groupId: st
                   Hedef {b.target} · alt sınır {b.min}
                   {b.pages != null ? <Text style={{ fontFamily: fonts.semibold, color: c.foreground }}> · {b.pages} sf</Text> : null}
                 </Text>
+                {b.linked?.length ? (
+                  <Row gap={3}>
+                    <Link2 size={11} color={c.info} />
+                    <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: fonts.semibold, fontSize: 10, color: c.info }}>
+                      {b.linked.join(", ")} ile ortak
+                    </Text>
+                  </Row>
+                ) : null}
               </View>
               {BTNS.map(({ key, Icon, color }) => {
                 const on = st === key;
@@ -159,19 +167,40 @@ export function ReportControls({ groupId, card, compact, onDone }: { groupId: st
   );
 }
 
-/** O günün toplam cezası: gün kapanınca kesin, açıkken şu ana kadarki bildirimlere göre */
-function PenaltyPill({ card }: { card: Card }) {
+/**
+ * Gün özeti tek blokta: solda kaç kişinin okuduğu (en az alt sınır), sağda o günün cezası; altında ilerleme çubuğu.
+ * Rakamlar aynı hizada ve büyük, açıklamalar küçük ve sönük.
+ */
+function DaySummary({ card }: { card: Card }) {
   const c = useColors();
-  if (card.penaltyTotal == null) return null; // eski sunucu
-  const total = card.penaltyTotal;
-  const color = total ? c.destructive : c.mutedForeground;
-  const label = card.penaltyFinal ? "toplam ceza" : card.open ? "ceza (şu ana kadar)" : "ceza (hesaplanıyor)";
+  const total = card.read.length + card.min.length + card.none.length + card.pending.length;
+  const done = card.read.length + card.min.length;
+  const fine = card.penaltyTotal;
+  const fineColor = fine ? c.destructive : c.mutedForeground;
+  const seg = (n: number, color: string) => (n ? <View style={{ flex: n, backgroundColor: color }} /> : null);
   return (
-    <Row gap={4} style={{ alignSelf: "flex-start", backgroundColor: total ? c.destructive + "1a" : c.muted, borderRadius: 99, paddingHorizontal: 8, paddingVertical: 2 }}>
-      <Wallet size={11} color={color} />
-      <Text style={{ fontFamily: fonts.bold, fontSize: 11, color }}>{total} TL</Text>
-      <Text style={{ fontFamily: fonts.regular, fontSize: 11, color }}>{label}</Text>
-    </Row>
+    <View style={{ gap: 6, backgroundColor: c.muted, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8 }}>
+      <Row style={{ justifyContent: "space-between", alignItems: "flex-end" }}>
+        <Text style={{ fontFamily: fonts.regular, fontSize: 11, color: c.mutedForeground }}>
+          <Text style={{ fontFamily: fonts.bold, fontSize: 17, color: c.foreground }}>{done}</Text>
+          <Text style={{ fontFamily: fonts.semibold, fontSize: 12 }}>/{total}</Text> okudu{card.pending.length ? ` · ${card.pending.length} bekleniyor` : ""}
+        </Text>
+        {fine != null && (
+          <Text style={{ fontFamily: fonts.regular, fontSize: 11, color: c.mutedForeground }}>
+            <Text style={{ fontFamily: fonts.bold, fontSize: 17, color: fineColor }}>{fine}</Text>
+            <Text style={{ fontFamily: fonts.semibold, fontSize: 12, color: fineColor }}> TL</Text> {card.penaltyFinal ? "toplam ceza" : card.open ? "ceza · şu ana kadar" : "ceza"}
+          </Text>
+        )}
+      </Row>
+      {total > 0 && (
+        <View style={{ height: 6, borderRadius: 3, overflow: "hidden", flexDirection: "row", backgroundColor: c.background }}>
+          {seg(card.read.length, c.success)}
+          {seg(card.min.length, c.warning)}
+          {seg(card.none.length, c.destructive)}
+          {seg(card.pending.length, c.background)}
+        </View>
+      )}
+    </View>
   );
 }
 
@@ -249,8 +278,6 @@ function CategoryChips({ card, interactive }: { card: Card; interactive?: boolea
 /** Sohbetin ortasındaki gün kartı */
 export function DayCardFull({ card, groupId, onReported, highlight }: { card: Card; groupId: string; onReported?: () => void; highlight?: boolean }) {
   const c = useColors();
-  const total = card.read.length + card.min.length + card.none.length + card.pending.length;
-  const seg = (n: number, color: string) => (n ? <View style={{ flex: n, backgroundColor: color }} /> : null);
   return (
     <View
       style={{
@@ -280,24 +307,8 @@ export function DayCardFull({ card, groupId, onReported, highlight }: { card: Ca
         </View>
         <DeadlinePill card={card} withClock />
       </Row>
-      {total > 0 && (
-        <Row gap={8}>
-          <View style={{ flex: 1, height: 6, borderRadius: 3, overflow: "hidden", flexDirection: "row", backgroundColor: c.muted }}>
-            {seg(card.read.length, c.success)}
-            {seg(card.min.length, c.warning)}
-            {seg(card.none.length, c.destructive)}
-            {seg(card.pending.length, c.muted)}
-          </View>
-          <Text style={{ fontFamily: fonts.regular, fontSize: 11, color: c.mutedForeground }}>
-            <Text style={{ fontFamily: fonts.bold, color: c.foreground }}>
-              {card.read.length + card.min.length}/{total}
-            </Text>{" "}
-            kişi en az alt sınırı okudu
-          </Text>
-        </Row>
-      )}
+      <DaySummary card={card} />
       <CategoryChips card={card} interactive />
-      <PenaltyPill card={card} />
       {card.open && card.me && (
         <View style={{ gap: 6, borderTopWidth: 1, borderTopColor: c.border, paddingTop: 8 }}>
           {(card.me.teamName || !card.me.eligible) && (
@@ -331,10 +342,10 @@ export function DayCardMini({ card, groupId, groupName }: { card: Card; groupId:
         </View>
         <DeadlinePill card={card} />
       </Row>
+      <DaySummary card={card} />
       <Row gap={6}>
-        <View style={{ flex: 1, gap: 6 }}>
+        <View style={{ flex: 1 }}>
           <CategoryChips card={card} />
-          <PenaltyPill card={card} />
         </View>
         <ChevronRight size={16} color={c.mutedForeground} />
       </Row>

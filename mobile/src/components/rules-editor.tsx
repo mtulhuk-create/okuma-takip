@@ -1,3 +1,4 @@
+import { BookSuggestions, useUnlinkOnEdit } from "./book-match";
 import { BookOpen, CalendarX2, Check, CheckCheck, FileMinus2, Minus, Plus, Trash2, X } from "lucide-react-native";
 import { Pressable, Text, TextInput, View } from "react-native";
 import { fonts, radius, useColors } from "@/lib/theme";
@@ -63,6 +64,7 @@ const newBook = (): Book => ({ id: Math.random().toString(36).slice(2, 10), titl
 
 function BooksEditor({ books, onChange }: { books: Book[]; onChange: (b: Book[]) => void }) {
   const c = useColors();
+  const unlink = useUnlinkOnEdit();
   const update = (id: string, patch: Partial<Book>) =>
     onChange(books.map((b) => (b.id === id ? (() => { const n = { ...b, ...patch }; if (n.minPages > n.targetPages) n.minPages = n.targetPages; return n; })() : b)));
   return (
@@ -73,18 +75,28 @@ function BooksEditor({ books, onChange }: { books: Book[]; onChange: (b: Book[])
             <BookOpen size={16} color={c.primary} />
             <TextInput
               value={b.title}
-              onChangeText={(title) => update(b.id, { title })}
+              onChangeText={(title) => {
+                unlink(b.id, title);
+                update(b.id, { title });
+              }}
               placeholder={i === 0 ? "Eser adı" : `${i + 1}. eser adı`}
               placeholderTextColor={c.mutedForeground}
               maxLength={80}
               style={{ flex: 1, height: 40, borderWidth: 1, borderColor: b.title.trim() ? c.border : "#f59e0b", borderRadius: radius + 2, paddingHorizontal: 10, fontFamily: fonts.regular, fontSize: 14, color: c.foreground, backgroundColor: c.card }}
             />
             {books.length > 1 && (
-              <Pressable onPress={() => onChange(books.filter((x) => x.id !== b.id))} hitSlop={8}>
+              <Pressable
+                onPress={() => {
+                  unlink(b.id, "");
+                  onChange(books.filter((x) => x.id !== b.id));
+                }}
+                hitSlop={8}
+              >
                 <Trash2 size={18} color={c.mutedForeground} />
               </Pressable>
             )}
           </Row>
+          <BookSuggestions bookId={b.id} title={b.title} onPick={(title) => update(b.id, { title })} />
           <Row>
             <NumberField label="Günlük hedef" value={b.targetPages} onChange={(targetPages) => update(b.id, { targetPages })} min={1} max={2000} />
             <NumberField label="Alt sınır" value={b.minPages} onChange={(minPages) => update(b.id, { minPages })} min={0} max={b.targetPages} />

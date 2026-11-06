@@ -85,6 +85,7 @@ model User {
   notifications     Notification[]
   messages          Message[]
   pollVotes         PollVote[]
+  bookLinks         BookLink[]
 
   @@index([name])
 }
@@ -371,4 +372,20 @@ model GroupEvent {
 
   @@index([groupId, id])
   @@index([createdAt])
+}
+
+// Kullanıcının iki gruptaki aynı eseri "tek görev" saymasi: birinde işaretlenen sayfa diğerine de yansır
+// (hedefi düşük olan grupta hedef kadar). Her bağ iki yönlü kaydedilir.
+model BookLink {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  groupId     String
+  bookId      String
+  linkGroupId String
+  linkBookId  String
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, groupId, bookId, linkGroupId])
+  @@index([userId, groupId])
 }
