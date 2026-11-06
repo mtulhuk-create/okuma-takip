@@ -138,39 +138,43 @@ function Spinner() {
   return <span className="size-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />;
 }
 
-/**
- * Gün özeti tek blokta: solda kaç kişinin okuduğu (en az alt sınır), sağda o günün cezası; altında ilerleme çubuğu.
- * Rakamlar aynı hizada ve büyük, açıklamalar küçük ve sönük.
- */
-function DaySummary({ card }: { card: Card }) {
+/** Okuyanların oranı: büyük bar + kısa sayı (ayrıntı üzerine gelince) */
+function DayProgress({ card }: { card: Card }) {
   const total = card.read.length + card.min.length + card.none.length + card.pending.length;
   const done = card.read.length + card.min.length;
-  const fine = card.penaltyTotal ?? 0;
-  const fineLabel = card.penaltyFinal ? "toplam ceza" : card.open ? "ceza · şu ana kadar" : "ceza · hesaplanıyor";
+  if (!total) return null;
   return (
-    <div className="space-y-1.5 rounded-xl bg-muted/50 px-2.5 py-2">
-      <div className="flex items-end justify-between gap-3">
-        <p className="leading-none" title="Hedefi ya da en az alt sınırı okuyanlar">
-          <b className="text-lg leading-none">{done}</b>
-          <span className="text-xs font-semibold text-muted-foreground">/{total}</span>
-          <span className="ml-1 text-[11px] text-muted-foreground">
-            okudu{card.pending.length ? ` · ${card.pending.length} bekleniyor` : ""}
-          </span>
-        </p>
-        <p className="text-right leading-none" title={card.open ? "Bildirmeyenler gün sonunda eklenir" : undefined}>
-          <b className={`text-lg leading-none ${fine ? "text-rose-600 dark:text-rose-400" : "text-muted-foreground"}`}>{fine}</b>
-          <span className={`text-xs font-semibold ${fine ? "text-rose-600 dark:text-rose-400" : "text-muted-foreground"}`}> TL</span>
-          <span className="ml-1 text-[11px] text-muted-foreground">{fineLabel}</span>
-        </p>
+    <div
+      className="flex items-center gap-2"
+      title={`${card.read.length} okudu · ${card.min.length} alt sınır · ${card.none.length} okumadı · ${card.pending.length} bekleniyor`}
+    >
+      <div className="flex h-2.5 flex-1 overflow-hidden rounded-full bg-muted">
+        <span className="bg-emerald-500" style={{ width: `${(card.read.length / total) * 100}%` }} />
+        <span className="bg-amber-500" style={{ width: `${(card.min.length / total) * 100}%` }} />
+        <span className="bg-rose-500" style={{ width: `${(card.none.length / total) * 100}%` }} />
       </div>
-      {total > 0 && (
-        <div className="flex h-1.5 overflow-hidden rounded-full bg-background">
-          <span className="bg-emerald-500" style={{ width: `${(card.read.length / total) * 100}%` }} />
-          <span className="bg-amber-500" style={{ width: `${(card.min.length / total) * 100}%` }} />
-          <span className="bg-rose-500" style={{ width: `${(card.none.length / total) * 100}%` }} />
-        </div>
-      )}
+      <span className="shrink-0 text-xs font-bold tabular-nums">
+        {done}
+        <span className="font-semibold text-muted-foreground">/{total}</span>
+      </span>
     </div>
+  );
+}
+
+/**
+ * Günün hasılatı: kasanın o gün alacağı ceza. Kartın üst kenarının ortasında, kenarlığa bitişik küçük çıkıntı.
+ * Gün açıkken bildirmeyenler okumadı sayılır (en kötü durum); okudukça düşer.
+ */
+function RevenueTab({ card }: { card: Card }) {
+  if (card.penaltyTotal == null) return null;
+  const v = card.penaltyTotal;
+  return (
+    <span
+      title={card.penaltyFinal ? "Bu gün yazılan cezalar" : "Bildirmeyenler okumadı sayılır; okudukça düşer"}
+      className="absolute -top-2.5 left-1/2 z-[1] -translate-x-1/2 whitespace-nowrap rounded-full border border-border bg-card px-2.5 py-0.5 text-[10px] font-semibold leading-4 text-muted-foreground shadow-xs"
+    >
+      Günün hasılatı <b className={v ? "text-rose-600 dark:text-rose-400" : "text-emerald-600"}>{v} TL</b>
+    </span>
   );
 }
 
@@ -247,7 +251,8 @@ function CategoryChips({ card, interactive }: { card: Card; interactive?: boolea
 /** Sohbetin ortasında duran gün kartı */
 export function DayCardFull({ card, groupId, onReported }: { card: Card; groupId: string; onReported?: () => void }) {
   return (
-    <div id={`gun-${card.dayKey}`} className="mx-auto w-full max-w-md scroll-mt-24 space-y-2.5 rounded-2xl border border-border bg-card p-3 shadow-sm">
+    <div id={`gun-${card.dayKey}`} className="relative mx-auto w-full max-w-md scroll-mt-24 space-y-2.5 rounded-2xl border border-border bg-card p-3 pt-3.5 shadow-sm">
+      <RevenueTab card={card} />
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[10px] font-bold uppercase leading-tight tracking-wider text-primary">Okuma günü</p>
@@ -255,7 +260,7 @@ export function DayCardFull({ card, groupId, onReported }: { card: Card; groupId
         </div>
         <DeadlinePill card={card} withClock />
       </div>
-      <DaySummary card={card} />
+      <DayProgress card={card} />
       <CategoryChips card={card} interactive />
       {card.open && card.me && (
         <div className="space-y-1.5 border-t border-border pt-2.5">
@@ -284,8 +289,9 @@ export function DayCardMini({ card, groupId, groupName }: { card: Card; groupId:
       onClick={() => router.push(href)}
       onKeyDown={(e) => e.key === "Enter" && router.push(href)}
       onMouseEnter={() => router.prefetch(href)}
-      className="card cursor-pointer space-y-2.5 p-3 transition-colors hover:border-primary/40"
+      className="card relative mt-2 cursor-pointer space-y-2.5 p-3 pt-3.5 transition-colors hover:border-primary/40"
     >
+      <RevenueTab card={card} />
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="truncate font-serif text-[15px] font-bold leading-snug">{groupName}</p>
@@ -293,7 +299,7 @@ export function DayCardMini({ card, groupId, groupName }: { card: Card; groupId:
         </div>
         <DeadlinePill card={card} />
       </div>
-      <DaySummary card={card} />
+      <DayProgress card={card} />
       <div className="flex items-center gap-2">
         <div className="min-w-0 flex-1">
           <CategoryChips card={card} />
