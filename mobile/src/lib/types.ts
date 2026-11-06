@@ -31,6 +31,7 @@ export type Group = Rules & {
   reminderHours: number;
   dueOffsetDays?: number;
   kickOnExpire?: boolean;
+  nameDisplay?: "ENTERED" | "ACCOUNT" | "BOTH";
   tzOffset: number;
 };
 

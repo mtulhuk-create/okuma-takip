@@ -44,7 +44,7 @@ export default function NotificationsScreen() {
     }, [fetcher, qc]),
   );
   if (isLoading) return <Loading />;
-  if (error || !data) return <ErrorView message={error?.message ?? "Yüklenemedi"} onRetry={refetch} />;
+  if (!data) return <ErrorView message={error?.message ?? "Yüklenemedi"} onRetry={refetch} />;
   const busy = (inviteId: string, accept: string) =>
     action.isPending && action.variables?.body?.inviteId === inviteId && action.variables.body?.accept === accept;
 

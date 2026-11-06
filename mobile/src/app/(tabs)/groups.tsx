@@ -43,7 +43,7 @@ export default function GroupsScreen() {
   const [teams, setTeams] = useState<Record<string, string>>({});
 
   if (isLoading && !data) return <Loading />;
-  if (error || !data) return <ErrorView message={error?.message ?? "Yüklenemedi"} onRetry={refetch} />;
+  if (!data) return <ErrorView message={error?.message ?? "Yüklenemedi"} onRetry={refetch} />;
   const myIds = new Set(data.mine.map((m) => m.group.id));
   const requested = new Set(data.requestedIds);
   const busy = (name: string, id: string) => action.isPending && action.variables?.name === name && action.variables.body?.groupId === id;

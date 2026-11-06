@@ -1,4 +1,5 @@
-import { BookCopy, Library, Link2, X } from "lucide-react-native";
+import { BookCopy, Check, Library, Link2, X } from "lucide-react-native";
+import { BOOK_CATALOG } from "@/lib/catalog";
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { Modal, Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -7,7 +8,7 @@ import { fonts, useColors } from "@/lib/theme";
 import { Button, Row } from "./ui";
 
 export type BookSuggestion = { groupId: string; groupName: string; bookId: string; title: string; target: number; min: number };
-type Ctx = { suggestions: BookSuggestion[]; links: Record<string, BookSuggestion>; setLink: (bookId: string, s: BookSuggestion | null) => void };
+type Ctx = { autoDone: Set<string>; suggestions: BookSuggestion[]; links: Record<string, BookSuggestion>; setLink: (bookId: string, s: BookSuggestion | null) => void };
 const BookSuggestContext = createContext<Ctx | null>(null);
 export const BookSuggestProvider = BookSuggestContext.Provider;
 
@@ -16,6 +17,7 @@ export function useBookSuggest(enabled: boolean): Ctx & { linksJson: () => strin
   const fetcher = useApiFetch();
   const [suggestions, setSuggestions] = useState<BookSuggestion[]>([]);
   const [links, setLinks] = useState<Record<string, BookSuggestion>>({});
+  const [autoDone] = useState(() => new Set<string>());
   useEffect(() => {
     if (!enabled) return;
     fetcher<{ books: BookSuggestion[] }>("/api/m/my-books")
@@ -32,54 +34,109 @@ export function useBookSuggest(enabled: boolean): Ctx & { linksJson: () => strin
       }),
     [],
   );
-  return { suggestions, links, setLink, linksJson: () => JSON.stringify(Object.entries(links).map(([bookId, s]) => ({ bookId, linkGroupId: s.groupId, linkBookId: s.bookId }))) };
+  return { autoDone, suggestions, links, setLink, linksJson: () => JSON.stringify(Object.entries(links).map(([bookId, s]) => ({ bookId, linkGroupId: s.groupId, linkBookId: s.bookId }))) };
 }
 
 const norm = (t: string) => t.toLocaleLowerCase("tr-TR").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 
-/** Eser adının altında: diğer gruplarındaki eserler (dokununca ad gelir ve aynı eser sayılır) */
-export function BookSuggestions({ bookId, title, onPick }: { bookId: string; title: string; onPick: (title: string) => void }) {
+/** Seçilen eserin altında: kurucunun diğer gruplarında aynı eser varsa "aynı eser" bağı (ilk seferde kendiliğinden kurulur) */
+export function BookSuggestions({ bookId, title }: { bookId: string; title: string; onPick?: (title: string) => void }) {
   const c = useColors();
   const ctx = useContext(BookSuggestContext);
+  const first = ctx?.suggestions.find((s) => norm(s.title) === norm(title));
+  useEffect(() => {
+    if (!ctx || !first || ctx.links[bookId] || ctx.autoDone.has(bookId)) return;
+    ctx.autoDone.add(bookId);
+    ctx.setLink(bookId, first);
+  }, [ctx, first, bookId]);
   if (!ctx || !ctx.suggestions.length) return null;
   const link = ctx.links[bookId];
   if (link) {
     return (
       <Row gap={6} style={{ backgroundColor: c.info + "1a", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5 }}>
         <Link2 size={13} color={c.info} />
-        <Text style={{ flex: 1, fontFamily: fonts.semibold, fontSize: 11, color: c.info }}>“{link.groupName}” grubundaki eserle aynı sayılacak: birinde okuduğun diğerine de işlenir</Text>
+        <Text style={{ flex: 1, fontFamily: fonts.semibold, fontSize: 11, color: c.info }}>“{link.groupName}” grubundaki “{link.title}” ile aynı eser sayılacak: birinde okuduğun diğerine de işlenir</Text>
         <Pressable onPress={() => ctx.setLink(bookId, null)} hitSlop={8} accessibilityLabel="Bağı kaldır">
           <X size={14} color={c.info} />
         </Pressable>
       </Row>
     );
   }
-  const q = norm(title);
-  const list = ctx.suggestions.filter((s) => !q || norm(s.title).includes(q) || q.includes(norm(s.title))).slice(0, 6);
-  if (!list.length) return null;
+  const same = ctx.suggestions.filter((s) => norm(s.title) === norm(title));
+  if (!same.length) return null;
   return (
-    <View style={{ gap: 4 }}>
-      <Row gap={4}>
-        <Library size={11} color={c.mutedForeground} />
-        <Text style={{ fontFamily: fonts.semibold, fontSize: 10, letterSpacing: 0.5, color: c.mutedForeground }}>DİĞER GRUPLARINDAKİ ESERLER</Text>
-      </Row>
-      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 4 }}>
-        {list.map((s) => (
-          <Pressable
-            key={`${s.groupId}-${s.bookId}`}
-            onPress={() => {
-              onPick(s.title);
-              ctx.setLink(bookId, s);
-            }}
-            style={{ borderWidth: 1, borderColor: c.border, borderRadius: 99, paddingHorizontal: 8, paddingVertical: 3, backgroundColor: c.card }}
-          >
-            <Text style={{ fontFamily: fonts.semibold, fontSize: 11, color: c.foreground }}>
-              {s.title} <Text style={{ fontFamily: fonts.regular, color: c.mutedForeground }}>· {s.groupName}</Text>
-            </Text>
-          </Pressable>
-        ))}
-      </View>
+    <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 4 }}>
+      <Library size={11} color={c.mutedForeground} />
+      <Text style={{ fontFamily: fonts.regular, fontSize: 11, color: c.mutedForeground }}>Bu eseri başka grupta da okuyorsun:</Text>
+      {same.map((s) => (
+        <Pressable key={`${s.groupId}-${s.bookId}`} onPress={() => ctx.setLink(bookId, s)} style={{ borderWidth: 1, borderColor: c.border, borderRadius: 99, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: c.card }}>
+          <Text style={{ fontFamily: fonts.semibold, fontSize: 11, color: c.foreground }}>{s.groupName} ile aynı say</Text>
+        </Pressable>
+      ))}
     </View>
+  );
+}
+
+/** Katalogdan eser seçilince: diğer gruplarda aynı eser varsa bağla, yoksa bağı kaldır */
+export function useAutoLink() {
+  const ctx = useContext(BookSuggestContext);
+  return (bookId: string, title: string) => {
+    if (!ctx) return;
+    ctx.autoDone.add(bookId);
+    ctx.setLink(bookId, ctx.suggestions.find((s) => norm(s.title) === norm(title)) ?? null);
+  };
+}
+
+/** Katalogdan eser seçimi (alttan açılan liste) */
+export function BookPicker({ value, onChange }: { value: string; onChange: (title: string) => void }) {
+  const c = useColors();
+  const insets = useSafeAreaInsets();
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Pressable
+        onPress={() => setOpen(true)}
+        style={{ flex: 1, height: 40, borderWidth: 1, borderColor: value ? c.border : "#f59e0b", borderRadius: 8, paddingHorizontal: 10, justifyContent: "center", backgroundColor: c.card }}
+        accessibilityLabel="Eser seç"
+      >
+        <Text numberOfLines={1} style={{ fontFamily: value ? fonts.semibold : fonts.regular, fontSize: 14, color: value ? c.foreground : c.mutedForeground }}>
+          {value || "Eser seç"}
+        </Text>
+      </Pressable>
+      <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
+        <Pressable onPress={() => setOpen(false)} style={{ flex: 1, backgroundColor: "#0007", justifyContent: "flex-end" }}>
+          <Pressable onPress={() => {}} style={{ backgroundColor: c.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "80%", paddingBottom: insets.bottom + 8 }}>
+            <Row style={{ padding: 16, paddingBottom: 8 }}>
+              <Library size={20} color={c.primary} />
+              <Text style={{ flex: 1, fontFamily: fonts.bold, fontSize: 16, color: c.foreground }}>Eser seç</Text>
+              <Pressable onPress={() => setOpen(false)} hitSlop={10}>
+                <X size={22} color={c.mutedForeground} />
+              </Pressable>
+            </Row>
+            <ScrollView contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 8 }}>
+              {BOOK_CATALOG.map((g) => (
+                <View key={g.group} style={{ marginBottom: 6 }}>
+                  <Text style={{ fontFamily: fonts.bold, fontSize: 11, letterSpacing: 0.6, color: c.mutedForeground, marginTop: 6, marginBottom: 2, marginLeft: 4 }}>{g.group.toLocaleUpperCase("tr-TR")}</Text>
+                  {g.books.map((t) => (
+                    <Pressable
+                      key={t}
+                      onPress={() => {
+                        onChange(t);
+                        setOpen(false);
+                      }}
+                      style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 10, paddingVertical: 11, borderRadius: 10, backgroundColor: pressed || t === value ? c.muted : "transparent" })}
+                    >
+                      <Text style={{ fontFamily: t === value ? fonts.bold : fonts.regular, fontSize: 15, color: t === value ? c.primary : c.foreground }}>{t}</Text>
+                      {t === value && <Check size={18} color={c.primary} />}
+                    </Pressable>
+                  ))}
+                </View>
+              ))}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </>
   );
 }
 

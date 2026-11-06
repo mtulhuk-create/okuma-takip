@@ -1,12 +1,13 @@
 import "server-only";
 import type { Group } from "@prisma/client";
 import { getDb } from "./db";
+import { shownName, withShownName } from "./names";
 import { getDayCards } from "./day";
 import { dueView } from "./due-view";
 import { currentPeriod, defaultDueAt } from "./schedule";
 
 const PAGE = 40;
-const publicUser = { select: { id: true, name: true, imageUrl: true } } as const;
+const publicUser = { select: { id: true, name: true, accountName: true, imageUrl: true } } as const;
 
 /** Okuma günü başladığında grubun sohbetine gün kartını ekler (zaten varsa dokunmaz). */
 export async function ensureDayCard(group: Group, now = new Date()) {
@@ -25,11 +26,13 @@ export function canPost(group: Pick<Group, "chatPolicy">, role: "ADMIN" | "MEMBE
 /** Sohbetin bir sayfası (en yeniden geriye). Gün kartları ve anketler kişiye özel hesaplanır. */
 export async function getChatPage(groupId: string, userId: string, before?: Date) {
   const db = getDb();
-  const group = await db.group.findUnique({
+  const raw = await db.group.findUnique({
     where: { id: groupId },
     include: { teams: { orderBy: { position: "asc" } }, members: { where: { status: "ACTIVE" }, include: { user: publicUser } } },
   });
-  if (!group) return null;
+  if (!raw) return null;
+  // Okuyucu adları grup ayarına göre (girdiği ad / hesap adı / ikisi)
+  const group = { ...raw, members: raw.members.map((m) => ({ ...m, user: withShownName(m.user, raw.nameDisplay) })) };
   const me = group.members.find((m) => m.userId === userId);
   if (!me) return { group: { id: group.id, name: group.name }, me: null };
   if (!before) await ensureDayCard(group);
@@ -40,7 +43,7 @@ export async function getChatPage(groupId: string, userId: string, before?: Date
     take: PAGE + 1,
     include: {
       user: publicUser,
-      poll: { include: { options: { orderBy: { position: "asc" }, include: { votes: { include: { user: { select: { id: true, name: true } } } } } } } },
+      poll: { include: { options: { orderBy: { position: "asc" }, include: { votes: { include: { user: { select: { id: true, name: true, accountName: true } } } } } } } },
     },
   });
   const hasMore = rows.length > PAGE;
@@ -55,7 +58,7 @@ export async function getChatPage(groupId: string, userId: string, before?: Date
     kind: m.kind,
     text: m.text,
     createdAt: m.createdAt.toISOString(),
-    user: m.user,
+    user: m.user ? withShownName(m.user, group.nameDisplay) : null,
     mine: m.userId === userId,
     day: m.kind === "DAY" && m.dayKey ? cards[m.dayKey] : null,
     poll: m.poll
@@ -69,7 +72,7 @@ export async function getChatPage(groupId: string, userId: string, before?: Date
             text: o.text,
             votes: o.votes.length,
             mine: o.votes.some((v) => v.userId === userId),
-            names: o.votes.map((v) => v.user.name),
+            names: o.votes.map((v) => shownName(v.user, group.nameDisplay)),
           })),
         }
       : null,

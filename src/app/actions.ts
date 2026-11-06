@@ -7,10 +7,11 @@ import { actionUser, cleanNamePart, getMembership, requireAdmin } from "@/lib/au
 import { run, str, int, type ActionState } from "@/lib/action-state";
 import { getDb } from "@/lib/db";
 import { parseLinks, saveBookLinks } from "@/lib/book-links";
+import { isCatalogBook } from "@/lib/catalog";
 import { discountPenalties, ensureAdmin, extendDue, kickForDue } from "@/lib/dues";
 import { groupAdminIds, notifyUsers } from "@/lib/notify";
 import { canPost } from "@/lib/chat";
-import { teamsActive } from "@/lib/rules";
+import { booksOf, teamsActive } from "@/lib/rules";
 import { publish } from "@/lib/realtime";
 import { submitReading, type ReportChoice } from "@/lib/reading";
 import { DAY, MIN, formatDateTime, timeToMinute } from "@/lib/schedule";
@@ -24,7 +25,7 @@ function refresh() {
 type BookInput = { id: string; title: string; targetPages: number; minPages: number };
 type RulesInput = { penaltyMode: "FIXED" | "PER_PAGE"; targetPages: number; minPages: number; penaltyAmount: number; minDiscount: number; books: BookInput[] };
 
-function validateRules(r: Record<string, unknown>, label = ""): RulesInput {
+function validateRules(r: Record<string, unknown>, label = "", keepTitles?: Set<string>): RulesInput {
   const num = (v: unknown, min: number, max: number, name: string) => {
     const n = Number(v);
     if (!Number.isInteger(n) || n < min || n > max) throw new Error(`${label}${name} ${min}-${max} arasında olmalı`);
@@ -40,6 +41,8 @@ function validateRules(r: Record<string, unknown>, label = ""): RulesInput {
   if (rawBooks.length && !named.length) throw new Error(`${label}En az bir eserin adını yazın`);
   const books: BookInput[] = named.slice(0, 10).map((b) => {
     const title = String(b.title ?? "").trim().slice(0, 80);
+    // Yalnızca katalogdaki eserler (eski gruplarda kayıtlı olan ad aynen kalabilir)
+    if (!isCatalogBook(title) && !keepTitles?.has(title)) throw new Error(`${label}"${title}" listede yok; eseri listeden seçin`);
     const t = num(b.targetPages, 1, 2000, `"${title}" günlük hedefi`);
     const m = num(b.minPages, 0, 2000, `"${title}" alt sınırı`);
     if (m > t) throw new Error(`${label}"${title}" için alt sınır hedeften büyük olamaz`);
@@ -61,7 +64,7 @@ function validateRules(r: Record<string, unknown>, label = ""): RulesInput {
 type TeamInput = RulesInput & { id?: string; name: string };
 const rulesOf = ({ penaltyMode, targetPages, minPages, penaltyAmount, minDiscount, books }: RulesInput): RulesInput => ({ penaltyMode, targetPages, minPages, penaltyAmount, minDiscount, books });
 
-function parseTeams(fd: FormData): { enabled: boolean; teams: TeamInput[] } {
+function parseTeams(fd: FormData, keep?: Set<string>): { enabled: boolean; teams: TeamInput[] } {
   const enabled = str(fd, "teamsEnabled") === "1";
   // Ekipler kapalıyken formda kalmış ekip taslakları doğrulanmaz ve kaydedilmez
   if (!enabled) return { enabled, teams: [] };
@@ -72,7 +75,7 @@ function parseTeams(fd: FormData): { enabled: boolean; teams: TeamInput[] } {
   const teams = raw.slice(0, 20).map((t, i) => {
     const name = String(t.name ?? "").trim().slice(0, 40);
     if (enabled && !name) throw new Error(`${i + 1}. ekibin adını yazın`);
-    return { id: typeof t.id === "string" ? t.id : undefined, name, ...validateRules(t, `${name || `${i + 1}. ekip`}: `) };
+    return { id: typeof t.id === "string" ? t.id : undefined, name, ...validateRules(t, `${name || `${i + 1}. ekip`}: `, keep) };
   });
   if (enabled && teams.length < 2) throw new Error("Ekiplere bölmek için en az 2 ekip oluşturun");
   return { enabled, teams };
@@ -92,7 +95,7 @@ async function saveTeams(groupId: string, teams: TeamInput[]) {
 }
 
 /** Ekipler açıkken grup düzeyindeki kurallar formda gizlidir; ilk ekibin kuralları kullanılır. */
-function parseGroupForm(fd: FormData, teamRules?: RulesInput) {
+function parseGroupForm(fd: FormData, teamRules?: RulesInput, keep?: Set<string>) {
   const name = str(fd, "name", 80);
   if (name.length < 3) throw new Error("Grup adı en az 3 karakter olmalı");
   const startMinute = timeToMinute(str(fd, "startTime"));
@@ -113,7 +116,7 @@ function parseGroupForm(fd: FormData, teamRules?: RulesInput) {
       penaltyAmount: fd.get("penaltyAmount"),
       minDiscount: fd.get("minDiscount"),
       books: fd.get("books"),
-    })),
+    }, "", keep)),
     shareProgress: str(fd, "shareProgress") === "1",
     iban,
     ibanName: str(fd, "ibanName", 80),
@@ -123,6 +126,7 @@ function parseGroupForm(fd: FormData, teamRules?: RulesInput) {
     // Eski istemciler göndermezse ay sonu (0) kalır
     dueOffsetDays: fd.get("dueOffsetDays") == null || fd.get("dueOffsetDays") === "" ? undefined : int(fd, "dueOffsetDays", -25, 25, "Vade kaydırma"),
     kickOnExpire: fd.get("kickOnExpire") == null ? undefined : str(fd, "kickOnExpire") === "1",
+    nameDisplay: (["ENTERED", "ACCOUNT", "BOTH"].includes(str(fd, "nameDisplay")) ? str(fd, "nameDisplay") : undefined) as "ENTERED" | "ACCOUNT" | "BOTH" | undefined,
   };
 }
 
@@ -177,8 +181,11 @@ export async function updateGroup(_: Prev, fd: FormData) {
   return run(async () => {
     const groupId = str(fd, "groupId");
     await requireAdmin(groupId);
-    const { enabled, teams } = parseTeams(fd);
-    const data = parseGroupForm(fd, enabled ? rulesOf(teams[0]) : undefined);
+    // Eski gruplarda katalog dışı kayıtlı eser adları korunabilir
+    const cur = await getDb().group.findUniqueOrThrow({ where: { id: groupId }, include: { teams: true } });
+    const keep = new Set([cur, ...cur.teams].flatMap((r) => booksOf(r).map((b) => b.title)));
+    const { enabled, teams } = parseTeams(fd, keep);
+    const data = parseGroupForm(fd, enabled ? rulesOf(teams[0]) : undefined, keep);
     const db = getDb();
     await db.group.update({ where: { id: groupId }, data: { ...data, teamsEnabled: enabled } });
     if (enabled || teams.length) await saveTeams(groupId, teams);
@@ -223,6 +230,8 @@ export async function reportReading(_: Prev, fd: FormData) {
       bookId: str(fd, "bookId") || undefined,
       bookChoice: ["read", "min", "none"].includes(bookChoice) ? bookChoice : undefined,
       toggle: str(fd, "toggle") === "1",
+      // Çevrimdışı kuyruktan gelen işlem
+      ...(str(fd, "at") && str(fd, "dayKey") ? { at: new Date(str(fd, "at")), dayKey: str(fd, "dayKey") } : {}),
     });
     await publish(groupId, { type: "refresh", reason: "day" });
     refresh();

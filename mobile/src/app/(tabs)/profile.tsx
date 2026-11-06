@@ -70,7 +70,7 @@ export default function ProfileScreen() {
   }
 
   if (isLoading) return <Loading />;
-  if (error || !data) return <ErrorView message={error?.message ?? "Yüklenemedi"} onRetry={refetch} />;
+  if (!data) return <ErrorView message={error?.message ?? "Yüklenemedi"} onRetry={refetch} />;
   const s = data.stats;
 
   return (

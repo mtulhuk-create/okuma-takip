@@ -1,7 +1,7 @@
 "use client";
 
 import type { Group, Team } from "@prisma/client";
-import { AlarmClock, BookOpen, ChevronDown, Globe, Landmark, Lock, PencilLine, Plus, Shield, ShieldCheck, Trash2, Users } from "lucide-react";
+import { AlarmClock, AtSign, BookOpen, ChevronDown, Globe, Landmark, Lock, PencilLine, Plus, ShieldCheck, Trash2, UserRound, Users } from "lucide-react";
 import { useState } from "react";
 import { createGroup, updateGroup } from "@/app/actions";
 import { pickRules, type Rules } from "@/lib/rules";
@@ -10,19 +10,25 @@ import { BookSuggestProvider } from "./book-suggest";
 import { ActionForm, SubmitButton } from "./action-form";
 import { RulesEditor, Tiles } from "./rules-editor";
 
-function Section({ Icon, title, hint, children }: { Icon: typeof Lock; title: string; hint?: string; children: React.ReactNode }) {
+/**
+ * Ayar bölümü: başlıkta güncel ayarın özeti. Düzenlemede kapalı başlar (dokununca açılır);
+ * grup kurarken açık gelir. İçerik kapalıyken de formda kalır.
+ */
+function Section({ Icon, title, hint, summary, collapsible, children }: { Icon: typeof Lock; title: string; hint?: string; summary?: string; collapsible?: boolean; children: React.ReactNode }) {
+  const [open, setOpen] = useState(!collapsible);
   return (
-    <section className="card space-y-4">
-      <div className="flex items-start gap-3">
+    <section className="card overflow-hidden p-0">
+      <button type="button" onClick={() => collapsible && setOpen((o) => !o)} className={`flex w-full items-center gap-3 p-4 text-left ${collapsible ? "hover:bg-muted/40" : "cursor-default"}`} aria-expanded={open}>
         <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
           <Icon className="size-5" />
         </span>
-        <div>
-          <h2 className="font-bold leading-tight">{title}</h2>
-          {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
-        </div>
-      </div>
-      {children}
+        <span className="min-w-0 flex-1">
+          <span className="block font-bold leading-tight">{title}</span>
+          {open ? hint && <span className="block text-xs text-muted-foreground">{hint}</span> : summary && <span className="block truncate text-xs text-muted-foreground">{summary}</span>}
+        </span>
+        {collapsible && <ChevronDown className={`size-5 shrink-0 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />}
+      </button>
+      <div className={open ? "space-y-4 border-t border-border p-4" : "hidden"}>{children}</div>
     </section>
   );
 }
@@ -129,6 +135,13 @@ export function GroupForm({ group }: { group?: Group & { teams?: Team[] } }) {
   const [iban, setIban] = useState(group?.iban ?? "");
   const [dueOffset, setDueOffset] = useState(group?.dueOffsetDays ?? 0);
   const [kickOnExpire, setKickOnExpire] = useState(group?.kickOnExpire ?? true);
+  const [nameDisplay, setNameDisplay] = useState<"ENTERED" | "ACCOUNT" | "BOTH">(group?.nameDisplay ?? "ENTERED");
+  const edit = !!group;
+  // Kaydedilmemiş değişiklik: seçimlerin ilk halinden farkı ya da metin alanlarına yazılması
+  const snapshot = JSON.stringify([visibility, chatPolicy, shareProgress, rules, teamsEnabled, teams, start, deadline, reminderHours, iban, dueOffset, kickOnExpire, nameDisplay]);
+  const [saved, setSaved] = useState(snapshot);
+  const [typed, setTyped] = useState(false);
+  const dirty = typed || snapshot !== saved;
 
   const nextDay = deadline <= start;
   const newTeam = (n: number): TeamDraft => ({
@@ -143,8 +156,16 @@ export function GroupForm({ group }: { group?: Group & { teams?: Team[] } }) {
   }
 
   return (
-    <ActionForm action={group ? updateGroup : createGroup} className="space-y-4">
+    <ActionForm
+      action={group ? updateGroup : createGroup}
+      className="space-y-3"
+      onSuccess={() => {
+        setSaved(snapshot);
+        setTyped(false);
+      }}
+    >
       <BookSuggestProvider enabled={!group}>
+      <div className="space-y-3" onInputCapture={(e) => (e.target as HTMLElement).tagName !== "SELECT" && setTyped(true)}>
       {group && <input type="hidden" name="groupId" value={group.id} />}
       <input type="hidden" name="visibility" value={visibility} />
       <input type="hidden" name="chatPolicy" value={chatPolicy} />
@@ -162,20 +183,19 @@ export function GroupForm({ group }: { group?: Group & { teams?: Team[] } }) {
       <input type="hidden" name="reminderHours" value={reminderHours} />
       <input type="hidden" name="dueOffsetDays" value={dueOffset} />
       <input type="hidden" name="kickOnExpire" value={kickOnExpire ? "1" : "0"} />
+      <input type="hidden" name="nameDisplay" value={nameDisplay} />
 
-      <Section Icon={PencilLine} title="Temel bilgiler">
+      <Section Icon={PencilLine} title="Genel" summary={`${group?.name ?? ""} · ${visibility === "PUBLIC" ? "Herkese açık" : "Özel"}`} collapsible={edit}>
         <div>
           <label className="label">Grup adı</label>
           <input name="name" required minLength={3} maxLength={80} className="input" defaultValue={group?.name} placeholder="Örn. Sabah Okurları" />
         </div>
         <div>
           <label className="label">Açıklama (isteğe bağlı)</label>
-          <textarea name="description" maxLength={500} rows={2} className="input" defaultValue={group?.description ?? ""} placeholder="Grubun amacı, okunan kitap..." />
+          <textarea name="description" maxLength={500} rows={2} className="input" defaultValue={group?.description ?? ""} placeholder="Grubun amacı, okuma düzeni..." />
         </div>
-      </Section>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <Section Icon={Users} title="Kimler katılabilir?">
+        <div>
+          <p className="label">Kimler katılabilir?</p>
           <Tiles
             value={visibility}
             onChange={setVisibility}
@@ -184,26 +204,16 @@ export function GroupForm({ group }: { group?: Group & { teams?: Team[] } }) {
               { value: "PUBLIC", Icon: Globe, title: "Herkese açık", desc: "Listede görünür, istek alınır" },
             ]}
           />
-        </Section>
-        <Section Icon={ShieldCheck} title="Kimler yazabilir?">
-          <Tiles
-            value={chatPolicy}
-            onChange={setChatPolicy}
-            options={[
-              { value: "ALL", Icon: Users, title: "Tüm üyeler", desc: "Herkes mesaj ve anket atar" },
-              { value: "ADMINS", Icon: ShieldCheck, title: "Yöneticiler", desc: "Üyeler yalnızca okur" },
-            ]}
-          />
-          <Toggle
-            checked={shareProgress}
-            onChange={setShareProgress}
-            title="Okuyucular birbirinin geçmişini görsün"
-            desc="Kapalıyken üyeler sohbetteki geçmiş tablosunda yalnızca kendilerini görür."
-          />
-        </Section>
-      </div>
+        </div>
+      </Section>
 
-      <Section Icon={Shield} title="Ekipler" hint="Üyeleri ekiplere ayır; her ekibin kendi okuma ve ceza kuralları olsun.">
+      <Section
+        Icon={BookOpen}
+        title="Okuma ve ceza kuralları"
+        hint="Eserleri, günlük hedefi ve cezayı belirle. İstersen grubu ekiplere ayır."
+        summary={teamsEnabled ? `${teams.length} ekip · her ekibin kendi kuralı` : `${rules.books.map((b) => b.title).join(", ")} · günde ${rules.targetPages} sf · ${rules.penaltyMode === "FIXED" ? `${rules.penaltyAmount} TL/gün` : `${rules.penaltyAmount} TL/sayfa`}`}
+        collapsible={edit}
+      >
         <Toggle checked={teamsEnabled} onChange={toggleTeams} title="Grubu ekiplere böl" desc="Katılanlar ekibini seçer; ekip değişikliği yönetici onayıyla olur." />
         {teamsEnabled && (
           <div className="space-y-2">
@@ -224,15 +234,16 @@ export function GroupForm({ group }: { group?: Group & { teams?: Team[] } }) {
             )}
           </div>
         )}
+        {!teamsEnabled && <RulesEditor value={rules} onChange={setRules} />}
       </Section>
 
-      {!teamsEnabled && (
-        <Section Icon={BookOpen} title="Okuma kuralları" hint="Önce ceza türünü seç, sonra hedefi ve cezayı belirle.">
-          <RulesEditor value={rules} onChange={setRules} />
-        </Section>
-      )}
-
-      <Section Icon={AlarmClock} title="Zamanlama" hint="Türkiye saati">
+      <Section
+        Icon={AlarmClock}
+        title="Zamanlama"
+        hint="Türkiye saati"
+        summary={`${minuteToTime(start)} – ${nextDay ? "ertesi gün " : ""}${minuteToTime(deadline)}${reminderHours ? ` · ${reminderHours} sa önce uyarı` : " · uyarı kapalı"}`}
+        collapsible={edit}
+      >
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="label">Gün başlar</label>
@@ -266,7 +277,50 @@ export function GroupForm({ group }: { group?: Group & { teams?: Team[] } }) {
         </p>
       </Section>
 
-      <Section Icon={Landmark} title="Ceza ödemeleri" hint="Cezalar grubun kasasında toplanır; yönetici de herkes gibi okur ve ceza öder. Yalnızca üyeler görür.">
+      <Section
+        Icon={ShieldCheck}
+        title="Sohbet ve üyeler"
+        summary={`${chatPolicy === "ALL" ? "Herkes yazar" : "Yalnızca yöneticiler yazar"} · ${{ ENTERED: "Ad soyad", ACCOUNT: "Hesap adı", BOTH: "Ad + hesap adı" }[nameDisplay]} · geçmiş ${shareProgress ? "açık" : "gizli"}`}
+        collapsible={edit}
+      >
+        <div>
+          <p className="label">Kimler yazabilir?</p>
+          <Tiles
+            value={chatPolicy}
+            onChange={setChatPolicy}
+            options={[
+              { value: "ALL", Icon: Users, title: "Tüm üyeler", desc: "Herkes mesaj ve anket atar" },
+              { value: "ADMINS", Icon: ShieldCheck, title: "Yöneticiler", desc: "Üyeler yalnızca okur" },
+            ]}
+          />
+        </div>
+        <div>
+          <p className="label">Okuyucuların adı nasıl görünsün?</p>
+          <Tiles
+            value={nameDisplay}
+            onChange={setNameDisplay}
+            options={[
+              { value: "ENTERED", Icon: UserRound, title: "Ad soyad", desc: "Hesabı açarken girdiği ad soyad" },
+              { value: "ACCOUNT", Icon: AtSign, title: "Hesap adı", desc: "Google / e-posta hesabındaki ad" },
+              { value: "BOTH", Icon: Users, title: "İkisi", desc: "İlk kelimeleri: Ahmet (sinan)" },
+            ]}
+          />
+        </div>
+        <Toggle
+          checked={shareProgress}
+          onChange={setShareProgress}
+          title="Okuyucular birbirinin geçmişini görsün"
+          desc="Kapalıyken üyeler sohbetteki geçmiş tablosunda yalnızca kendilerini görür."
+        />
+      </Section>
+
+      <Section
+        Icon={Landmark}
+        title="Kasa ve ödemeler"
+        hint="Cezalar grubun kasasında toplanır; yönetici de herkes gibi okur ve ceza öder. Yalnızca üyeler görür."
+        summary={`${iban ? "IBAN girildi" : "IBAN yok"} · ${dueOffsetText(dueOffset).toLocaleLowerCase("tr-TR")} · ${kickOnExpire ? "ödemeyen çıkarılır" : "ödemeyen çıkarılmaz"}`}
+        collapsible={edit}
+      >
         <div>
           <label className="label">Grup kasası IBAN</label>
           <input
@@ -304,8 +358,13 @@ export function GroupForm({ group }: { group?: Group & { teams?: Team[] } }) {
         />
       </Section>
 
-      <div className="sticky bottom-[calc(env(safe-area-inset-bottom)+5rem)] z-10 rounded-xl bg-background/80 p-1 backdrop-blur">
-        <SubmitButton className="btn-primary h-12 w-full text-base shadow-lg">{group ? "Ayarları kaydet" : "Grubu oluştur"}</SubmitButton>
+      </div>
+      {/* Sabit kaydet çubuğu: değişiklik varsa belirgin */}
+      <div className="sticky bottom-[calc(env(safe-area-inset-bottom)+5rem)] z-10 flex items-center gap-3 rounded-xl border border-border bg-card/95 p-2 shadow-lg backdrop-blur">
+        <p className={`min-w-0 flex-1 truncate pl-1 text-xs ${dirty ? "font-semibold text-amber-700 dark:text-amber-400" : "text-muted-foreground"}`}>
+          {edit ? (dirty ? "Kaydedilmemiş değişiklikler var" : "Tüm değişiklikler kaydedildi") : "Bilgileri kontrol edip grubu oluştur"}
+        </p>
+        <SubmitButton className={`btn-primary h-11 shrink-0 px-5 ${edit && !dirty ? "opacity-60" : ""}`}>{group ? "Kaydet" : "Grubu oluştur"}</SubmitButton>
       </div>
       </BookSuggestProvider>
     </ActionForm>

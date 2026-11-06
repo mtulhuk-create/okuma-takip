@@ -1,12 +1,24 @@
 import { propagateLinkedBooks } from "./book-links";
 import { getDb } from "./db";
-import { parseBookLogs, rulesFor, type BookLog } from "./rules";
-import { openPeriod } from "./schedule";
+import { parseBookLogs, penaltyFor, rulesFor, type BookLog } from "./rules";
+import { openPeriod, periodFor } from "./schedule";
 
 /** all/min/none: tüm eserler için · pages: toplam sayfa (eserlere sırayla dağıtılır) · book: tek eser */
 export type ReportChoice = "all" | "min" | "none" | "pages";
 /** toggle: aynı seçim tekrar gönderilirse bildirimi geri al (beklemeye dön) */
-export type ReportInput = { choice: ReportChoice; pages?: number; bookId?: string; bookChoice?: "read" | "min" | "none"; toggle?: boolean };
+export type ReportInput = {
+  choice: ReportChoice;
+  pages?: number;
+  bookId?: string;
+  bookChoice?: "read" | "min" | "none";
+  toggle?: boolean;
+  /** Çevrimdışı yapılan işlem: işlemin yapıldığı an ve gün (internet gelince gönderilir) */
+  at?: Date;
+  dayKey?: string;
+};
+
+/** Çevrimdışı işlemler gün kapandıktan en fazla bu kadar sonra kabul edilir */
+export const OFFLINE_GRACE_MS = 72 * 3_600_000;
 
 /** Üyenin bugünkü (açık) okuma gününe bildirim yapması. */
 export async function submitReading(userId: string, groupId: string, input: ReportInput, expectedDayKey?: string) {
@@ -16,7 +28,18 @@ export async function submitReading(userId: string, groupId: string, input: Repo
     include: { group: { include: { teams: true } } },
   });
   if (!member || member.status !== "ACTIVE") throw new Error("Bu grubun aktif üyesi değilsiniz");
-  const period = openPeriod(new Date(), member.group);
+  const now = new Date();
+  let period = openPeriod(now, member.group);
+  let late = false;
+  // İnternetsizken yapılan işlem: işlemin yapıldığı an o günün süresi içindeyse, gün kapanmış olsa da kabul edilir
+  if (input.at && input.dayKey && (!period || period.dayKey !== input.dayKey)) {
+    const p = periodFor(input.dayKey, member.group);
+    const at = input.at.getTime();
+    if (at >= p.start.getTime() && at < p.deadline.getTime() && at <= now.getTime() + 5 * 60_000 && now.getTime() - p.deadline.getTime() <= OFFLINE_GRACE_MS) {
+      period = p;
+      late = now >= p.deadline;
+    } else throw new Error("Bu işlem okuma günü bittikten sonra yapılmış; kaydedilemedi");
+  }
   if (!period) throw new Error("Bugünün bildirim süresi doldu. Yeni okuma günü başlayınca bildirebilirsiniz.");
   if (expectedDayKey && expectedDayKey !== period.dayKey) throw new Error("Bu bildirimin süresi geçmiş");
   const rules = rulesFor(member.group, member);
@@ -49,6 +72,7 @@ export async function submitReading(userId: string, groupId: string, input: Repo
   const unchanged = !input.bookId && books.every((b, i) => b.pages === before[i]);
   if ((input.toggle && unchanged && existing) || (existing && books.every((b) => b.pages == null))) {
     await db.readingLog.delete({ where: { id: existing.id } });
+    if (late) await fixSettledPenalty(member.group, member, period.dayKey, 0, rules);
     return { log: null, period, member, rules, undone: true as const };
   }
 
@@ -63,7 +87,28 @@ export async function submitReading(userId: string, groupId: string, input: Repo
     create: { groupId, userId, dayKey: period.dayKey, ...snapshot },
     update: snapshot,
   });
+  // Gün kapandıktan sonra gelen çevrimdışı işlem: yazılmış cezayı yeni bildirime göre düzelt
+  if (late) await fixSettledPenalty(member.group, member, period.dayKey, log.pages, { ...rules, targetPages: log.requiredPages, minPages: log.minPages });
   // Diğer gruplarda "aynı eser" olarak bağlanan kitaplar da işaretlenir (orada hedef kadar)
-  await propagateLinkedBooks(userId, groupId, books).catch(() => {});
+  else await propagateLinkedBooks(userId, groupId, books).catch(() => {});
   return { log, period, member, rules, undone: false as const };
+}
+
+/**
+ * Gün kapandıktan sonra (çevrimdışı) gelen bildirimle, o gün için yazılmış ödenmemiş cezayı düzeltir:
+ * ceza gerekmiyorsa kaldırılır, tutar değiştiyse güncellenir. Vadeye bağlanmış ya da ödenmiş cezaya dokunulmaz.
+ */
+async function fixSettledPenalty(
+  group: { id: string; lastSettledDay: string | null },
+  member: { userId: string; joinedAt: Date },
+  dayKey: string,
+  pages: number,
+  rules: Parameters<typeof penaltyFor>[0],
+) {
+  const db = getDb();
+  const pen = await db.penalty.findUnique({ where: { groupId_userId_dayKey: { groupId: group.id, userId: member.userId, dayKey } } });
+  if (!pen || pen.status !== "UNPAID") return;
+  const amount = penaltyFor(rules, pages);
+  if (amount <= 0) await db.penalty.delete({ where: { id: pen.id } });
+  else if (amount !== pen.amount) await db.penalty.update({ where: { id: pen.id }, data: { amount, pagesRead: pages } });
 }

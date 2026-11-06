@@ -1,5 +1,5 @@
 import { BookSuggestProvider, useBookSuggest } from "./book-match";
-import { AlarmClock, BookOpen, ChevronDown, Globe, Landmark, Lock, PencilLine, Plus, Shield, ShieldCheck, Trash2, Users, type LucideIcon } from "lucide-react-native";
+import { AlarmClock, AtSign, BookOpen, ChevronDown, Globe, Landmark, Lock, PencilLine, Plus, ShieldCheck, Trash2, UserRound, Users, type LucideIcon } from "lucide-react-native";
 import { useState } from "react";
 import { Pressable, Switch, Text, View } from "react-native";
 import { fonts, useColors } from "@/lib/theme";
@@ -16,20 +16,23 @@ const pick = (r: Omit<Rules, "books"> & { books?: unknown }): Rules => {
   return { penaltyMode: r.penaltyMode, targetPages: books.reduce((s, b) => s + b.targetPages, 0), minPages: books.reduce((s, b) => s + b.minPages, 0), penaltyAmount: r.penaltyAmount, minDiscount: r.minDiscount, books };
 };
 
-function Section({ icon: Icon, title, hint, children }: { icon: LucideIcon; title: string; hint?: string; children: React.ReactNode }) {
+/** Ayar bölümü: başlıkta güncel ayarın özeti; düzenlemede kapalı başlar, dokununca açılır */
+function Section({ icon: Icon, title, hint, summary, collapsible, children }: { icon: LucideIcon; title: string; hint?: string; summary?: string; collapsible?: boolean; children: React.ReactNode }) {
   const c = useColors();
+  const [open, setOpen] = useState(!collapsible);
   return (
-    <Card style={{ gap: 14 }}>
-      <Row gap={10} style={{ alignItems: "flex-start" }}>
+    <Card style={{ gap: 0, padding: 0, overflow: "hidden" }}>
+      <Pressable onPress={() => collapsible && setOpen((o) => !o)} style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 10, padding: 14, backgroundColor: pressed && collapsible ? c.muted : "transparent" })}>
         <View style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: c.primary + "18", alignItems: "center", justifyContent: "center" }}>
           <Icon size={19} color={c.primary} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={{ fontFamily: fonts.bold, fontSize: 15, color: c.foreground }}>{title}</Text>
-          {hint && <Muted>{hint}</Muted>}
+          {open ? hint ? <Muted>{hint}</Muted> : null : summary ? <Muted numberOfLines={1}>{summary}</Muted> : null}
         </View>
-      </Row>
-      {children}
+        {collapsible && <ChevronDown size={20} color={c.mutedForeground} style={{ transform: [{ rotate: open ? "180deg" : "0deg" }] }} />}
+      </Pressable>
+      {open && <View style={{ gap: 14, padding: 14, borderTopWidth: 1, borderTopColor: c.border }}>{children}</View>}
     </Card>
   );
 }
@@ -82,6 +85,12 @@ export function GroupForm({ group, onSubmit, submitting, submitLabel }: { group?
   const [dueOffset, setDueOffset] = useState(group?.dueOffsetDays ?? 0);
   const suggest = useBookSuggest(!group);
   const [kickOnExpire, setKickOnExpire] = useState(group?.kickOnExpire ?? true);
+  const [nameDisplay, setNameDisplay] = useState<"ENTERED" | "ACCOUNT" | "BOTH">(group?.nameDisplay ?? "ENTERED");
+  const edit = !!group;
+  // Kaydedilmemiş değişiklik göstergesi
+  const snapshot = JSON.stringify([name, description, visibility, chatPolicy, shareProgress, rules, teamsEnabled, teams, startMinute, deadlineMinute, reminderHours, iban, ibanName, dueOffset, kickOnExpire, nameDisplay]);
+  const [saved, setSaved] = useState(snapshot);
+  const dirty = snapshot !== saved;
   const time = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
   const newTeam = (n: number): TeamDraft => ({ ...rules, books: rules.books.map((b) => ({ ...b, id: `${b.id}-${n}` })), name: `${String.fromCharCode(65 + n)} Ekibi`, key: `new-${Date.now()}-${n}` });
 
@@ -93,41 +102,29 @@ export function GroupForm({ group, onSubmit, submitting, submitLabel }: { group?
   return (
     <BookSuggestProvider value={suggest}>
     <View style={{ gap: 14 }}>
-      <Section icon={PencilLine} title="Temel bilgiler">
+      <Section icon={PencilLine} title="Genel" summary={`${name || "Adsız grup"} · ${visibility === "PUBLIC" ? "Herkese açık" : "Özel"}`} collapsible={edit}>
         <Input label="Grup adı" value={name} onChangeText={setName} placeholder="Örn. Sabah Okurları" maxLength={80} />
         <Input label="Açıklama (isteğe bağlı)" value={description} onChangeText={setDescription} multiline maxLength={500} />
+        <View>
+          <Muted style={{ marginBottom: 6 }}>Kimler katılabilir?</Muted>
+          <Segmented
+            value={visibility}
+            onChange={setVisibility}
+            options={[
+              { value: "PRIVATE", label: "Özel", hint: "Yalnızca davetle", icon: Lock },
+              { value: "PUBLIC", label: "Herkese açık", hint: "Listede görünür", icon: Globe },
+            ]}
+          />
+        </View>
       </Section>
 
-      <Section icon={Users} title="Kimler katılabilir?">
-        <Segmented
-          value={visibility}
-          onChange={setVisibility}
-          options={[
-            { value: "PRIVATE", label: "Özel", hint: "Yalnızca davetle", icon: Lock },
-            { value: "PUBLIC", label: "Herkese açık", hint: "Listede görünür", icon: Globe },
-          ]}
-        />
-      </Section>
-
-      <Section icon={ShieldCheck} title="Kimler yazabilir?">
-        <Segmented
-          value={chatPolicy}
-          onChange={setChatPolicy}
-          options={[
-            { value: "ALL", label: "Tüm üyeler", hint: "Mesaj ve anket", icon: Users },
-            { value: "ADMINS", label: "Yöneticiler", hint: "Üyeler okur", icon: ShieldCheck },
-          ]}
-        />
-        <Row style={{ justifyContent: "space-between" }}>
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontFamily: fonts.semibold, fontSize: 14, color: c.foreground }}>Okuyucular birbirinin geçmişini görsün</Text>
-            <Muted>Kapalıyken üyeler geçmiş tablosunda yalnızca kendilerini görür.</Muted>
-          </View>
-          <Switch value={shareProgress} onValueChange={setShareProgress} trackColor={{ true: c.primary, false: c.muted }} thumbColor="#fff" />
-        </Row>
-      </Section>
-
-      <Section icon={Shield} title="Ekipler" hint="Her ekibin kendi okuma ve ceza kuralları olur.">
+      <Section
+        icon={BookOpen}
+        title="Okuma ve ceza kuralları"
+        hint="Eserleri, günlük hedefi ve cezayı belirle. İstersen grubu ekiplere ayır."
+        summary={teamsEnabled ? `${teams.length} ekip · her ekibin kendi kuralı` : `${rules.books.map((x) => x.title).join(", ")} · günde ${rules.targetPages} sf · ${rules.penaltyMode === "FIXED" ? `${rules.penaltyAmount} TL/gün` : `${rules.penaltyAmount} TL/sayfa`}`}
+        collapsible={edit}
+      >
         <Row style={{ justifyContent: "space-between" }}>
           <View style={{ flex: 1 }}>
             <Text style={{ fontFamily: fonts.semibold, fontSize: 14, color: c.foreground }}>Grubu ekiplere böl</Text>
@@ -150,15 +147,16 @@ export function GroupForm({ group, onSubmit, submitting, submitLabel }: { group?
             <Button title="Ekip ekle" icon={Plus} small variant="ghost" onPress={() => setTeams((all) => [...all, newTeam(all.length)])} style={{ alignSelf: "flex-start" }} />
           </View>
         )}
+        {!teamsEnabled && <RulesEditor value={rules} onChange={setRules} />}
       </Section>
 
-      {!teamsEnabled && (
-        <Section icon={BookOpen} title="Okuma kuralları" hint="Önce ceza türünü seç, sonra hedefi ve cezayı belirle.">
-          <RulesEditor value={rules} onChange={setRules} />
-        </Section>
-      )}
-
-      <Section icon={AlarmClock} title="Zamanlama" hint="Türkiye saati">
+      <Section
+        icon={AlarmClock}
+        title="Zamanlama"
+        hint="Türkiye saati"
+        summary={`${time(startMinute)} – ${deadlineMinute <= startMinute ? "ertesi gün " : ""}${time(deadlineMinute)}${reminderHours ? ` · ${reminderHours} sa önce uyarı` : " · uyarı kapalı"}`}
+        collapsible={edit}
+      >
         <Row>
           <TimeField label="Gün başlar" minute={startMinute} onChange={setStartMinute} />
           <TimeField label={deadlineMinute <= startMinute ? "Son bildirim (ertesi gün)" : "Son bildirim"} minute={deadlineMinute} onChange={setDeadlineMinute} />
@@ -179,7 +177,51 @@ export function GroupForm({ group, onSubmit, submitting, submitLabel }: { group?
         </Muted>
       </Section>
 
-      <Section icon={Landmark} title="Ceza ödemeleri" hint="Cezalar grubun kasasında toplanır; yönetici de herkes gibi okur ve ceza öder. Yalnızca üyeler görür.">
+      <Section
+        icon={ShieldCheck}
+        title="Sohbet ve üyeler"
+        summary={`${chatPolicy === "ALL" ? "Herkes yazar" : "Yalnızca yöneticiler yazar"} · ${{ ENTERED: "Ad soyad", ACCOUNT: "Hesap adı", BOTH: "Ad + hesap adı" }[nameDisplay]} · geçmiş ${shareProgress ? "açık" : "gizli"}`}
+        collapsible={edit}
+      >
+        <View>
+          <Muted style={{ marginBottom: 6 }}>Kimler yazabilir?</Muted>
+          <Segmented
+            value={chatPolicy}
+            onChange={setChatPolicy}
+            options={[
+              { value: "ALL", label: "Tüm üyeler", hint: "Mesaj ve anket", icon: Users },
+              { value: "ADMINS", label: "Yöneticiler", hint: "Üyeler okur", icon: ShieldCheck },
+            ]}
+          />
+        </View>
+        <View>
+          <Muted style={{ marginBottom: 6 }}>Okuyucuların adı nasıl görünsün?</Muted>
+          <Segmented
+            value={nameDisplay}
+            onChange={setNameDisplay}
+            options={[
+              { value: "ENTERED", label: "Ad soyad", hint: "Girdiği ad", icon: UserRound },
+              { value: "ACCOUNT", label: "Hesap adı", hint: "Google / e-posta", icon: AtSign },
+              { value: "BOTH", label: "İkisi", hint: "Ahmet (sinan)", icon: Users },
+            ]}
+          />
+        </View>
+        <Row style={{ justifyContent: "space-between" }}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontFamily: fonts.semibold, fontSize: 14, color: c.foreground }}>Okuyucular birbirinin geçmişini görsün</Text>
+            <Muted>Kapalıyken üyeler geçmiş tablosunda yalnızca kendilerini görür.</Muted>
+          </View>
+          <Switch value={shareProgress} onValueChange={setShareProgress} trackColor={{ true: c.primary, false: c.muted }} thumbColor="#fff" />
+        </Row>
+      </Section>
+
+      <Section
+        icon={Landmark}
+        title="Kasa ve ödemeler"
+        hint="Cezalar grubun kasasında toplanır; yönetici de herkes gibi okur ve ceza öder. Yalnızca üyeler görür."
+        summary={`${iban ? "IBAN girildi" : "IBAN yok"} · ${dueOffset === 0 ? "ay sonu" : dueOffset < 0 ? `ay sonundan ${-dueOffset} gün önce` : `ay sonundan ${dueOffset} gün sonra`} · ${kickOnExpire ? "ödemeyen çıkarılır" : "ödemeyen çıkarılmaz"}`}
+        collapsible={edit}
+      >
         <Input label="Grup kasası IBAN" value={iban.replace(/(.{4})/g, "$1 ").trim()} onChangeText={(v) => setIban(v.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 26))} autoCapitalize="characters" placeholder="TR00 0000 0000 0000 0000 0000 00" />
         <Input label="Hesap sahibi adı soyadı" value={ibanName} onChangeText={setIbanName} />
         <View>
@@ -204,10 +246,13 @@ export function GroupForm({ group, onSubmit, submitting, submitLabel }: { group?
         </Row>
       </Section>
 
+      {edit && <Text style={{ textAlign: "center", fontFamily: dirty ? fonts.semibold : fonts.regular, fontSize: 12, color: dirty ? c.warning : c.mutedForeground }}>{dirty ? "Kaydedilmemiş değişiklikler var" : "Tüm değişiklikler kaydedildi"}</Text>}
       <Button
         title={submitLabel}
         loading={submitting}
-        onPress={() =>
+        disabled={edit && !dirty}
+        onPress={() => {
+          setSaved(snapshot);
           onSubmit({
             ...(group ? { groupId: group.id } : {}),
             name,
@@ -226,9 +271,10 @@ export function GroupForm({ group, onSubmit, submitting, submitLabel }: { group?
             ibanName,
             dueOffsetDays: dueOffset,
             kickOnExpire: kickOnExpire ? "1" : "0",
+            nameDisplay,
             ...(group ? {} : { bookLinks: suggest.linksJson() }),
-          })
-        }
+          });
+        }}
       />
     </View>
     </BookSuggestProvider>

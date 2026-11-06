@@ -1,8 +1,9 @@
 import { router } from "expo-router";
-import { BookOpen, Check, CheckCheck, ChevronRight, Clock, Link2, Lock, X, type LucideIcon } from "lucide-react-native";
+import { BookOpen, Check, CheckCheck, ChevronRight, Clock, CloudOff, Link2, Lock, X, type LucideIcon } from "lucide-react-native";
 import { useState } from "react";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import { useAction } from "@/lib/api";
+import { useOfflineQueue } from "@/lib/offline";
 import { formatDayLong, formatClock } from "@/lib/format";
 import { fonts, radius, useColors } from "@/lib/theme";
 import type { DayCard as Card } from "@/lib/types";
@@ -61,7 +62,8 @@ export function ReportControls({ groupId, card, compact, onDone }: { groupId: st
   const single = me.books.length === 1;
   const busy = (key: string) => action.isPending && action.variables?.body?.key === key;
   // toggle: aynı butona tekrar basılırsa bildirim geri alınır (beklemeye döner)
-  const send = (body: Record<string, unknown>, key: string) => action.mutate({ name: "reportReading", body: { groupId, ...body, key, toggle: "1" } }, { onSuccess: () => onDone?.() });
+  // dayKey: internet yoksa işlem bu güne ait olarak sıraya alınır
+  const send = (body: Record<string, unknown>, key: string) => action.mutate({ name: "reportReading", body: { groupId, dayKey: card.dayKey, ...body, key, toggle: "1" } }, { onSuccess: () => onDone?.() });
   const BTNS: { key: BookChoice; Icon: LucideIcon; color: string }[] = [
     { key: "read", Icon: CheckCheck, color: c.success },
     { key: "min", Icon: Check, color: c.warning },
@@ -158,12 +160,30 @@ export function ReportControls({ groupId, card, compact, onDone }: { groupId: st
           </Pressable>
         ))}
       </Row>
+      <OfflinePending groupId={groupId} dayKey={card.dayKey} />
       {status && (
         <Text style={{ textAlign: "center", fontFamily: fonts.regular, fontSize: 11, color: c.mutedForeground }}>
           Bugün <Text style={{ fontFamily: fonts.bold, color: c.foreground }}>{total}</Text>/{me.target} sayfa · {status} · tekrar basınca geri alınır
         </Text>
       )}
     </View>
+  );
+}
+
+/** Çevrimdışı kaydedilip henüz gönderilmemiş işlemler */
+function OfflinePending({ groupId, dayKey }: { groupId: string; dayKey: string }) {
+  const c = useColors();
+  const items = useOfflineQueue().filter((i) => i.groupId === groupId && i.dayKey === dayKey);
+  if (!items.length) return null;
+  const last = items[items.length - 1];
+  return (
+    <Row gap={6} style={{ backgroundColor: c.warning + "1f", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5 }}>
+      <CloudOff size={13} color={c.warning} />
+      <Text style={{ flex: 1, fontFamily: fonts.semibold, fontSize: 11, color: c.warning }}>
+        Çevrimdışı kaydedildi: {last.label}
+        {items.length > 1 ? ` (+${items.length - 1})` : ""} · internet gelince işlem saatiyle gönderilecek
+      </Text>
+    </Row>
   );
 }
 
@@ -408,7 +428,7 @@ export function DayShortcut({ card, groupId, onJump, onReported }: { card: Card;
                 key={b.choice}
                 disabled={action.isPending}
                 accessibilityLabel={b.label}
-                onPress={() => action.mutate({ name: "reportReading", body: { groupId, choice: b.choice, key: `sc-${b.choice}`, toggle: "1" } }, { onSuccess: () => onReported?.() })}
+                onPress={() => action.mutate({ name: "reportReading", body: { groupId, dayKey: card.dayKey, choice: b.choice, key: `sc-${b.choice}`, toggle: "1" } }, { onSuccess: () => onReported?.() })}
                 style={{ height: 32, minWidth: 34, paddingHorizontal: 7, borderRadius: 8, borderWidth: 1, borderColor: on ? b.color : c.border, backgroundColor: on ? b.color : c.card, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 3 }}
               >
                 {busy(b.choice) ? <ActivityIndicator size="small" color={on ? "#fff" : b.color} /> : <b.Icon size={14} color={on ? "#fff" : b.color} strokeWidth={2.6} />}

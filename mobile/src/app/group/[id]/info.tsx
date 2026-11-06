@@ -20,7 +20,7 @@ export default function GroupInfoScreen() {
   const [note, setNote] = useState("");
   const [team, setTeam] = useState<string | null>(null);
   if (isLoading) return <Loading />;
-  if (error || !data || data.private || !data.me || !data.board) return <ErrorView message={error?.message ?? "Bu grubun üyesi değilsin"} onRetry={refetch} />;
+  if (!data || data.private || !data.me || !data.board) return <ErrorView message={error?.message ?? "Bu grubun üyesi değilsin"} onRetry={refetch} />;
   const { group, me, myRules, teamChange, board } = data;
   const unpaid = board.penalties.filter((p) => p.status === "UNPAID" || p.status === "IN_DUE");
   const total = unpaid.reduce((s, p) => s + p.amount, 0);

@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { CalendarDays, Plus, Receipt, Search, Wallet } from "lucide-react-native";
+import { CalendarDays, CloudOff, Plus, Receipt, Search, Wallet } from "lucide-react-native";
 import { Pressable, Text, View } from "react-native";
 import { DayCardMini } from "@/components/day-card";
 import { MyHistorySection } from "@/components/history";
@@ -14,7 +14,7 @@ export default function TodayScreen() {
   const c = useColors();
   const { data, isLoading, error, refetch, isRefetching } = useApi<MeResponse>("/api/m/me");
   if (isLoading) return <Loading />;
-  if (error || !data) return <ErrorView message={error?.message ?? "Yüklenemedi"} onRetry={refetch} />;
+  if (!data) return <ErrorView message={error?.message ?? "Yüklenemedi"} onRetry={refetch} />;
 
   return (
     <Screen refreshing={isRefetching} onRefresh={refetch}>
@@ -31,6 +31,12 @@ export default function TodayScreen() {
         </Row>
       </Row>
 
+      {error && (
+        <Row gap={6} style={{ backgroundColor: c.warning + "1f", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 }}>
+          <CloudOff size={14} color={c.warning} />
+          <Text style={{ flex: 1, fontFamily: fonts.semibold, fontSize: 12, color: c.warning }}>İnternet yok · son kaydedilen veriler gösteriliyor. Gün kartında işaretleme yapabilirsin; bağlanınca gönderilir.</Text>
+        </Row>
+      )}
       <MyHistorySection />
 
       {data.money.dues.map((d) => (
