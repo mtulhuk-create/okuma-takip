@@ -47,9 +47,10 @@ function Navigation() {
   useEffect(() => {
     if (isLoaded) SplashScreen.hideAsync();
   }, [isLoaded]);
+  // Yalnızca gerçekten çıkış yapıldığında önbelleği temizle (Clerk yüklenmeden önce değil; internetsiz açılışta veriler kalsın)
   useEffect(() => {
-    if (!isSignedIn) queryClient.clear();
-  }, [isSignedIn]);
+    if (isLoaded && isSignedIn === false) queryClient.clear();
+  }, [isLoaded, isSignedIn]);
   if (!isLoaded) return null;
 
   const base = scheme === "dark" ? DarkTheme : DefaultTheme;

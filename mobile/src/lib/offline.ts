@@ -68,7 +68,7 @@ export function useOfflineQueue() {
 /** Ağ hatası mı (sunucudan yanıt gelmedi)? */
 export function isNetworkError(e: unknown) {
   const msg = String((e as Error)?.message ?? e);
-  return e instanceof TypeError || /network request failed|network error|failed to fetch|timed? ?out/i.test(msg);
+  return e instanceof TypeError || /network|fetch failed|failed to fetch|unknownhost|unable to resolve host|timed? ?out|econn|socket|internet/i.test(msg);
 }
 
 let flushing = false;

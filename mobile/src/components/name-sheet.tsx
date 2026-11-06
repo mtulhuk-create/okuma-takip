@@ -6,14 +6,7 @@ import { useAction } from "@/lib/api";
 import { useColors } from "@/lib/theme";
 import { Body, Button, H1, Input, Muted, Row } from "./ui";
 
-/** Kayıtlı adı iki parçaya ayırır: son kelime soyad, öncesi ad. */
-function split(name: string) {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length < 2) return { first: parts[0] ?? "", last: "" };
-  return { first: parts.slice(0, -1).join(" "), last: parts[parts.length - 1] };
-}
-
-/** Ad soyad penceresi: ad soyad girilmemişse kapatılamaz; profilden açıldığında düzenleme için kullanılır. */
+/** Ad penceresi: ad girilmemişse kapatılamaz; profilden açıldığında düzenleme için kullanılır. */
 type Props = { visible: boolean; name: string; required?: boolean; onClose?: () => void };
 
 export function NameSheet(props: Props) {
@@ -32,9 +25,8 @@ function NameForm({ name, required, onClose, close }: Props & { close: () => voi
   const c = useColors();
   const insets = useSafeAreaInsets();
   const action = useAction();
-  const [first, setFirst] = useState(() => split(name).first);
-  const [last, setLast] = useState(() => split(name).last);
-  const ok = first.trim().length >= 2 && last.trim().length >= 2;
+  const [value, setValue] = useState(name);
+  const ok = value.trim().length >= 2;
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
       <Pressable onPress={close} style={{ flex: 1, backgroundColor: "#0007", justifyContent: "flex-end" }}>
@@ -43,12 +35,11 @@ function NameForm({ name, required, onClose, close }: Props & { close: () => voi
             <View style={{ width: 52, height: 52, borderRadius: 16, backgroundColor: c.primary + "1a", alignItems: "center", justifyContent: "center" }}>
               <UserRound size={26} color={c.primary} />
             </View>
-            <H1 style={{ fontSize: 22 }}>{required ? "Seni tanıyalım" : "Ad soyadını düzenle"}</H1>
+            <H1 style={{ fontSize: 22 }}>{required ? "Seni tanıyalım" : "Adını düzenle"}</H1>
             <Muted style={{ textAlign: "center" }}>Grup arkadaşların seni sohbette, gün kartlarında ve okuma geçmişinde bu adla görecek.</Muted>
           </View>
-          <Input label="Ad" value={first} onChangeText={setFirst} autoCapitalize="words" autoComplete="given-name" textContentType="givenName" maxLength={40} autoFocus />
-          <Input label="Soyad" value={last} onChangeText={setLast} autoCapitalize="words" autoComplete="family-name" textContentType="familyName" maxLength={40} />
-          {required && <Body style={{ fontSize: 12, color: c.mutedForeground }}>Devam etmek için ad ve soyadını yaz.</Body>}
+          <Input label="Kullanmak istediğiniz adınız" value={value} onChangeText={setValue} autoCapitalize="words" autoComplete="name" textContentType="name" maxLength={60} autoFocus />
+          {required && <Body style={{ fontSize: 12, color: c.mutedForeground }}>Devam etmek için adını yaz.</Body>}
           <Row>
             {!required && <Button title="Vazgeç" variant="ghost" onPress={onClose} style={{ flex: 1 }} />}
             <Button
@@ -56,7 +47,7 @@ function NameForm({ name, required, onClose, close }: Props & { close: () => voi
               style={{ flex: 1 }}
               disabled={!ok}
               loading={action.isPending}
-              onPress={() => action.mutate({ name: "saveFullName", body: { firstName: first, lastName: last } }, { onSuccess: () => onClose?.() })}
+              onPress={() => action.mutate({ name: "saveFullName", body: { name: value } }, { onSuccess: () => onClose?.() })}
             />
           </Row>
         </Pressable>

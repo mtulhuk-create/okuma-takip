@@ -43,6 +43,8 @@ export function similarWord(a: string, b: string) {
   return diff + (x.length - i) + (y.length - j) <= 1;
 }
 
+const cap = (w: string) => w.charAt(0).toLocaleUpperCase("tr-TR") + w.slice(1);
+
 export function shownName(u: U, mode: NameMode | null | undefined) {
   const account = u.accountName?.trim() || u.name;
   if (mode === "ACCOUNT") return account;
@@ -54,8 +56,8 @@ export function shownName(u: U, mode: NameMode | null | undefined) {
     // o da yoksa girilen soyad kullanılır
     const b = acc.find((w) => !similarWord(w, a) && !fold(a).includes(fold(w)));
     const last = entered.length > 1 ? entered[entered.length - 1] : null;
-    // Hesap adındaki kelime girilen soyadla aynıysa parantez yerine soyadı yaz ("Ahmet (yilmaz)" → "Ahmet Yılmaz")
-    if (b && !(last && similarWord(b, last))) return `${a} (${b})`;
+    // Hesap adındaki kelime girilen soyadla aynıysa onun yerine soyadı yaz ("Ahmet yilmaz" → "Ahmet Yılmaz")
+    if (b && !(last && similarWord(b, last))) return `${a} ${cap(b)}`;
     return last ? `${a} ${last}` : a;
   }
   return u.name;
@@ -65,4 +67,17 @@ export function shownName(u: U, mode: NameMode | null | undefined) {
 export function withShownName<T extends { name: string; accountName?: string | null }>(u: T, mode: NameMode | null | undefined): Omit<T, "accountName"> {
   const { accountName, ...rest } = u;
   return { ...rest, name: shownName({ name: u.name, accountName }, mode) };
+}
+
+/**
+ * Pencerede yazılan ad, hesap adıyla aynı ya da çok benzer ve başka kelime yoksa hesap adı kullanılır
+ * ("Sinan" + hesap "sinanaykitt" → "sinanaykitt").
+ */
+export function chooseName(entered: string, accountName: string | null | undefined) {
+  const acc = accountName?.trim();
+  if (!acc) return entered;
+  const ew = words(entered);
+  const aw = words(acc);
+  const covered = ew.every((w) => aw.some((a) => similarWord(w, a)));
+  return covered ? acc : entered;
 }
