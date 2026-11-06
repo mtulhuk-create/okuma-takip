@@ -1,5 +1,7 @@
 "use client";
 
+import { BookSuggestions, useUnlinkOnEdit } from "./book-suggest";
+
 import { BookOpen, CalendarX2, Check, CheckCheck, FileMinus2, Minus, Percent, Plus, Trash2, X } from "lucide-react";
 import { penaltyFor, type Book, type Rules } from "@/lib/rules";
 
@@ -98,6 +100,7 @@ function NumberField({ label, value, onChange, min, max }: { label: string; valu
 const newBook = (): Book => ({ id: Math.random().toString(36).slice(2, 10), title: "", targetPages: 20, minPages: 10 });
 
 function BooksEditor({ books, onChange }: { books: Book[]; onChange: (b: Book[]) => void }) {
+  const unlink = useUnlinkOnEdit();
   const update = (id: string, patch: Partial<Book>) =>
     onChange(
       books.map((b) => {
@@ -116,16 +119,28 @@ function BooksEditor({ books, onChange }: { books: Book[]; onChange: (b: Book[])
             <input
               value={b.title}
               maxLength={80}
-              onChange={(e) => update(b.id, { title: e.target.value })}
+              onChange={(e) => {
+                unlink(b.id, e.target.value);
+                update(b.id, { title: e.target.value });
+              }}
               placeholder={i === 0 ? "Eser adı" : `${i + 1}. eser adı`}
               className={`input h-9 ${b.title.trim() ? "" : "border-amber-400"}`}
             />
             {books.length > 1 && (
-              <button type="button" className="btn-icon size-9 shrink-0" onClick={() => onChange(books.filter((x) => x.id !== b.id))} aria-label="Eseri kaldır">
+              <button
+                type="button"
+                className="btn-icon size-9 shrink-0"
+                onClick={() => {
+                  unlink(b.id, "");
+                  onChange(books.filter((x) => x.id !== b.id));
+                }}
+                aria-label="Eseri kaldır"
+              >
                 <Trash2 />
               </button>
             )}
           </div>
+          <BookSuggestions bookId={b.id} title={b.title} onPick={(title) => update(b.id, { title })} />
           <div className="flex gap-2">
             <NumberField label="Günlük hedef (sayfa)" value={b.targetPages} onChange={(targetPages) => update(b.id, { targetPages })} min={1} max={2000} />
             <NumberField label="Alt sınır (sayfa)" value={b.minPages} onChange={(minPages) => update(b.id, { minPages })} min={0} max={b.targetPages} />

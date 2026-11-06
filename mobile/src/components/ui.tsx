@@ -1,6 +1,7 @@
 import { Image } from "expo-image";
 import { BookX, type LucideIcon } from "lucide-react-native";
-import type { ReactNode } from "react";
+import { useFocusEffect } from "expo-router";
+import { useCallback, useRef, type ReactNode } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -13,6 +14,7 @@ import {
   type StyleProp,
   type TextInputProps,
   type TextStyle,
+  type ScrollViewInstance,
   type ViewStyle,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -31,8 +33,16 @@ export function Screen({
 }) {
   const c = useColors();
   const insets = useSafeAreaInsets();
+  // Ekrana her girişte en üstten başla (sekmeler açık kalsa da)
+  const ref = useRef<ScrollViewInstance>(null);
+  useFocusEffect(
+    useCallback(() => {
+      ref.current?.scrollTo({ y: 0, animated: false });
+    }, []),
+  );
   return (
     <ScrollView
+      ref={ref}
       style={{ flex: 1, backgroundColor: c.background }}
       contentContainerStyle={{ padding: 16, paddingTop: padTop ? insets.top + 12 : 16, paddingBottom: 40 + insets.bottom, gap: 14 }}
       keyboardShouldPersistTaps="handled"

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requestJoin, respondInvite } from "@/app/actions";
 import { ActionForm, SubmitButton } from "@/components/action-form";
+import { JoinForm } from "@/components/join-form";
 import { ChatView } from "@/components/chat/chat-view";
 import { GroupRules } from "@/components/group-rules";
 import { TeamSelect } from "@/components/team-select";
@@ -58,7 +59,7 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
           <p className="flex items-center gap-2 text-sm">
             <Mail className="size-4 text-primary" /> <b>{invite.inviter.name}</b> seni bu gruba davet etti.
           </p>
-          <ActionForm action={respondInvite} className="flex flex-wrap gap-2">
+          <JoinForm action={respondInvite} groupId={id} className="flex flex-wrap gap-2">
             <input type="hidden" name="inviteId" value={invite.id} />
             {teamsActive(group) && <TeamSelect teams={group.teams} />}
             <SubmitButton name="accept" value="1" className="btn-primary flex-1">
@@ -67,12 +68,12 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
             <SubmitButton name="accept" value="0" className="btn-ghost flex-1">
               Reddet
             </SubmitButton>
-          </ActionForm>
+          </JoinForm>
         </div>
       ) : request ? (
         <p className="card text-sm">Katılım isteğin yönetici onayı bekliyor.</p>
       ) : (
-        <ActionForm action={requestJoin} className="card space-y-3">
+        <JoinForm action={requestJoin} groupId={id} className="card space-y-3">
           <input type="hidden" name="groupId" value={group.id} />
           {teamsActive(group) && (
             <div>
@@ -82,7 +83,7 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
           )}
           <input name="message" maxLength={300} placeholder="Yöneticiye not (isteğe bağlı)" className="input" />
           <SubmitButton className="btn-primary w-full">Katılma isteği gönder</SubmitButton>
-        </ActionForm>
+        </JoinForm>
       )}
     </main>
   );

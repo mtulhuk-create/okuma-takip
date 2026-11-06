@@ -2,6 +2,7 @@ import { Bell, Mail } from "lucide-react";
 import Link from "next/link";
 import { respondInvite } from "@/app/actions";
 import { ActionForm, SubmitButton } from "@/components/action-form";
+import { JoinForm } from "@/components/join-form";
 import { MarkSeen } from "@/components/mark-seen";
 import { TeamSelect } from "@/components/team-select";
 import { requireUser } from "@/lib/auth";
@@ -38,7 +39,7 @@ export default async function NotificationsPage() {
               </p>
             </div>
           </div>
-          <ActionForm action={respondInvite} className="flex flex-wrap gap-2">
+          <JoinForm action={respondInvite} groupId={inv.group.id} className="flex flex-wrap gap-2">
             <input type="hidden" name="inviteId" value={inv.id} />
             {teamsActive(inv.group) && <TeamSelect teams={inv.group.teams} />}
             <SubmitButton name="accept" value="1" className="btn-primary flex-1">
@@ -47,7 +48,7 @@ export default async function NotificationsPage() {
             <SubmitButton name="accept" value="0" className="btn-ghost flex-1">
               Reddet
             </SubmitButton>
-          </ActionForm>
+          </JoinForm>
         </div>
       ))}
 

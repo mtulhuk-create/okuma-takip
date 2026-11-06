@@ -10,7 +10,11 @@ export const requireUser = cache(async () => {
   if (!userId) redirect("/sign-in");
   const db = getDb();
   const existing = await db.user.findUnique({ where: { id: userId } });
-  if (existing) return existing;
+  if (existing) {
+    // Adı zaten gerçek bir ad soyada benziyorsa ad soyad penceresi gösterilmez
+    if (!existing.nameConfirmed && looksLikeFullName(existing.name)) return db.user.update({ where: { id: userId }, data: { nameConfirmed: true } });
+    return existing;
+  }
 
   const cu = await currentUser();
   if (!cu) redirect("/sign-in");
@@ -27,7 +31,7 @@ export const requireUser = cache(async () => {
       id: userId,
       name,
       // Kayıtta ad ve soyad alındıysa tekrar sorulmaz; yoksa ilk açılışta istenir
-      nameConfirmed: !!(first && last),
+      nameConfirmed: !!(first && last) || looksLikeFullName(name),
       username: cu.username ?? null,
       email: cu.primaryEmailAddress?.emailAddress ?? null,
       imageUrl: cu.imageUrl,
@@ -71,4 +75,14 @@ export function splitFullName(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length < 2) return { firstName: parts[0] ?? "", lastName: "" };
   return { firstName: parts.slice(0, -1).join(" "), lastName: parts[parts.length - 1] };
+}
+
+/**
+ * Ad gerçek bir ad soyad gibi mi? En az iki kelime, her kelime en az 2 harf ve yalnızca harf
+ * (rakam, alt çizgi, nokta yok). "ahmet123", "sinanaykitt", "a.b_c" gibi takma adlar geçmez.
+ */
+export function looksLikeFullName(name: string) {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length < 2) return false;
+  return words.every((w) => /^[\p{L}][\p{L}\p{M}'-]+$/u.test(w));
 }

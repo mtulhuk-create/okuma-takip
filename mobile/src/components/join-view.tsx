@@ -1,3 +1,4 @@
+import { useBookCheck } from "@/components/book-match";
 import { Lock, Mail, Users } from "lucide-react-native";
 import { useState } from "react";
 import { View } from "react-native";
@@ -13,6 +14,7 @@ export function JoinView({ groupId }: { groupId: string }) {
   const c = useColors();
   const { data, isLoading, error, refetch } = useApi<GroupDetailResponse>(`/api/m/groups/${groupId}`);
   const action = useAction();
+  const bookCheck = useBookCheck();
   const [note, setNote] = useState("");
   const [team, setTeam] = useState<string | null>(null);
   if (isLoading) return <Loading />;
@@ -68,8 +70,8 @@ export function JoinView({ groupId }: { groupId: string }) {
                 loading={action.isPending}
                 onPress={() =>
                   invite
-                    ? action.mutate({ name: "respondInvite", body: { inviteId: invite.id, accept: "1", teamId: team } })
-                    : action.mutate({ name: "requestJoin", body: { groupId, message: note, teamId: team } })
+                    ? bookCheck.check(groupId, team, (bookLinks) => action.mutate({ name: "respondInvite", body: { inviteId: invite.id, accept: "1", teamId: team, bookLinks } }))
+                    : bookCheck.check(groupId, team, (bookLinks) => action.mutate({ name: "requestJoin", body: { groupId, message: note, teamId: team, bookLinks } }))
                 }
               />
               {invite && <Button title="Reddet" variant="ghost" onPress={() => action.mutate({ name: "respondInvite", body: { inviteId: invite.id, accept: "0" } })} />}
@@ -77,6 +79,7 @@ export function JoinView({ groupId }: { groupId: string }) {
           </>
         )}
       </Card>
+      {bookCheck.modal}
     </Screen>
   );
 }

@@ -5,7 +5,7 @@ export type PenaltyMode = "FIXED" | "PER_PAGE";
 
 export type Book = { id: string; title: string; targetPages: number; minPages: number };
 export type Rules = { penaltyMode: PenaltyMode; targetPages: number; minPages: number; penaltyAmount: number; minDiscount: number; books: Book[] };
-export type BookLog = { id: string; title: string; pages: number | null; target: number; min: number };
+export type BookLog = { id: string; title: string; pages: number | null; target: number; min: number; /** başka gruplarla "aynı eser" bağı */ linked?: string[] };
 
 /** Eser listesi yoksa (eski gruplar) toplam hedef tek eser sayılır */
 export function booksOf(r: { targetPages: number; minPages: number; books?: unknown }): Book[] {

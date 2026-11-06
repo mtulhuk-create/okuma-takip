@@ -1,5 +1,6 @@
 import "server-only";
 import type { Group, Team } from "@prisma/client";
+import { linkedGroupNames } from "./book-links";
 import { getDb } from "./db";
 import { categoryOf, parseBookLogs, penaltyFor, rulesFor, type BookLog } from "./rules";
 import { periodFor } from "./schedule";
@@ -15,7 +16,7 @@ export type DayCard = {
   min: DayPerson[];
   none: DayPerson[];
   pending: DayPerson[];
-  me: { eligible: boolean; pages: number | null; target: number; min: number; teamName: string | null; books: BookLog[] } | null;
+  me: { eligible: boolean; pages: number | null; target: number; min: number; teamName: string | null; books: (BookLog & { linked?: string[] })[] } | null;
   /** O günün toplam cezası (TL). Gün kapandıysa yazılan cezalar, açıksa şu ana kadarki bildirimlere göre */
   penaltyTotal: number;
   /** Kesinleşmiş mi (gün kapandı ve cezalar yazıldı) */
@@ -33,6 +34,8 @@ export async function getDayCards(group: Group & { teams: Team[] }, members: Mem
       ])
     : [[], []];
   const written = new Map(penalties.map((p) => [p.dayKey, p._sum.amount ?? 0]));
+  // Kullanıcının bu gruptaki eserleri başka gruplarla "aynı eser" olarak bağlı mı
+  const linked = dayKeys.length && members.some((m) => m.userId === meId) ? await linkedGroupNames(meId, group.id) : new Map<string, string[]>();
   const byKey = new Map(logs.map((l) => [`${l.userId}:${l.dayKey}`, l]));
   const now = new Date();
   const cards: Record<string, DayCard> = {};
@@ -50,7 +53,7 @@ export async function getDayCards(group: Group & { teams: Team[] }, members: Mem
       const min = log ? log.minPages : r.minPages;
       if (m.userId === meId) {
         const logged = new Map(parseBookLogs(log?.books).map((b) => [b.id, b]));
-        const books = r.books.map((b) => ({ id: b.id, title: b.title, target: b.targetPages, min: b.minPages, pages: logged.get(b.id)?.pages ?? null }));
+        const books = r.books.map((b) => ({ id: b.id, title: b.title, target: b.targetPages, min: b.minPages, pages: logged.get(b.id)?.pages ?? null, linked: linked.get(b.id) }));
         // Eser bazında kaydı olmayan eski bildirimler tek esere yazılır
         if (log && !logged.size && books.length === 1) books[0].pages = log.pages;
         card.me = { eligible, pages: log?.pages ?? null, target, min, teamName: r.teamName, books };
