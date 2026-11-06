@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { BookOpen, CalendarRange, Check, CheckCheck, ChevronDown, EyeOff, Flame, Layers, X } from "lucide-react-native";
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { ActivityIndicator, Modal, Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApiFetch } from "@/lib/api";
@@ -49,7 +49,7 @@ export function HistoryGrid({ start, cells }: { start: string; cells: string }) 
               <Text style={{ fontFamily: fonts.semibold, fontSize: 10, color: today ? c.primary : c.mutedForeground }}>{DOW[new Date(Date.parse(key)).getUTCDay()]}</Text>
               <View
                 style={[
-                  { width: "100%", height: 32, borderRadius: 7, backgroundColor: color(ch), borderWidth: ch === "p" ? 1 : 0, borderColor: c.mutedForeground, alignItems: "center", justifyContent: "center" },
+                  { width: "100%", height: 28, borderRadius: 7, backgroundColor: color(ch), borderWidth: ch === "p" ? 1 : 0, borderColor: c.mutedForeground, alignItems: "center", justifyContent: "center" },
                   today && todayRing,
                 ]}
               >
@@ -83,7 +83,7 @@ export function HistoryGrid({ start, cells }: { start: string; cells: string }) 
               <View
                 key={key}
                 style={[
-                  { flex: 1, height: 28, borderRadius: 6, backgroundColor: color(ch), borderWidth: ch === "p" ? 1 : 0, borderColor: c.mutedForeground, alignItems: "center", justifyContent: "center" },
+                  { flex: 1, height: 24, borderRadius: 6, backgroundColor: color(ch), borderWidth: ch === "p" ? 1 : 0, borderColor: c.mutedForeground, alignItems: "center", justifyContent: "center" },
                   today && todayRing,
                 ]}
               >
@@ -100,7 +100,7 @@ export function HistoryGrid({ start, cells }: { start: string; cells: string }) 
   const GAP = 3;
   const LABEL = 18;
   const size = width ? Math.max(10, Math.floor((width - LABEL - GAP * weeks) / weeks)) : 12;
-  const cell = Math.min(size, 24);
+  const cell = Math.min(size, 20);
   const months = Array.from({ length: weeks }, (_, w) => {
     const first = days.slice(w * 7, w * 7 + 7).find((d) => d.key.endsWith("-01") || (w === 0 && d.c !== "x"));
     return first ? MONTHS[Number(first.key.slice(5, 7)) - 1] : "";
@@ -166,7 +166,7 @@ export function StreakBadge({ n, small }: { n: number; small?: boolean }) {
     <Row gap={3} style={{ backgroundColor: on ? "#f9731620" : c.muted, borderRadius: 99, paddingHorizontal: small ? 6 : 10, paddingVertical: small ? 2 : 4 }}>
       <Flame size={small ? 11 : 14} color={color} fill={on ? color : "none"} />
       <Text style={{ fontFamily: fonts.bold, fontSize: small ? 10 : 12, color }}>
-        {n} gün{small ? "" : " seri"}
+        {n} gün seri
       </Text>
     </Row>
   );
@@ -179,7 +179,7 @@ export function RangePicker({ value, onChange, labels = RANGE_LABELS }: { value:
     <>
       <Pressable onPress={() => setOpen(true)} hitSlop={8}>
         <Row gap={4}>
-          <Text style={{ fontFamily: fonts.bold, fontSize: 15, color: c.foreground }}>{labels[value]}</Text>
+          <Text style={{ fontFamily: fonts.bold, fontSize: 14, color: c.foreground }}>{labels[value]}</Text>
           <ChevronDown size={16} color={c.foreground} />
         </Row>
       </Pressable>
@@ -206,56 +206,78 @@ export function RangePicker({ value, onChange, labels = RANGE_LABELS }: { value:
   );
 }
 
-/** Bugün ekranı: yalnızca kullanıcının kendi geçmişi ve serisi */
+/** Açılır seçim (grup seçimi) */
+function GroupPicker({ value, options, onChange }: { value: string; options: { value: string; label: string }[]; onChange: (v: string) => void }) {
+  const c = useColors();
+  const [open, setOpen] = useState(false);
+  const current = options.find((o) => o.value === value);
+  return (
+    <>
+      <Pressable onPress={() => setOpen(true)} hitSlop={6} style={{ flexShrink: 1, flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: c.muted, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 }}>
+        <Layers size={13} color={c.primary} />
+        <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: fonts.semibold, fontSize: 12, color: c.foreground }}>
+          {current?.label}
+        </Text>
+        <ChevronDown size={14} color={c.foreground} />
+      </Pressable>
+      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+        <Pressable onPress={() => setOpen(false)} style={{ flex: 1, backgroundColor: "#0005", justifyContent: "center", padding: 32 }}>
+          <View style={{ backgroundColor: c.card, borderRadius: 16, padding: 6, maxHeight: "70%" }}>
+            <ScrollView>
+              {options.map((o) => (
+                <Pressable
+                  key={o.value}
+                  onPress={() => {
+                    onChange(o.value);
+                    setOpen(false);
+                  }}
+                  style={({ pressed }) => [{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 14, borderRadius: 10, backgroundColor: pressed ? c.muted : "transparent" }]}
+                >
+                  <Text numberOfLines={1} style={{ flex: 1, fontFamily: o.value === value ? fonts.bold : fonts.regular, fontSize: 15, color: o.value === value ? c.primary : c.foreground }}>
+                    {o.label}
+                  </Text>
+                  {o.value === value && <Check size={18} color={c.primary} />}
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        </Pressable>
+      </Modal>
+    </>
+  );
+}
+
+/** Bugün ekranı: kendi okuma geçmişin. Varsayılan tüm gruplar; menüden tek grup seçilebilir. */
 export function MyHistorySection() {
   const c = useColors();
   const fetcher = useApiFetch();
   const [range, setRange] = useState<HistoryRange>("7d");
+  const [sel, setSel] = useState("all");
   const { data, isFetching } = useQuery({ queryKey: ["/api/m/history", range], queryFn: () => fetcher<MyHistory>(`/api/m/history?range=${range}`), placeholderData: (p) => p });
   if (!data?.groups.length) return null;
   const multi = !!data.all && data.groups.length > 1;
-  const streak = (multi ? data.all?.streak : data.groups[0].streak) ?? 0;
-  const head = (title: ReactNode, stats: Stats) => (
-    <Row style={{ flexWrap: "wrap", justifyContent: "space-between", rowGap: 4 }}>
-      {title}
-      <StatsLine stats={stats} />
-    </Row>
-  );
+  const group = data.groups.find((g) => g.group.id === sel);
+  const row = (sel === "all" || !group) && multi ? data.all! : (group ?? data.groups[0]);
   return (
-    <Card style={{ gap: 10, padding: 12, opacity: isFetching ? 0.7 : 1 }}>
-      <Row style={{ justifyContent: "space-between" }}>
-        <View style={{ flexShrink: 1 }}>
-          <RangePicker value={range} onChange={setRange} />
-          <Muted style={{ fontSize: 11 }}>Yalnızca senin okumaların</Muted>
+    <Card style={{ gap: 8, padding: 10, opacity: isFetching ? 0.7 : 1 }}>
+      <Row gap={6}>
+        <RangePicker value={range} onChange={setRange} />
+        <View style={{ flex: 1, flexDirection: "row" }}>
+          {multi ? (
+            <GroupPicker value={group ? sel : "all"} onChange={setSel} options={[{ value: "all", label: "Tüm gruplar" }, ...data.groups.map((g) => ({ value: g.group.id, label: g.group.name }))]} />
+          ) : (
+            <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: fonts.semibold, fontSize: 12, color: c.mutedForeground }}>
+              {data.groups[0].group.name}
+            </Text>
+          )}
         </View>
-        <StreakBadge n={streak} />
+        <StreakBadge n={row.streak ?? 0} small />
       </Row>
-      {multi && data.all && (
-        <View style={{ gap: 8, backgroundColor: c.muted, borderRadius: 12, padding: 10 }}>
-          {head(
-            <Row gap={6}>
-              <Layers size={14} color={c.primary} />
-              <Text style={{ fontFamily: fonts.semibold, fontSize: 13, color: c.foreground }}>Tüm gruplar</Text>
-            </Row>,
-            data.all.stats,
-          )}
-          <HistoryGrid start={data.all.start} cells={data.all.cells} />
-        </View>
-      )}
-      {data.groups.map((g, i) => (
-        <View key={g.group.id} style={{ gap: 8, borderTopWidth: i ? 1 : 0, borderTopColor: c.border, paddingTop: i ? 10 : 0 }}>
-          {head(
-            <Row gap={6} style={{ flexShrink: 1 }}>
-              <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: fonts.semibold, fontSize: 13, color: c.foreground }}>
-                {g.group.name}
-              </Text>
-              {multi && <StreakBadge n={g.streak ?? 0} small />}
-            </Row>,
-            g.stats,
-          )}
-          <HistoryGrid start={g.start} cells={g.cells} />
-        </View>
-      ))}
+      <HistoryGrid start={row.start} cells={row.cells} />
+      <Row style={{ flexWrap: "wrap", justifyContent: "space-between", rowGap: 2 }}>
+        <StatsLine stats={row.stats} />
+        <Text style={{ fontFamily: fonts.regular, fontSize: 10, color: c.mutedForeground }}>Yalnızca senin okumaların</Text>
+      </Row>
     </Card>
   );
 }

@@ -9,7 +9,7 @@ import { Button, Card, Input, Muted, Row, Segmented } from "./ui";
 
 export type GroupFormValues = Record<string, string | number>;
 type TeamDraft = Rules & { id?: string; name: string; key: string };
-const DEFAULT_RULES: Rules = { penaltyMode: "FIXED", targetPages: 20, minPages: 10, penaltyAmount: 20, minDiscount: 50, books: [{ id: "kitap1", title: "", targetPages: 20, minPages: 10 }] };
+const DEFAULT_RULES: Rules = { penaltyMode: "FIXED", targetPages: 20, minPages: 10, penaltyAmount: 20, minDiscount: 50, books: [{ id: "kitap1", title: "Risale-i Nur Külliyatı", targetPages: 20, minPages: 10 }] };
 const pick = (r: Omit<Rules, "books"> & { books?: unknown }): Rules => {
   const books = booksOf(r);
   return { penaltyMode: r.penaltyMode, targetPages: books.reduce((s, b) => s + b.targetPages, 0), minPages: books.reduce((s, b) => s + b.minPages, 0), penaltyAmount: r.penaltyAmount, minDiscount: r.minDiscount, books };

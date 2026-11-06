@@ -178,6 +178,11 @@ export type ChatMessage = {
 export type Debt = { group: { id: string; name: string; iban: string; ibanName: string }; amount: number; due: (DueInfo & { id: string; amount: number }) | null };
 export type GroupCash = {
   expected: number;
+  /** Kurulduğundan beri kasaya giren; vadeli bekleyen toplam (eski sunucuda yok) */
+  paidTotal?: number;
+  inDue?: number;
+  inDueCount?: number;
+  nextDueAt?: string | null;
   myDebt: number;
   myDue: (DueInfo & { id: string; amount: number }) | null;
   defaultDueAt: string;

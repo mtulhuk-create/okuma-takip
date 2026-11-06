@@ -46,7 +46,7 @@ export function HistoryGrid({ start, cells }: { start: string; cells: string }) 
           return (
             <div key={key} className="flex flex-col items-center gap-0.5" title={`${fmt(key)} · ${TITLE[c]}`}>
               <span className={`text-[10px] font-semibold leading-none ${today ? "text-primary" : "text-muted-foreground"}`}>{DOW[new Date(Date.parse(key)).getUTCDay()]}</span>
-              <span className={`flex h-8 w-full items-center justify-center rounded-md ${COLOR[c]} ${today ? "outline-2 outline-offset-1 outline-primary/60" : ""}`}>
+              <span className={`flex h-7 w-full items-center justify-center rounded-md ${COLOR[c]} ${today ? "outline-2 outline-offset-1 outline-primary/60" : ""}`}>
                 {c === "r" && <CheckCheck className="size-3.5 text-white" strokeWidth={3} />}
                 {c === "m" && <Check className="size-3.5 text-white" strokeWidth={3} />}
                 {c === "n" && <X className="size-3.5 text-white" strokeWidth={3} />}
@@ -75,7 +75,7 @@ export function HistoryGrid({ start, cells }: { start: string; cells: string }) 
           <span
             key={key}
             title={`${fmt(key)} · ${TITLE[c]}`}
-            className={`flex h-7 items-center justify-center rounded-md text-[11px] font-semibold ${COLOR[c]} ${TEXT[c]} ${today ? "outline-2 outline-offset-1 outline-primary/60" : ""}`}
+            className={`flex h-6 items-center justify-center rounded-md text-[11px] font-semibold ${COLOR[c]} ${TEXT[c]} ${today ? "outline-2 outline-offset-1 outline-primary/60" : ""}`}
           >
             {Number(key.slice(8))}
           </span>
@@ -106,7 +106,7 @@ export function HistoryGrid({ start, cells }: { start: string; cells: string }) 
             {months[w]}
           </span>,
           ...days.slice(w * 7, w * 7 + 7).map(({ key, c, today }) => (
-            <span key={key} title={`${fmt(key)} · ${TITLE[c]}`} className={`aspect-square max-h-6 w-full rounded-[3px] ${COLOR[c]} ${today ? "outline-2 outline-offset-1 outline-primary/60" : ""}`} />
+            <span key={key} title={`${fmt(key)} · ${TITLE[c]}`} className={`aspect-square max-h-5 w-full rounded-[3px] ${COLOR[c]} ${today ? "outline-2 outline-offset-1 outline-primary/60" : ""}`} />
           )),
         ])}
       </div>
@@ -145,7 +145,7 @@ export function StreakBadge({ n, size = "sm" }: { n: number; size?: "sm" | "xs" 
       className={`inline-flex shrink-0 items-center gap-1 rounded-full font-bold ${size === "sm" ? "px-2.5 py-1 text-xs" : "px-1.5 py-0.5 text-[10px]"} ${on ? "bg-orange-500/12 text-orange-700 dark:text-orange-400" : "bg-muted text-muted-foreground"}`}
     >
       <Flame className={size === "sm" ? "size-3.5" : "size-3"} fill={on ? "currentColor" : "none"} />
-      {n} gün{size === "sm" ? " seri" : ""}
+      {n} gün seri
     </span>
   );
 }
@@ -207,4 +207,44 @@ export function useHistory<T>(url: (r: Range) => string, initial?: T) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [range]);
   return { range, setRange, data, loading };
+}
+
+/** Açılır seçim menüsü (grup seçimi vb.) */
+export function MenuPicker<T extends string>({ value, options, onChange, icon }: { value: T; options: { value: T; label: string }[]; onChange: (v: T) => void; icon?: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const close = (e: MouseEvent) => ref.current && !ref.current.contains(e.target as Node) && setOpen(false);
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, []);
+  const current = options.find((o) => o.value === value);
+  return (
+    <div ref={ref} className="relative min-w-0">
+      <button onClick={() => setOpen((o) => !o)} className="flex max-w-full items-center gap-1 rounded-lg bg-muted px-2 py-1 text-xs font-semibold hover:bg-muted/70" aria-haspopup="menu" aria-expanded={open}>
+        {icon}
+        <span className="truncate">{current?.label}</span>
+        <ChevronDown className={`size-3.5 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div role="menu" className="absolute left-0 z-30 mt-1 max-h-72 w-60 overflow-y-auto rounded-xl border border-border bg-card p-1 shadow-lg">
+          {options.map((o) => (
+            <button
+              key={o.value}
+              role="menuitemradio"
+              aria-checked={o.value === value}
+              onClick={() => {
+                onChange(o.value);
+                setOpen(false);
+              }}
+              className={`flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-muted ${o.value === value ? "font-semibold text-primary" : ""}`}
+            >
+              <span className="truncate">{o.label}</span>
+              {o.value === value && <Check className="size-4 shrink-0" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }

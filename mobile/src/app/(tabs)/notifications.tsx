@@ -30,7 +30,15 @@ export default function NotificationsScreen() {
   useFocusEffect(
     useCallback(() => {
       qc.setQueryData<MeResponse>(["/api/m/me"], (d) => (d ? { ...d, badge: 0 } : d));
-      fetcher(`/api/m/action/markNotificationsSeen`, { method: "POST", body: "{}" }).catch(() => {});
+      (async () => {
+        // Yeni sunucuda listeyi yeniden çizmeden okundu işaretler; eski sunucuda "tümünü okundu yap"a düşer
+        await fetcher(`/api/m/action/markNotificationsSeen`, { method: "POST", body: "{}" }).catch(() =>
+          fetcher(`/api/m/action/markAllRead`, { method: "POST", body: "{}" }).catch(() => {}),
+        );
+        // Sunucu sıfırladıktan sonra rozet kaynağını tazele (eski sayı geri gelmesin)
+        qc.setQueryData<MeResponse>(["/api/m/me"], (d) => (d ? { ...d, badge: 0 } : d));
+        qc.invalidateQueries({ queryKey: ["/api/m/me"] });
+      })();
     }, [fetcher, qc]),
   );
   if (isLoading) return <Loading />;

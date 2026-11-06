@@ -37,6 +37,15 @@ export function AvatarStack({ people, size = 26, max = 5 }: { people: { id: stri
 }
 
 type BookChoice = "read" | "min" | "none";
+
+/** Tüm eserler için hangi toplu seçim aktif (geri almak için aynı butona basılır) */
+function wholeChoice(books: { pages: number | null; target: number; min: number }[]): "all" | "min" | "none" | null {
+  if (!books.length || books.some((b) => b.pages == null)) return null;
+  if (books.every((b) => b.pages! >= b.target)) return "all";
+  if (books.every((b) => b.pages === 0)) return "none";
+  if (books.every((b) => b.pages === b.min)) return "min";
+  return null;
+}
 function bookState(b: { pages: number | null; target: number; min: number }): BookChoice | "partial" | null {
   if (b.pages == null) return null;
   if (b.pages >= b.target) return "read";
@@ -51,13 +60,15 @@ export function ReportControls({ groupId, card, compact, onDone }: { groupId: st
   const me = card.me!;
   const single = me.books.length === 1;
   const busy = (key: string) => action.isPending && action.variables?.body?.key === key;
-  const send = (body: Record<string, unknown>, key: string) => action.mutate({ name: "reportReading", body: { groupId, ...body, key } }, { onSuccess: () => onDone?.() });
+  // toggle: aynı butona tekrar basılırsa bildirim geri alınır (beklemeye döner)
+  const send = (body: Record<string, unknown>, key: string) => action.mutate({ name: "reportReading", body: { groupId, ...body, key, toggle: "1" } }, { onSuccess: () => onDone?.() });
   const BTNS: { key: BookChoice; Icon: LucideIcon; color: string }[] = [
     { key: "read", Icon: CheckCheck, color: c.success },
     { key: "min", Icon: Check, color: c.warning },
     { key: "none", Icon: X, color: c.destructive },
   ];
   const total = me.pages ?? 0;
+  const active = wholeChoice(me.books);
   const status = me.pages == null ? null : total >= me.target ? "Hedef tamam" : total >= me.min ? "Alt sınır tamam" : "Alt sınırın altında";
   const bottom: { key: string; label: string; Icon: LucideIcon; variant: "success" | "primary" | "ghost"; body: Record<string, unknown> }[] = [
     { key: "all", label: single ? "Okudum" : "Hepsini okudum", Icon: CheckCheck, variant: "success", body: { choice: "all" } },
@@ -106,6 +117,7 @@ export function ReportControls({ groupId, card, compact, onDone }: { groupId: st
             key={b.key}
             disabled={action.isPending}
             onPress={() => send(b.body, b.key)}
+            accessibilityState={{ selected: active === b.key }}
             style={({ pressed }) => [
               {
                 flex: 1,
@@ -122,6 +134,7 @@ export function ReportControls({ groupId, card, compact, onDone }: { groupId: st
                 paddingVertical: 4,
                 opacity: pressed ? 0.85 : 1,
               },
+              active === b.key && { borderWidth: 2, borderColor: c.foreground + "80" },
             ]}
           >
             {busy(b.key) ? (
@@ -139,7 +152,7 @@ export function ReportControls({ groupId, card, compact, onDone }: { groupId: st
       </Row>
       {status && (
         <Text style={{ textAlign: "center", fontFamily: fonts.regular, fontSize: 11, color: c.mutedForeground }}>
-          Bugün <Text style={{ fontFamily: fonts.bold, color: c.foreground }}>{total}</Text>/{me.target} sayfa · {status}
+          Bugün <Text style={{ fontFamily: fonts.bold, color: c.foreground }}>{total}</Text>/{me.target} sayfa · {status} · tekrar basınca geri alınır
         </Text>
       )}
     </View>
@@ -376,7 +389,7 @@ export function DayShortcut({ card, groupId, onJump, onReported }: { card: Card;
                 key={b.choice}
                 disabled={action.isPending}
                 accessibilityLabel={b.label}
-                onPress={() => action.mutate({ name: "reportReading", body: { groupId, choice: b.choice, key: `sc-${b.choice}` } }, { onSuccess: () => onReported?.() })}
+                onPress={() => action.mutate({ name: "reportReading", body: { groupId, choice: b.choice, key: `sc-${b.choice}`, toggle: "1" } }, { onSuccess: () => onReported?.() })}
                 style={{ height: 32, minWidth: 34, paddingHorizontal: 7, borderRadius: 8, borderWidth: 1, borderColor: on ? b.color : c.border, backgroundColor: on ? b.color : c.card, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 3 }}
               >
                 {busy(b.choice) ? <ActivityIndicator size="small" color={on ? "#fff" : b.color} /> : <b.Icon size={14} color={on ? "#fff" : b.color} strokeWidth={2.6} />}

@@ -102,13 +102,21 @@ export async function getChatPage(groupId: string, userId: string, before?: Date
 export async function getGroupCash(group: Pick<Group, "id" | "iban" | "ibanName" | "tzOffset" | "dueOffsetDays">, userId: string) {
   const db = getDb();
   const open = { groupId: group.id, status: { in: ["UNPAID", "IN_DUE"] as ("UNPAID" | "IN_DUE")[] } };
-  const [all, mine, due] = await Promise.all([
+  const [all, mine, due, paid, inDue] = await Promise.all([
     db.penalty.aggregate({ where: open, _sum: { amount: true } }),
     db.penalty.aggregate({ where: { ...open, userId }, _sum: { amount: true } }),
     db.paymentDue.findFirst({ where: { groupId: group.id, userId, status: { in: ["PENDING", "SUBMITTED", "OVERDUE"] } }, orderBy: { dueAt: "asc" } }),
+    // Grup kurulduğundan beri kasaya giren (onaylanan) toplam
+    db.penalty.aggregate({ where: { groupId: group.id, status: "PAID" }, _sum: { amount: true } }),
+    // Vadesi verilmiş (ödeme bekleyen) tutarlar ve en yakın vade
+    db.paymentDue.aggregate({ where: { groupId: group.id, status: { in: ["PENDING", "SUBMITTED", "OVERDUE"] } }, _sum: { amount: true }, _min: { dueAt: true }, _count: true }),
   ]);
   return {
     expected: all._sum.amount ?? 0,
+    paidTotal: paid._sum.amount ?? 0,
+    inDue: inDue._sum.amount ?? 0,
+    inDueCount: inDue._count,
+    nextDueAt: inDue._min.dueAt?.toISOString() ?? null,
     myDebt: mine._sum.amount ?? 0,
     myDue: due ? dueView(due) : null,
     defaultDueAt: defaultDueAt(group).toISOString(),

@@ -1,6 +1,7 @@
 import { Check } from "lucide-react-native";
 import { Alert, Pressable, Text, View } from "react-native";
-import { useAction } from "@/lib/api";
+import * as Clipboard from "expo-clipboard";
+import { toast, useAction } from "@/lib/api";
 import { formatClock } from "@/lib/format";
 import { fonts, useColors } from "@/lib/theme";
 import type { ChatMessage } from "@/lib/types";
@@ -26,14 +27,25 @@ export function MessageBubble({ m, mine, showAuthor, canDelete }: { m: ChatMessa
     <View style={{ flexDirection: mine ? "row-reverse" : "row", alignItems: "flex-start", gap: 8, marginTop: showAuthor ? 8 : 2 }}>
       {!mine && <View style={{ width: 30 }}>{showAuthor && m.user && <Avatar name={m.user.name} uri={m.user.imageUrl} size={30} />}</View>}
       <Pressable
-        onLongPress={() =>
-          canDelete &&
-          !m.pending &&
-          Alert.alert("Mesajı sil", "Bu mesaj herkes için silinsin mi?", [
-            { text: "Vazgeç", style: "cancel" },
-            { text: "Sil", style: "destructive", onPress: () => action.mutate({ name: "deleteMessage", body: { messageId: m.id } }) },
-          ])
-        }
+        // Uzun bas: kopyala; kendi mesajını ya da (yöneticiysen) herkesin mesajını sil
+        onLongPress={() => {
+          if (m.pending) return;
+          const buttons: { text: string; style?: "cancel" | "destructive"; onPress?: () => void }[] = [];
+          if (m.text) buttons.push({ text: "Kopyala", onPress: () => Clipboard.setStringAsync(m.text ?? "").then(() => toast("Kopyalandı")) });
+          if (canDelete)
+            buttons.push({
+              text: "Sil",
+              style: "destructive",
+              onPress: () =>
+                Alert.alert("Mesajı sil", mine ? "Mesajın herkes için silinsin mi?" : `${m.user?.name ?? "Bu kişinin"} mesajı herkes için silinsin mi?`, [
+                  { text: "Vazgeç", style: "cancel" },
+                  { text: "Sil", style: "destructive", onPress: () => action.mutate({ name: "deleteMessage", body: { messageId: m.id } }) },
+                ]),
+            });
+          if (!buttons.length) return;
+          buttons.push({ text: "Vazgeç", style: "cancel" });
+          Alert.alert(m.poll ? "Anket" : "Mesaj", undefined, buttons);
+        }}
         style={{
           maxWidth: "80%",
           minWidth: poll ? "70%" : undefined,

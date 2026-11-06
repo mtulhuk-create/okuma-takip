@@ -4,7 +4,8 @@ import { openPeriod } from "./schedule";
 
 /** all/min/none: tüm eserler için · pages: toplam sayfa (eserlere sırayla dağıtılır) · book: tek eser */
 export type ReportChoice = "all" | "min" | "none" | "pages";
-export type ReportInput = { choice: ReportChoice; pages?: number; bookId?: string; bookChoice?: "read" | "min" | "none" };
+/** toggle: aynı seçim tekrar gönderilirse bildirimi geri al (beklemeye dön) */
+export type ReportInput = { choice: ReportChoice; pages?: number; bookId?: string; bookChoice?: "read" | "min" | "none"; toggle?: boolean };
 
 /** Üyenin bugünkü (açık) okuma gününe bildirim yapması. */
 export async function submitReading(userId: string, groupId: string, input: ReportInput, expectedDayKey?: string) {
@@ -23,10 +24,13 @@ export async function submitReading(userId: string, groupId: string, input: Repo
   const prev = new Map(parseBookLogs(existing?.books).map((b) => [b.id, b.pages]));
   let books: BookLog[] = rules.books.map((b) => ({ id: b.id, title: b.title, target: b.targetPages, min: b.minPages, pages: prev.get(b.id) ?? null }));
 
+  const before = books.map((b) => b.pages);
   if (input.bookId) {
     const book = books.find((b) => b.id === input.bookId);
     if (!book) throw new Error("Eser bulunamadı");
-    book.pages = input.bookChoice === "read" ? book.target : input.bookChoice === "min" ? book.min : 0;
+    const next = input.bookChoice === "read" ? book.target : input.bookChoice === "min" ? book.min : 0;
+    // Aynı butona tekrar basıldı: bu eserin bildirimi geri alınır
+    book.pages = input.toggle && book.pages === next ? null : next;
   } else if (input.choice === "all") books = books.map((b) => ({ ...b, pages: b.target }));
   else if (input.choice === "min") books = books.map((b) => ({ ...b, pages: b.min }));
   else if (input.choice === "none") books = books.map((b) => ({ ...b, pages: 0 }));
@@ -40,6 +44,13 @@ export async function submitReading(userId: string, groupId: string, input: Repo
     });
   }
 
+  // Tümü için aynı seçim tekrar gönderildiyse (ya da hiçbir eser bildirimi kalmadıysa) bugünkü bildirim silinir: beklemede
+  const unchanged = !input.bookId && books.every((b, i) => b.pages === before[i]);
+  if ((input.toggle && unchanged && existing) || (existing && books.every((b) => b.pages == null))) {
+    await db.readingLog.delete({ where: { id: existing.id } });
+    return { log: null, period, member, rules, undone: true as const };
+  }
+
   const snapshot = {
     pages: books.reduce((s, b) => s + (b.pages ?? 0), 0),
     requiredPages: rules.targetPages,
@@ -51,5 +62,5 @@ export async function submitReading(userId: string, groupId: string, input: Repo
     create: { groupId, userId, dayKey: period.dayKey, ...snapshot },
     update: snapshot,
   });
-  return { log, period, member, rules };
+  return { log, period, member, rules, undone: false as const };
 }

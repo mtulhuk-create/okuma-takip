@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, Stack, useFocusEffect, useLocalSearchParams } from "expo-router";
-import { BarChart3, CalendarRange, Info, Landmark, Lock, SendHorizontal, Settings } from "lucide-react-native";
+import { BarChart3, CalendarRange, ChevronDown, Info, Landmark, Lock, SendHorizontal, Settings } from "lucide-react-native";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppState, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import Svg, { Defs, Path, Pattern, Rect } from "react-native-svg";
@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MessageBubble } from "@/components/chat/message";
 import { PollModal } from "@/components/chat/poll-modal";
 import { DayCardFull, DayShortcut } from "@/components/day-card";
+import { Countdown } from "@/components/countdown";
 import { DueBadge } from "@/components/due-badge";
 import { PaySheet } from "@/components/pay-sheet";
 import { GroupHistoryModal } from "@/components/history";
@@ -39,6 +40,7 @@ export default function ChatScreen() {
   const [pollOpen, setPollOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [payOpen, setPayOpen] = useState(false);
+  const [kasaOpen, setKasaOpen] = useState(false);
   const [cardVisible, setCardVisible] = useState(true);
   const qc = useQueryClient();
   const list = useRef<FlatList<ChatMessage>>(null);
@@ -176,10 +178,21 @@ export default function ChatScreen() {
       />
       {kasa && (
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: c.card, borderBottomWidth: 1, borderBottomColor: c.border, paddingHorizontal: 12, paddingVertical: 6 }}>
-          <Landmark size={15} color={c.primary} />
-          <Text numberOfLines={1} style={{ flex: 1, fontFamily: fonts.regular, fontSize: 12, color: c.mutedForeground }}>
-            Kasaya girmesi beklenen <Text style={{ fontFamily: fonts.bold, fontSize: 13, color: c.foreground }}>{kasa.expected} TL</Text>
-          </Text>
+          <Pressable onPress={() => setKasaOpen((o) => !o)} style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 6 }} accessibilityLabel="Grup kasası">
+            <Landmark size={15} color={c.primary} />
+            <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: fonts.regular, fontSize: 12, color: c.mutedForeground }}>
+              {kasa.paidTotal != null ? (
+                <>
+                  Kasa <Text style={{ fontFamily: fonts.bold, color: c.foreground }}>{kasa.paidTotal} TL</Text> · bekleyen <Text style={{ fontFamily: fonts.bold, color: c.foreground }}>{kasa.expected} TL</Text>
+                </>
+              ) : (
+                <>
+                  Kasaya girmesi beklenen <Text style={{ fontFamily: fonts.bold, fontSize: 13, color: c.foreground }}>{kasa.expected} TL</Text>
+                </>
+              )}
+            </Text>
+            <ChevronDown size={14} color={c.mutedForeground} style={{ transform: [{ rotate: kasaOpen ? "180deg" : "0deg" }] }} />
+          </Pressable>
           {kasa.myDebt > 0 && kasa.myDue && <DueBadge due={kasa.myDue} compact />}
           {kasa.myDebt > 0 ? (
             <Pressable onPress={() => setPayOpen(true)} style={({ pressed }) => ({ backgroundColor: c.destructive, borderRadius: 99, paddingHorizontal: 10, paddingVertical: 5, opacity: pressed ? 0.8 : 1 })}>
@@ -188,6 +201,21 @@ export default function ChatScreen() {
           ) : (
             <Text style={{ fontFamily: fonts.semibold, fontSize: 11, color: c.success }}>Borcun yok</Text>
           )}
+        </View>
+      )}
+      {kasa && kasaOpen && (
+        <View style={{ flexDirection: "row", gap: 6, backgroundColor: c.card, borderBottomWidth: 1, borderBottomColor: c.border, paddingHorizontal: 10, paddingVertical: 8 }}>
+          {[
+            { v: kasa.paidTotal ?? 0, l: "Grup kurulduğundan beri kasaya giren", color: c.success },
+            { v: kasa.inDue ?? 0, l: `Vade süresince girmesi gereken${kasa.inDueCount ? ` (${kasa.inDueCount} kişi)` : ""}`, color: c.warning, at: kasa.nextDueAt },
+            { v: kasa.expected, l: "Ödenmemiş toplam ceza", color: c.destructive },
+          ].map((t) => (
+            <View key={t.l} style={{ flex: 1, alignItems: "center", backgroundColor: t.color + "1a", borderRadius: 10, paddingVertical: 6, paddingHorizontal: 4 }}>
+              <Text style={{ fontFamily: fonts.bold, fontSize: 14, color: t.color }}>{t.v} TL</Text>
+              <Text style={{ fontFamily: fonts.regular, fontSize: 10, lineHeight: 12, textAlign: "center", color: c.mutedForeground }}>{t.l}</Text>
+              {t.at ? <Countdown to={t.at} style={{ fontSize: 10 }} /> : null}
+            </View>
+          ))}
         </View>
       )}
       {todayCard && !cardVisible && <DayShortcut card={todayCard} groupId={id} onJump={jumpToToday} onReported={() => chat.refetch()} />}

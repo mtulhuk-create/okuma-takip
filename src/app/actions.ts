@@ -219,9 +219,11 @@ export async function reportReading(_: Prev, fd: FormData) {
       pages: Number(fd.get("pages")),
       bookId: str(fd, "bookId") || undefined,
       bookChoice: ["read", "min", "none"].includes(bookChoice) ? bookChoice : undefined,
+      toggle: str(fd, "toggle") === "1",
     });
     await publish(groupId, { type: "refresh", reason: "day" });
     refresh();
+    if (!log) return "Bildirim geri alındı · beklemede. Gün sonuna kadar bildirmezsen okumadı sayılırsın.";
     if (log.pages >= rules.targetPages) return `Harika! ${log.pages} sayfa bildirildi`;
     return `${log.pages} sayfa bildirildi. Hedef ${rules.targetPages} sayfa — son saate kadar güncelleyebilirsin.`;
   });

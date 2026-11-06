@@ -79,7 +79,7 @@ function Toggle({ checked, onChange, title, desc }: { checked: boolean; onChange
 }
 
 type TeamDraft = Rules & { id?: string; name: string; key: string };
-const DEFAULT_RULES: Rules = { penaltyMode: "FIXED", targetPages: 20, minPages: 10, penaltyAmount: 20, minDiscount: 50, books: [{ id: "kitap1", title: "", targetPages: 20, minPages: 10 }] };
+const DEFAULT_RULES: Rules = { penaltyMode: "FIXED", targetPages: 20, minPages: 10, penaltyAmount: 20, minDiscount: 50, books: [{ id: "kitap1", title: "Risale-i Nur Külliyatı", targetPages: 20, minPages: 10 }] };
 
 function TeamCard({ team, index, canRemove, onChange, onRemove }: { team: TeamDraft; index: number; canRemove: boolean; onChange: (t: TeamDraft) => void; onRemove: () => void }) {
   const [open, setOpen] = useState(index === 0);

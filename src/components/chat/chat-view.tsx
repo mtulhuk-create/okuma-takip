@@ -1,12 +1,13 @@
 "use client";
 
-import { ArrowDown, ArrowLeft, BarChart3, CalendarRange, Info, Landmark, Lock, SendHorizontal, Settings } from "lucide-react";
+import { ArrowDown, ArrowLeft, BarChart3, CalendarRange, ChevronDown, Info, Landmark, Lock, SendHorizontal, Settings } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { sendMessage } from "@/app/actions";
 import type { ChatPage } from "@/lib/chat";
 import { formatDayLong } from "@/lib/schedule";
 import { DayCardFull, DayShortcut } from "../day-card";
+import { Countdown } from "../countdown";
 import { DueBadge } from "../due-badge";
 import { PaySheet } from "../pay-sheet";
 import { Bubble, PollBody, type UiMessage } from "./message-items";
@@ -32,6 +33,7 @@ export function ChatView({ initial }: { initial: Page }) {
   const [kasa, setKasa] = useState(initial.kasa);
   const [todayCard, setTodayCard] = useState(initial.todayCard);
   const [payOpen, setPayOpen] = useState(false);
+  const [kasaOpen, setKasaOpen] = useState(false);
   const [cardVisible, setCardVisible] = useState(true);
   const [messages, setMessages] = useState<UiMessage[]>(initial.messages);
   const [hasMore, setHasMore] = useState(initial.hasMore);
@@ -231,10 +233,13 @@ export function ChatView({ initial }: { initial: Page }) {
         </div>
         {kasa && (
           <div className="mx-auto flex max-w-3xl items-center gap-2 border-t border-border px-3 py-1.5">
-            <Landmark className="size-4 shrink-0 text-primary" />
-            <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground" title="Ödenmemiş cezaların toplamı; yönetici ödemeyi onaylayınca düşer">
-              Kasaya girmesi beklenen <b className="text-sm text-foreground">{kasa.expected} TL</b>
-            </p>
+            <button onClick={() => setKasaOpen((o) => !o)} className="flex min-w-0 flex-1 items-center gap-1.5 text-left" aria-expanded={kasaOpen} title="Grup kasası">
+              <Landmark className="size-4 shrink-0 text-primary" />
+              <span className="min-w-0 truncate text-xs text-muted-foreground">
+                Kasa <b className="text-foreground">{kasa.paidTotal ?? 0} TL</b> toplandı · <b className="text-foreground">{kasa.expected} TL</b> bekleniyor
+              </span>
+              <ChevronDown className={`size-3.5 shrink-0 text-muted-foreground transition-transform ${kasaOpen ? "rotate-180" : ""}`} />
+            </button>
             {kasa.myDebt > 0 ? (
               <>
                 {kasa.myDue && (
@@ -249,6 +254,29 @@ export function ChatView({ initial }: { initial: Page }) {
             ) : (
               <span className="shrink-0 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">Borcun yok</span>
             )}
+          </div>
+        )}
+        {kasa && kasaOpen && (
+          <div className="mx-auto grid max-w-3xl grid-cols-3 gap-1.5 border-t border-border px-3 py-2 text-center">
+            <div className="rounded-lg bg-emerald-500/10 px-1 py-1.5">
+              <p className="text-sm font-bold text-emerald-700 dark:text-emerald-400">{kasa.paidTotal ?? 0} TL</p>
+              <p className="text-[10px] leading-tight text-muted-foreground">Grup kurulduğundan beri kasaya giren</p>
+            </div>
+            <div className="rounded-lg bg-amber-500/10 px-1 py-1.5">
+              <p className="text-sm font-bold text-amber-700 dark:text-amber-400">{kasa.inDue ?? 0} TL</p>
+              <p className="text-[10px] leading-tight text-muted-foreground">
+                Vade süresince girmesi gereken{kasa.inDueCount ? ` (${kasa.inDueCount} kişi)` : ""}
+              </p>
+              {kasa.nextDueAt && (
+                <p className="mt-0.5 text-[10px] font-semibold">
+                  <Countdown to={kasa.nextDueAt} />
+                </p>
+              )}
+            </div>
+            <div className="rounded-lg bg-rose-500/10 px-1 py-1.5">
+              <p className="text-sm font-bold text-rose-700 dark:text-rose-400">{kasa.expected} TL</p>
+              <p className="text-[10px] leading-tight text-muted-foreground">Ödenmemiş toplam ceza (vadeli + vadesiz)</p>
+            </div>
           </div>
         )}
         {todayCard && !cardVisible && <DayShortcut card={todayCard} groupId={groupId} onJump={jumpToToday} onReported={refresh} />}

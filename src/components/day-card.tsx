@@ -48,6 +48,8 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
     start(async () => {
       const fd = new FormData();
       fd.set("groupId", groupId);
+      // Aynı butona tekrar basılırsa sunucu bildirimi geri alır (beklemeye döner)
+      fd.set("toggle", "1");
       for (const [k, v] of Object.entries(fields)) fd.set(k, v);
       const res = await reportReading(null, fd);
       setBusy(null);
@@ -58,6 +60,7 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
 
   const total = me.pages ?? 0;
   const status = me.pages == null ? null : total >= me.target ? "Hedef tamam" : total >= me.min ? "Alt sınır tamam" : "Alt sınırın altında";
+  const active = wholeChoice(me.books);
   // Dar ekranda sığsın: ikon ve yazı yan yana, gerekirse yazı iki satıra iner
   const btn = "h-auto min-h-9 gap-1 whitespace-normal px-1.5 py-1 text-center text-[11px] leading-tight [&_svg]:size-3.5";
 
@@ -96,25 +99,35 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
         })}
       </ul>
       <div className="grid grid-cols-3 gap-1.5">
-        <button className={`btn-success ${btn}`} disabled={pending} onClick={() => send({ choice: "all" }, "all")}>
+        <button className={`btn-success ${btn} ${ring(active === "all")}`} aria-pressed={active === "all"} title={active === "all" ? "Tekrar bas: geri al" : undefined} disabled={pending} onClick={() => send({ choice: "all" }, "all")}>
           {busy === "all" ? <Spinner /> : <CheckCheck />} {single ? "Okudum" : "Hepsini okudum"}
         </button>
-        <button className={`btn-primary ${btn}`} disabled={pending} onClick={() => send({ choice: "min" }, "min")}>
+        <button className={`btn-primary ${btn} ${ring(active === "min")}`} aria-pressed={active === "min"} title={active === "min" ? "Tekrar bas: geri al" : undefined} disabled={pending} onClick={() => send({ choice: "min" }, "min")}>
           {busy === "min" ? <Spinner /> : <Check />} Alt sınırı okudum
         </button>
-        <button className={`btn-ghost ${btn}`} disabled={pending} onClick={() => send({ choice: "none" }, "none")}>
+        <button className={`btn-ghost ${btn} ${active === "none" ? "border-rose-500 bg-rose-500/10 text-rose-700 dark:text-rose-400" : ""} ${ring(active === "none")}`} aria-pressed={active === "none"} title={active === "none" ? "Tekrar bas: geri al" : undefined} disabled={pending} onClick={() => send({ choice: "none" }, "none")}>
           {busy === "none" ? <Spinner /> : <X />} Okuyamadım
         </button>
       </div>
       {status && (
         <p className="text-center text-[11px] leading-tight text-muted-foreground">
-          Bugün <b className="text-foreground">{total}</b>/{me.target} sayfa · {status}
+          Bugün <b className="text-foreground">{total}</b>/{me.target} sayfa · {status} · <span className="opacity-80">seçili butona tekrar basarak geri alabilirsin</span>
         </p>
       )}
       {error && <p className="text-xs font-medium text-destructive">{error}</p>}
     </div>
   );
 }
+
+/** Tüm eserler için hangi toplu seçim aktif (geri almak için aynı butona basılır) */
+function wholeChoice(books: { pages: number | null; target: number; min: number }[]): Choice | null {
+  if (!books.length || books.some((b) => b.pages == null)) return null;
+  if (books.every((b) => b.pages! >= b.target)) return "all";
+  if (books.every((b) => b.pages === 0)) return "none";
+  if (books.every((b) => b.pages === b.min)) return "min";
+  return null;
+}
+const ring = (on: boolean) => (on ? "ring-2 ring-offset-1 ring-offset-card ring-foreground/40" : "");
 
 function Spinner() {
   return <span className="size-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />;
@@ -303,6 +316,7 @@ export function DayShortcut({ card, groupId, onJump, onReported }: { card: Card;
       const fd = new FormData();
       fd.set("groupId", groupId);
       fd.set("choice", choice);
+      fd.set("toggle", "1");
       await reportReading(null, fd);
       setBusy(null);
       onReported ? onReported() : router.refresh();

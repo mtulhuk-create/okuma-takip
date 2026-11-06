@@ -20,11 +20,11 @@ function DeleteButton({ id, onDone }: { id: string; onDone: () => void }) {
   const [pending, start] = useTransition();
   return (
     <button
-      className="btn-icon size-7 opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100 [&_svg]:size-3.5"
+      className="btn-icon size-7 opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100 [@media(hover:none)]:opacity-60 [&_svg]:size-3.5"
       aria-label="Mesajı sil"
       disabled={pending}
       onClick={() => {
-        if (!confirm("Bu mesaj silinsin mi?")) return;
+        if (!confirm("Bu mesaj herkes için silinsin mi?")) return;
         start(async () => {
           const fd = new FormData();
           fd.set("messageId", id);
