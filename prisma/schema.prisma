@@ -59,6 +59,19 @@ enum MessageKind {
   TEXT
   DAY // her okuma günü için otomatik gün kartı
   POLL
+  BADGE // rozet kartı (oylama / kazanıldı / kalktı)
+}
+
+enum BadgeKind {
+  GOOD // 7 gün üst üste tam okuma: "Maşallah"
+  BAD // 7 gün üst üste tam okuyamama: adı üyelerin oylamasıyla belirlenir
+}
+
+enum BadgeStatus {
+  VOTING
+  ACTIVE
+  ENDED // otomatik ya da yönetici tarafından kaldırıldı
+  CANCELLED // oylamada şık önerilmedi / rozetler kapatıldı
 }
 
 enum RequestStatus {
@@ -93,6 +106,9 @@ model User {
   messages          Message[]
   pollVotes         PollVote[]
   bookLinks         BookLink[]
+  badges            Badge[]
+  badgeOptions      BadgeOption[]
+  badgeVotes        BadgeVote[]
 
   @@index([name])
 }
@@ -125,6 +141,8 @@ model Group {
   dueOffsetDays Int         @default(0) // varsayılan ödeme vadesi: ay sonundan kaç gün önce (-) / sonra (+)
   kickOnExpire  Boolean     @default(true) // vadesinde ödemeyen (yönetici kararından sonra) gruptan çıkarılır
   nameDisplay   NameDisplay @default(ENTERED) // grupta okuyucuların adı nasıl görünsün
+  badgesEnabled Boolean     @default(false) // latife rozetleri (yönetici uyarıyı onaylayarak açar)
+  badgesSince   String? // rozetler açıldığında kapanmış son gün; seriler sonraki günlerden sayılır
   lastSettledDay String? // ceza hesaplaması yapılan son okuma günü (YYYY-MM-DD)
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
@@ -139,6 +157,7 @@ model Group {
   teams        Team[]
   events       GroupEvent[]
   teamChanges  TeamChangeRequest[]
+  badges       Badge[]
 
   @@index([visibility])
 }
@@ -297,6 +316,8 @@ model Message {
   dayKey    String? // DAY mesajları için okuma günü
   createdAt DateTime    @default(now())
   poll      Poll?
+  badgeId   String? // BADGE mesajları: text = VOTE | AWARD | END
+  badge     Badge?      @relation(fields: [badgeId], references: [id], onDelete: Cascade)
 
   @@unique([groupId, kind, dayKey])
   @@index([groupId, createdAt])
@@ -396,4 +417,53 @@ model BookLink {
 
   @@unique([userId, groupId, bookId, linkGroupId])
   @@index([userId, groupId])
+}
+
+/** Gruba özel rozet: o grubun okuma verisine göre verilir ve kaldırılır */
+model Badge {
+  id         String        @id @default(cuid())
+  groupId    String
+  group      Group         @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind       BadgeKind
+  status     BadgeStatus
+  label      String? // en fazla 2 kelime
+  streakDay  String // 7 günlük serinin son günü; kaldırma için sonraki günler sayılır
+  voteUntil  DateTime?
+  awardedAt  DateTime?
+  endedDay   String? // yeni seri bu günden sonra başlar
+  endedAt    DateTime?
+  createdAt  DateTime      @default(now())
+  options    BadgeOption[]
+  votes      BadgeVote[]
+  messages   Message[]
+
+  @@index([groupId, status])
+  @@index([groupId, userId])
+}
+
+model BadgeOption {
+  id        String      @id @default(cuid())
+  badgeId   String
+  badge     Badge       @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+  label     String
+  authorId  String
+  author    User        @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  createdAt DateTime    @default(now())
+  votes     BadgeVote[]
+
+  @@unique([badgeId, authorId])
+}
+
+model BadgeVote {
+  id       String      @id @default(cuid())
+  badgeId  String
+  badge    Badge       @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+  optionId String
+  option   BadgeOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([badgeId, userId])
 }

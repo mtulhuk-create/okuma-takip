@@ -1,10 +1,11 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, Stack, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { BarChart3, CalendarRange, ChevronDown, Info, Landmark, Lock, SendHorizontal, Settings } from "lucide-react-native";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppState, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import Svg, { Defs, Path, Pattern, Rect } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { BadgeCard } from "@/components/chat/badge-card";
 import { MessageBubble } from "@/components/chat/message";
 import { PollModal } from "@/components/chat/poll-modal";
 import { DayCardFull, DayShortcut } from "@/components/day-card";
@@ -26,17 +27,83 @@ function dayLabel(day: string) {
   return formatDayLong(day);
 }
 
+/** Hafif desenli sohbet duvar kağıdı (bir kez çizilir) */
+const ChatWallpaper = memo(function ChatWallpaper() {
+  const c = useColors();
+  return (
+    <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
+      <Defs>
+        <Pattern id="doodle" width={72} height={72} patternUnits="userSpaceOnUse">
+          <Path d="M10 14h8a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2h-9zM32 14h-8a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h9z" stroke={c.chatPattern} strokeWidth={1.4} fill="none" />
+          <Path d="M50 46l3 6 6 1-4.5 4.5 1 6-5.5-3-5.5 3 1-6L41 53l6-1z" stroke={c.chatPattern} strokeWidth={1.4} fill="none" />
+        </Pattern>
+      </Defs>
+      <Rect width="100%" height="100%" fill="url(#doodle)" />
+    </Svg>
+  );
+});
+
+const DaySeparator = memo(function DaySeparator({ dayKey }: { dayKey: string }) {
+  const c = useColors();
+  return (
+    <View style={{ alignSelf: "center", backgroundColor: c.card, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 3, marginVertical: 10, elevation: 1 }}>
+      <Text style={{ fontFamily: fonts.semibold, fontSize: 10, letterSpacing: 0.5, color: c.mutedForeground }}>{dayLabel(dayKey).toLocaleUpperCase("tr-TR")}</Text>
+    </View>
+  );
+});
+
+/** Mesaj yazma alanı: yazılan metin yalnızca burada tutulur, sohbet listesi her harfte yeniden çizilmez */
+function Composer({ canPost, onSend, onPoll }: { canPost: boolean; onSend: (text: string) => void; onPoll: () => void }) {
+  const c = useColors();
+  const insets = useSafeAreaInsets();
+  const [text, setText] = useState("");
+  const send = () => {
+    const body = text.trim();
+    if (!body) return;
+    setText("");
+    onSend(body);
+  };
+  return (
+    <View style={{ backgroundColor: c.chatBg, paddingHorizontal: 6, paddingTop: 6, paddingBottom: Math.max(6, insets.bottom) }}>
+      {canPost ? (
+        <Row gap={6} style={{ alignItems: "flex-end" }}>
+          <View style={{ flex: 1, flexDirection: "row", alignItems: "flex-end", backgroundColor: c.card, borderRadius: 24, paddingLeft: 4, elevation: 1 }}>
+            <Pressable onPress={onPoll} hitSlop={6} accessibilityLabel="Anket oluştur" style={{ width: 40, height: 46, alignItems: "center", justifyContent: "center" }}>
+              <BarChart3 size={21} color={c.mutedForeground} />
+            </Pressable>
+            <TextInput
+              value={text}
+              onChangeText={setText}
+              placeholder="Mesaj"
+              placeholderTextColor={c.mutedForeground}
+              multiline
+              maxLength={2000}
+              style={{ flex: 1, maxHeight: 120, minHeight: 46, paddingRight: 14, paddingTop: 12, paddingBottom: 12, fontFamily: fonts.regular, fontSize: 15, color: c.foreground }}
+            />
+          </View>
+          <Pressable onPress={send} disabled={!text.trim()} accessibilityLabel="Gönder" style={{ width: 46, height: 46, borderRadius: 23, backgroundColor: c.primary, opacity: text.trim() ? 1 : 0.6, alignItems: "center", justifyContent: "center", elevation: 2 }}>
+            <SendHorizontal size={20} color={c.primaryForeground} />
+          </Pressable>
+        </Row>
+      ) : (
+        <Row style={{ justifyContent: "center", paddingVertical: 10, backgroundColor: c.card, borderRadius: 24 }} gap={6}>
+          <Lock size={15} color={c.mutedForeground} />
+          <Text style={{ fontFamily: fonts.regular, fontSize: 13, color: c.mutedForeground }}>Bu grupta yalnızca yöneticiler mesaj gönderebilir</Text>
+        </Row>
+      )}
+    </View>
+  );
+}
+
 export default function ChatScreen() {
   const { id, day } = useLocalSearchParams<{ id: string; day?: string }>();
   const c = useColors();
-  const insets = useSafeAreaInsets();
   const fetcher = useApiFetch();
   const action = useAction();
   const chat = useQuery({ queryKey: [`/api/m/groups/${id}/chat`], queryFn: () => fetcher<ChatResponse>(`/api/m/groups/${id}/chat`), retry: (n, e) => !(e instanceof ApiError) && n < 2 });
   const [older, setOlder] = useState<ChatMessage[]>([]);
   const [pending, setPending] = useState<ChatMessage[]>([]);
   const [hasMoreOlder, setHasMoreOlder] = useState<boolean | null>(null);
-  const [text, setText] = useState("");
   const [pollOpen, setPollOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [payOpen, setPayOpen] = useState(false);
@@ -71,7 +138,7 @@ export default function ChatScreen() {
           }
         } catch {}
       };
-      const t = setInterval(tick, 2000);
+      const t = setInterval(tick, 3000);
       return () => {
         active = false;
         clearInterval(t);
@@ -80,8 +147,9 @@ export default function ChatScreen() {
     }, [id, fetcher]),
   );
 
-  const latest = chat.data?.messages ?? [];
+  const latest = chat.data?.messages;
   const messages = useMemo(() => {
+    if (!latest) return [...older, ...pending];
     const first = latest[0]?.createdAt;
     const old = first ? older.filter((m) => m.createdAt < first) : older;
     const stillPending = pending.filter((p) => !latest.some((m) => m.text === p.text && m.user?.id === p.user?.id && m.createdAt >= p.createdAt));
@@ -124,10 +192,8 @@ export default function ChatScreen() {
     loadingOlder.current = false;
   }
 
-  async function send() {
-    const body = text.trim();
+  async function send(body: string) {
     if (!body || !chat.data) return;
-    setText("");
     const tmp: ChatMessage = { id: `tmp-${Date.now()}`, kind: "TEXT", text: body, createdAt: new Date().toISOString(), user: { id: chat.data.me.userId, name: "", imageUrl: null }, day: null, poll: null, pending: true };
     setPending((p) => [...p, tmp]);
     list.current?.scrollToOffset({ offset: 0, animated: true });
@@ -136,6 +202,41 @@ export default function ChatScreen() {
       { onError: () => setPending((p) => p.map((m) => (m.id === tmp.id ? { ...m, pending: false, failed: true } : m))) },
     );
   }
+
+  const meId = chat.data?.me.userId;
+  const canDeleteAll = chat.data?.me.role === "ADMIN";
+  const refetchRef = useRef(chat.refetch);
+  refetchRef.current = chat.refetch;
+  const onReported = useCallback(() => {
+    refetchRef.current();
+  }, []);
+  // Liste öğesi çizimi sabit tutulur; yazı yazarken liste baştan çizilmez
+  const renderItem = useCallback(
+    ({ item: m, index }: { item: ChatMessage; index: number }) => {
+      const olderItem = reversed[index + 1];
+      if (m.kind === "DAY" && m.day) return <DayCardFull card={m.day} groupId={id} highlight={m.day.dayKey === day} onReported={onReported} />;
+      const dayKey = trDay(m.createdAt);
+      const sep = !olderItem || olderItem.kind === "DAY" || trDay(olderItem.createdAt) !== dayKey;
+      if (m.kind === "BADGE") {
+        if (!m.badge) return null;
+        return (
+          <View>
+            {sep && <DaySeparator dayKey={dayKey} />}
+            <BadgeCard b={m.badge} />
+          </View>
+        );
+      }
+      const mine = m.user?.id === meId;
+      const showAuthor = sep || olderItem?.kind === "BADGE" || olderItem?.user?.id !== m.user?.id;
+      return (
+        <View>
+          {sep && <DaySeparator dayKey={dayKey} />}
+          <MessageBubble m={m} mine={mine} showAuthor={showAuthor} canDelete={mine || canDeleteAll} />
+        </View>
+      );
+    },
+    [reversed, id, day, meId, canDeleteAll, onReported],
+  );
 
   if (chat.isLoading) return <Loading />;
   // Önbellekte sohbet varsa internet yokken de gösterilir
@@ -222,15 +323,7 @@ export default function ChatScreen() {
       {todayCard && !cardVisible && <DayShortcut card={todayCard} groupId={id} onJump={jumpToToday} onReported={() => chat.refetch()} />}
       <View style={{ flex: 1, backgroundColor: c.chatBg }}>
         {/* Hafif desenli sohbet duvar kağıdı */}
-        <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
-          <Defs>
-            <Pattern id="doodle" width={72} height={72} patternUnits="userSpaceOnUse">
-              <Path d="M10 14h8a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2h-9zM32 14h-8a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h9z" stroke={c.chatPattern} strokeWidth={1.4} fill="none" />
-              <Path d="M50 46l3 6 6 1-4.5 4.5 1 6-5.5-3-5.5 3 1-6L41 53l6-1z" stroke={c.chatPattern} strokeWidth={1.4} fill="none" />
-            </Pattern>
-          </Defs>
-          <Rect width="100%" height="100%" fill="url(#doodle)" />
-        </Svg>
+        <ChatWallpaper />
       <FlatList
         ref={list}
         inverted
@@ -242,54 +335,15 @@ export default function ChatScreen() {
         onScrollToIndexFailed={(info) => setTimeout(() => list.current?.scrollToIndex({ index: info.index, viewPosition: 0.4 }), 400)}
         onViewableItemsChanged={onViewable}
         viewabilityConfig={{ itemVisiblePercentThreshold: 15 }}
-        renderItem={({ item: m, index }) => {
-          const olderItem = reversed[index + 1];
-          if (m.kind === "DAY" && m.day) return <DayCardFull card={m.day} groupId={id} highlight={m.day.dayKey === day} onReported={() => chat.refetch()} />;
-          const dayKey = trDay(m.createdAt);
-          const sep = !olderItem || olderItem.kind === "DAY" || trDay(olderItem.createdAt) !== dayKey;
-          const mine = m.user?.id === data.me.userId;
-          const showAuthor = sep || olderItem?.user?.id !== m.user?.id;
-          return (
-            <View>
-              {sep && (
-                <View style={{ alignSelf: "center", backgroundColor: c.card, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 3, marginVertical: 10, elevation: 1 }}>
-                  <Text style={{ fontFamily: fonts.semibold, fontSize: 10, letterSpacing: 0.5, color: c.mutedForeground }}>{dayLabel(dayKey).toLocaleUpperCase("tr-TR")}</Text>
-                </View>
-              )}
-              <MessageBubble m={m} mine={mine} showAuthor={showAuthor} canDelete={mine || isAdmin} />
-            </View>
-          );
-        }}
+        renderItem={renderItem}
+        initialNumToRender={10}
+        maxToRenderPerBatch={6}
+        updateCellsBatchingPeriod={60}
+        windowSize={7}
+        removeClippedSubviews={Platform.OS === "android"}
       />
       </View>
-      <View style={{ backgroundColor: c.chatBg, paddingHorizontal: 6, paddingTop: 6, paddingBottom: Math.max(6, insets.bottom) }}>
-        {data.me.canPost ? (
-          <Row gap={6} style={{ alignItems: "flex-end" }}>
-            <View style={{ flex: 1, flexDirection: "row", alignItems: "flex-end", backgroundColor: c.card, borderRadius: 24, paddingLeft: 4, elevation: 1 }}>
-              <Pressable onPress={() => setPollOpen(true)} hitSlop={6} accessibilityLabel="Anket oluştur" style={{ width: 40, height: 46, alignItems: "center", justifyContent: "center" }}>
-                <BarChart3 size={21} color={c.mutedForeground} />
-              </Pressable>
-              <TextInput
-                value={text}
-                onChangeText={setText}
-                placeholder="Mesaj"
-                placeholderTextColor={c.mutedForeground}
-                multiline
-                maxLength={2000}
-                style={{ flex: 1, maxHeight: 120, minHeight: 46, paddingRight: 14, paddingTop: 12, paddingBottom: 12, fontFamily: fonts.regular, fontSize: 15, color: c.foreground }}
-              />
-            </View>
-            <Pressable onPress={send} disabled={!text.trim()} accessibilityLabel="Gönder" style={{ width: 46, height: 46, borderRadius: 23, backgroundColor: c.primary, opacity: text.trim() ? 1 : 0.6, alignItems: "center", justifyContent: "center", elevation: 2 }}>
-              <SendHorizontal size={20} color={c.primaryForeground} />
-            </Pressable>
-          </Row>
-        ) : (
-          <Row style={{ justifyContent: "center", paddingVertical: 10, backgroundColor: c.card, borderRadius: 24 }} gap={6}>
-            <Lock size={15} color={c.mutedForeground} />
-            <Text style={{ fontFamily: fonts.regular, fontSize: 13, color: c.mutedForeground }}>Bu grupta yalnızca yöneticiler mesaj gönderebilir</Text>
-          </Row>
-        )}
-      </View>
+      <Composer canPost={data.me.canPost} onSend={send} onPoll={() => setPollOpen(true)} />
       <PollModal groupId={id} visible={pollOpen} onClose={() => setPollOpen(false)} />
       <GroupHistoryModal groupId={id} visible={historyOpen} onClose={() => setHistoryOpen(false)} />
       {kasa && (

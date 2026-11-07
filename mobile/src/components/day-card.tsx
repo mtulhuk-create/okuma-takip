@@ -1,6 +1,6 @@
 import { router } from "expo-router";
 import { BookOpen, Check, CheckCheck, ChevronRight, Clock, CloudOff, Link2, Lock, X, type LucideIcon } from "lucide-react-native";
-import { useState } from "react";
+import { memo, useState } from "react";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import { useAction } from "@/lib/api";
 import { useOfflineQueue } from "@/lib/offline";
@@ -301,7 +301,7 @@ function CategoryChips({ card, interactive }: { card: Card; interactive?: boolea
 }
 
 /** Sohbetin ortasındaki gün kartı */
-export function DayCardFull({ card, groupId, onReported, highlight }: { card: Card; groupId: string; onReported?: () => void; highlight?: boolean }) {
+export const DayCardFull = memo(function DayCardFull({ card, groupId, onReported, highlight }: { card: Card; groupId: string; onReported?: () => void; highlight?: boolean }) {
   const c = useColors();
   return (
     <View
@@ -350,7 +350,7 @@ export function DayCardFull({ card, groupId, onReported, highlight }: { card: Ca
       )}
     </View>
   );
-}
+});
 
 /** Bugün ekranındaki sade kart; dokununca grubun sohbetinde bu güne gider */
 export function DayCardMini({ card, groupId, groupName }: { card: Card; groupId: string; groupName: string }) {

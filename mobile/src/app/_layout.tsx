@@ -26,7 +26,7 @@ const WEEK = 7 * 86_400_000;
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 15_000, retry: 1, gcTime: WEEK } },
 });
-const persister = createAsyncStoragePersister({ storage: AsyncStorage, key: "okuma-takip-cache" });
+const persister = createAsyncStoragePersister({ storage: AsyncStorage, key: "okuma-takip-cache", throttleTime: 3000 });
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({ Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700Bold, LibreBaskerville_700Bold });

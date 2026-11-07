@@ -6,6 +6,7 @@ import { deleteMessage, votePoll } from "@/app/actions";
 import type { ChatMessage } from "@/lib/chat";
 import { formatClock } from "@/lib/schedule";
 import { Avatar } from "../avatar";
+import { BadgeChip } from "../badge-chip";
 
 const NAME_COLORS = ["text-rose-700", "text-amber-700", "text-emerald-700", "text-sky-700", "text-violet-700", "text-orange-700", "text-teal-700"];
 function nameColor(id: string) {
@@ -62,7 +63,12 @@ export function Bubble({
           mine ? `bg-[var(--chat-mine)] text-[var(--chat-mine-fg)] ${showAuthor ? "bubble-tail-out rounded-tr-none" : ""}` : `bg-card ${showAuthor ? "bubble-tail-in rounded-tl-none" : ""}`
         } ${m.pending ? "opacity-70" : ""} ${m.failed ? "ring-2 ring-destructive" : ""}`}
       >
-        {!mine && showAuthor && m.user && <p className={`mb-0.5 text-[13px] font-bold leading-tight ${nameColor(m.user.id)}`}>{m.user.name}</p>}
+        {!mine && showAuthor && m.user && (
+          <p className={`mb-0.5 flex items-center gap-1.5 text-[13px] font-bold leading-tight ${nameColor(m.user.id)}`}>
+            <span className="truncate">{m.user.name}</span>
+            {m.user.badge && <BadgeChip tag={m.user.badge} />}
+          </p>
+        )}
         {children}
         <p className={`-mt-0.5 flex items-center justify-end gap-0.5 text-[10px] leading-4 ${mine ? "opacity-60" : "text-muted-foreground"}`}>
           {m.failed ? "Gönderilemedi" : m.pending ? "Gönderiliyor…" : formatClock(m.createdAt)}

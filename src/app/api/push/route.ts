@@ -6,8 +6,10 @@ export async function POST(req: Request) {
   const { userId } = await auth();
   if (!userId) return new Response("Unauthorized", { status: 401 });
   await requireUser();
-  const sub = (await req.json()) as { endpoint?: string; keys?: { p256dh?: string; auth?: string } };
+  const sub = (await req.json().catch(() => ({}))) as { endpoint?: string; keys?: { p256dh?: string; auth?: string } };
   if (!sub.endpoint || !sub.keys?.p256dh || !sub.keys?.auth) return new Response("Bad request", { status: 400 });
+  // Yalnızca https bildirim servisleri ve makul uzunlukta anahtarlar
+  if (!/^https:\/\//.test(sub.endpoint) || sub.endpoint.length > 1000 || sub.keys.p256dh.length > 200 || sub.keys.auth.length > 100) return new Response("Bad request", { status: 400 });
   await getDb().pushSubscription.upsert({
     where: { endpoint: sub.endpoint },
     create: { userId, endpoint: sub.endpoint, p256dh: sub.keys.p256dh, auth: sub.keys.auth },
