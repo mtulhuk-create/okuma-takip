@@ -4,7 +4,6 @@ import Link from "next/link";
 import { Countdown } from "@/components/countdown";
 import { DayCardMini } from "@/components/day-card";
 import { PushToggle } from "@/components/push-toggle";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { MyHistory } from "@/components/my-history";
 import { DebtButton } from "@/components/pay-sheet";
 import { DueBadge } from "@/components/due-badge";
@@ -27,7 +26,6 @@ export default async function PanelPage() {
           <h1 className="truncate font-serif text-2xl font-bold">{user.name}</h1>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <ThemeToggle compact />
           <DebtButton total={money.unpaidTotal} items={money.debts} />
           <UserButton />
         </div>
