@@ -42,8 +42,11 @@ export default async function ProfilePage() {
 
       <section className="card space-y-4">
         <div className="flex items-center justify-between gap-3">
-          <span className="flex items-center gap-2 text-sm font-semibold">
-            <Palette className="size-4 text-primary" /> Görünüm
+          <span className="min-w-0">
+            <span className="flex items-center gap-2 text-sm font-semibold">
+              <Palette className="size-4 text-primary" /> Tema
+            </span>
+            <span className="block text-xs text-muted-foreground">Varsayılan: cihazın sistem ayarı</span>
           </span>
           <ThemeToggle />
         </div>
