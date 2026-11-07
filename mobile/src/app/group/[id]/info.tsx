@@ -3,6 +3,7 @@ import { router, Stack, useLocalSearchParams } from "expo-router";
 import { Copy, Crown, LogOut, Receipt, Shield, Wallet } from "lucide-react-native";
 import { useState } from "react";
 import { Alert, View } from "react-native";
+import { BadgeChip } from "@/components/badge-chip";
 import { DueBadge } from "@/components/due-badge";
 import { GroupRules } from "@/components/group-rules";
 import { TeamPicker } from "@/components/team-picker";
@@ -125,10 +126,13 @@ export default function GroupInfoScreen() {
         {group.members.map((m) => (
           <Row key={m.id}>
             <Avatar name={m.user.name} uri={m.user.imageUrl} size={34} />
-            <Body numberOfLines={1} style={{ flex: 1 }}>
-              {m.user.name}
-              {m.userId === me.userId ? " (sen)" : ""}
-            </Body>
+            <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <Body numberOfLines={1} style={{ flexShrink: 1 }}>
+                {m.user.name}
+                {m.userId === me.userId ? " (sen)" : ""}
+              </Body>
+              {m.badge && <BadgeChip tag={m.badge} />}
+            </View>
             {teamsActive(group) && <Muted>{group.teams.find((t) => t.id === m.teamId)?.name ?? ""}</Muted>}
             {m.role === "ADMIN" && <Crown size={15} color={c.primary} />}
           </Row>

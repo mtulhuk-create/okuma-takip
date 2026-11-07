@@ -36,6 +36,10 @@ const ACTIONS: Record<string, Fn> = {
   sendMessage: wrap(actions.sendMessage),
   createPoll: wrap(actions.createPoll),
   votePoll: wrap(actions.votePoll),
+  proposeBadge: wrap(actions.proposeBadge),
+  voteBadge: wrap(actions.voteBadge),
+  deleteBadgeOption: wrap(actions.deleteBadgeOption),
+  removeBadge: wrap(actions.removeBadge),
   deleteMessage: wrap(actions.deleteMessage),
   requestTeamChange: wrap(actions.requestTeamChange),
   respondTeamChange: wrap(actions.respondTeamChange),
@@ -44,7 +48,7 @@ const ACTIONS: Record<string, Fn> = {
 
 export const POST = withUser(async (_user, req, ctx: { params: Promise<{ name: string }> }) => {
   const { name } = await ctx.params;
-  const fn = ACTIONS[name];
+  const fn = Object.hasOwn(ACTIONS, name) ? ACTIONS[name] : undefined;
   if (!fn) return Response.json({ error: "Bilinmeyen işlem" }, { status: 404 });
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const fd = new FormData();

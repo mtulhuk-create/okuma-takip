@@ -1,7 +1,8 @@
 import "server-only";
-import type { Group } from "@prisma/client";
+import type { Group, Prisma } from "@prisma/client";
 import { getDb } from "./db";
 import { shownName, withShownName } from "./names";
+import { activeBadges, finalizeVotes } from "./badges";
 import { getDayCards } from "./day";
 import { dueView } from "./due-view";
 import { currentPeriod, defaultDueAt } from "./schedule";
@@ -35,7 +36,12 @@ export async function getChatPage(groupId: string, userId: string, before?: Date
   const group = { ...raw, members: raw.members.map((m) => ({ ...m, user: withShownName(m.user, raw.nameDisplay) })) };
   const me = group.members.find((m) => m.userId === userId);
   if (!me) return { group: { id: group.id, name: group.name }, me: null };
-  if (!before) await ensureDayCard(group);
+  if (!before) {
+    await ensureDayCard(group);
+    if (group.badgesEnabled) await finalizeVotes(groupId).catch(() => 0);
+  }
+  const tags = await activeBadges(group);
+  const tag = (uid: string | null | undefined) => (uid ? (tags.get(uid) ?? null) : null);
 
   const rows = await db.message.findMany({
     where: { groupId, ...(before ? { createdAt: { lt: before } } : {}) },
@@ -44,6 +50,7 @@ export async function getChatPage(groupId: string, userId: string, before?: Date
     include: {
       user: publicUser,
       poll: { include: { options: { orderBy: { position: "asc" }, include: { votes: { include: { user: { select: { id: true, name: true, accountName: true } } } } } } } },
+      badge: { include: { user: publicUser, options: { orderBy: { createdAt: "asc" }, include: { votes: { select: { userId: true } } } } } },
     },
   });
   const hasMore = rows.length > PAGE;
@@ -58,7 +65,7 @@ export async function getChatPage(groupId: string, userId: string, before?: Date
     kind: m.kind,
     text: m.text,
     createdAt: m.createdAt.toISOString(),
-    user: m.user ? withShownName(m.user, group.nameDisplay) : null,
+    user: m.user ? { ...withShownName(m.user, group.nameDisplay), badge: tag(m.user.id) } : null,
     mine: m.userId === userId,
     day: m.kind === "DAY" && m.dayKey ? cards[m.dayKey] : null,
     poll: m.poll
@@ -76,6 +83,7 @@ export async function getChatPage(groupId: string, userId: string, before?: Date
           })),
         }
       : null,
+    badge: m.kind === "BADGE" && m.badge ? badgeView(m.badge, m.text, userId, me.role === "ADMIN", group) : null,
   }));
 
   const lastEvent = await db.groupEvent.findFirst({ where: { groupId }, orderBy: { id: "desc" }, select: { id: true } });
@@ -95,6 +103,36 @@ export async function getChatPage(groupId: string, userId: string, before?: Date
     me: { userId, role: me.role, canPost: canPost(group, me.role) },
     messages,
     hasMore,
+  };
+}
+
+type BadgeRow = Prisma.BadgeGetPayload<{ include: { user: typeof publicUser; options: { include: { votes: { select: { userId: true } } } } } }>;
+
+/** Sohbetteki rozet kartı: oylama (öneri + oy), kazanıldı ya da kalktı */
+function badgeView(b: BadgeRow, event: string | null, userId: string, isAdmin: boolean, group: Pick<Group, "nameDisplay" | "badgesEnabled">) {
+  const voting = b.status === "VOTING" && !!b.voteUntil && b.voteUntil > new Date() && group.badgesEnabled;
+  const isMe = b.userId === userId;
+  return {
+    id: b.id,
+    event: (event === "AWARD" || event === "END" ? event : "VOTE") as "VOTE" | "AWARD" | "END",
+    kind: b.kind,
+    status: b.status,
+    label: b.label,
+    user: { id: b.user.id, name: shownName(b.user, group.nameDisplay), imageUrl: b.user.imageUrl },
+    isMe,
+    voteUntil: b.voteUntil?.toISOString() ?? null,
+    voting,
+    voters: b.options.reduce((n, o) => n + o.votes.length, 0),
+    options: b.options.map((o) => ({
+      id: o.id,
+      label: o.label,
+      votes: o.votes.length,
+      mine: o.votes.some((v) => v.userId === userId),
+      canDelete: voting && (isAdmin || o.authorId === userId),
+    })),
+    canVote: voting && !isMe,
+    proposed: b.options.some((o) => o.authorId === userId),
+    canRemove: isAdmin && (b.status === "VOTING" || b.status === "ACTIVE"),
   };
 }
 

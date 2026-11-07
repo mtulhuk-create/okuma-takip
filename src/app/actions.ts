@@ -4,7 +4,8 @@ import { clerkClient } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { actionUser, cleanName, getMembership, requireAdmin } from "@/lib/auth";
-import { chooseName } from "@/lib/names";
+import { chooseName, shownName } from "@/lib/names";
+import { activeBadges, cleanBadgeLabel, closeAllBadges } from "@/lib/badges";
 import { run, str, int, type ActionState } from "@/lib/action-state";
 import { getDb } from "@/lib/db";
 import { parseLinks, saveBookLinks } from "@/lib/book-links";
@@ -128,6 +129,7 @@ function parseGroupForm(fd: FormData, teamRules?: RulesInput, keep?: Set<string>
     dueOffsetDays: fd.get("dueOffsetDays") == null || fd.get("dueOffsetDays") === "" ? undefined : int(fd, "dueOffsetDays", -25, 25, "Vade kaydırma"),
     kickOnExpire: fd.get("kickOnExpire") == null ? undefined : str(fd, "kickOnExpire") === "1",
     nameDisplay: (["ENTERED", "ACCOUNT", "BOTH"].includes(str(fd, "nameDisplay")) ? str(fd, "nameDisplay") : undefined) as "ENTERED" | "ACCOUNT" | "BOTH" | undefined,
+    badgesEnabled: fd.get("badgesEnabled") == null ? undefined : str(fd, "badgesEnabled") === "1",
   };
 }
 
@@ -190,7 +192,11 @@ export async function updateGroup(_: Prev, fd: FormData) {
     const { enabled, teams } = parseTeams(fd, keep);
     const data = parseGroupForm(fd, enabled ? rulesOf(teams[0]) : undefined, keep);
     const db = getDb();
-    await db.group.update({ where: { id: groupId }, data: { ...data, teamsEnabled: enabled } });
+    // Rozetler açılınca seriler bundan sonraki günlerden sayılır; kapatılınca süren oylama ve rozetler biter
+    const badgeDay = cur.lastSettledDay ?? "";
+    const badgesSince = data.badgesEnabled && !cur.badgesEnabled ? badgeDay : undefined;
+    if (data.badgesEnabled === false && cur.badgesEnabled) await closeAllBadges(groupId, badgeDay);
+    await db.group.update({ where: { id: groupId }, data: { ...data, teamsEnabled: enabled, ...(badgesSince !== undefined ? { badgesSince } : {}) } });
     if (enabled || teams.length) await saveTeams(groupId, teams);
     // Sohbeti ve gün kartlarını açık olanlar yeni kuralları (eser adları vb.) hemen görsün
     await publish(groupId, { type: "refresh", reason: "settings" });
@@ -618,7 +624,10 @@ export async function sendMessage(_: Prev, fd: FormData) {
     const groupId = str(fd, "groupId");
     const text = str(fd, "text", 2000);
     if (!text) throw new Error("Mesaj boş olamaz");
-    const { user } = await chatMember(groupId);
+    const { user, member } = await chatMember(groupId);
+    // Taşkın koruması: dakikada en fazla 20 mesaj
+    const recent = await getDb().message.count({ where: { groupId, userId: user.id, createdAt: { gt: new Date(Date.now() - 60_000) } } });
+    if (recent >= 20) throw new Error("Çok hızlı mesaj gönderiyorsun, biraz bekle");
     const m = await getDb().message.create({ data: { groupId, userId: user.id, kind: "TEXT", text } });
     await publish(groupId, {
       type: "message",
@@ -627,9 +636,10 @@ export async function sendMessage(_: Prev, fd: FormData) {
         kind: "TEXT",
         text,
         createdAt: m.createdAt.toISOString(),
-        user: { id: user.id, name: user.name, imageUrl: user.imageUrl },
+        user: { id: user.id, name: shownName(user, member.group.nameDisplay), imageUrl: user.imageUrl, badge: (await activeBadges(member.group)).get(user.id) ?? null },
         day: null,
         poll: null,
+        badge: null,
       },
     });
     return { id: m.id };
@@ -649,6 +659,8 @@ export async function createPoll(_: Prev, fd: FormData) {
     if (options.length < 2 || options.length > 10) throw new Error("2 ile 10 arasında seçenek girin");
     const { user } = await chatMember(groupId);
     const db = getDb();
+    const polls = await db.message.count({ where: { groupId, userId: user.id, kind: "POLL", createdAt: { gt: new Date(Date.now() - 10 * 60_000) } } });
+    if (polls >= 5) throw new Error("Kısa sürede çok fazla anket açtın, biraz bekle");
     const m = await db.message.create({ data: { groupId, userId: user.id, kind: "POLL" } });
     const poll = await db.poll.create({ data: { messageId: m.id, question, multiple: str(fd, "multiple") === "1" } });
     await db.pollOption.createMany({ data: options.map((text, position) => ({ pollId: poll.id, text, position })) });
@@ -678,11 +690,80 @@ export async function deleteMessage(_: Prev, fd: FormData) {
     const db = getDb();
     const msg = await db.message.findUniqueOrThrow({ where: { id: str(fd, "messageId") } });
     if (msg.kind === "DAY") throw new Error("Gün kartları silinemez");
+    if (msg.kind === "BADGE") throw new Error("Rozet kartları silinemez; rozeti karttaki düğmeyle kaldırabilirsiniz");
     const { user, member } = await chatMember(msg.groupId, false);
     if (msg.userId !== user.id && member.role !== "ADMIN") throw new Error("Bu mesajı silemezsiniz");
     await db.message.delete({ where: { id: msg.id } });
     await publish(msg.groupId, { type: "refresh", reason: "delete" });
     return "Mesaj silindi";
+  });
+}
+
+// ---------- Rozetler ----------
+
+/** Oylamadaki rozet: üye olmalı, rozetin sahibi olmamalı, oylama sürmeli */
+async function votingBadge(badgeId: string) {
+  const db = getDb();
+  const badge = await db.badge.findUniqueOrThrow({ where: { id: badgeId }, include: { group: { select: { badgesEnabled: true } } } });
+  const { user, member } = await chatMember(badge.groupId, false);
+  if (!badge.group.badgesEnabled) throw new Error("Bu grupta rozetler kapalı");
+  if (badge.status !== "VOTING" || !badge.voteUntil || badge.voteUntil <= new Date()) throw new Error("Bu rozetin oylaması bitti");
+  if (badge.userId === user.id) throw new Error("Kendi rozetine öneri yapamaz ve oy veremezsin");
+  return { db, badge, user, member };
+}
+
+export async function proposeBadge(_: Prev, fd: FormData) {
+  return run(async () => {
+    const { db, badge, user } = await votingBadge(str(fd, "badgeId"));
+    const label = cleanBadgeLabel(str(fd, "label", 60));
+    const options = await db.badgeOption.findMany({ where: { badgeId: badge.id }, select: { label: true, authorId: true } });
+    if (options.some((o) => o.authorId === user.id)) throw new Error("Bu rozet için zaten bir şık önerdin");
+    if (options.length >= 12) throw new Error("Bu oylamada en fazla 12 şık olabilir");
+    const fold = (v: string) => v.toLocaleLowerCase("tr-TR");
+    if (options.some((o) => fold(o.label) === fold(label))) throw new Error("Bu şık zaten önerildi, ona oy verebilirsin");
+    const option = await db.badgeOption.create({ data: { badgeId: badge.id, label, authorId: user.id } });
+    // Öneren kendi şıkkına oy vermiş sayılır (sonra değiştirebilir)
+    await db.badgeVote.upsert({ where: { badgeId_userId: { badgeId: badge.id, userId: user.id } }, create: { badgeId: badge.id, optionId: option.id, userId: user.id }, update: { optionId: option.id } });
+    await publish(badge.groupId, { type: "refresh", reason: "badge" });
+    return "Şık eklendi";
+  });
+}
+
+export async function voteBadge(_: Prev, fd: FormData) {
+  return run(async () => {
+    const { db, badge, user } = await votingBadge(str(fd, "badgeId"));
+    const option = await db.badgeOption.findFirst({ where: { id: str(fd, "optionId"), badgeId: badge.id } });
+    if (!option) throw new Error("Şık bulunamadı");
+    await db.badgeVote.upsert({ where: { badgeId_userId: { badgeId: badge.id, userId: user.id } }, create: { badgeId: badge.id, optionId: option.id, userId: user.id }, update: { optionId: option.id } });
+    await publish(badge.groupId, { type: "refresh", reason: "badge" });
+  });
+}
+
+/** Uygunsuz şıkkı yönetici ya da öneren kaldırabilir */
+export async function deleteBadgeOption(_: Prev, fd: FormData) {
+  return run(async () => {
+    const db = getDb();
+    const option = await db.badgeOption.findUniqueOrThrow({ where: { id: str(fd, "optionId") }, include: { badge: true } });
+    const { user, member } = await chatMember(option.badge.groupId, false);
+    if (option.authorId !== user.id && member.role !== "ADMIN") throw new Error("Bu şıkkı yalnızca öneren ya da yönetici kaldırabilir");
+    if (option.badge.status !== "VOTING") throw new Error("Oylama bitti");
+    await db.badgeOption.delete({ where: { id: option.id } });
+    await publish(option.badge.groupId, { type: "refresh", reason: "badge" });
+    return "Şık kaldırıldı";
+  });
+}
+
+/** Yönetici rozeti (ya da süren oylamayı) kaldırır */
+export async function removeBadge(_: Prev, fd: FormData) {
+  return run(async () => {
+    const db = getDb();
+    const badge = await db.badge.findUniqueOrThrow({ where: { id: str(fd, "badgeId") }, include: { group: { select: { lastSettledDay: true } } } });
+    await requireAdmin(badge.groupId);
+    if (badge.status !== "VOTING" && badge.status !== "ACTIVE") throw new Error("Bu rozet zaten kalkmış");
+    await db.badge.update({ where: { id: badge.id }, data: { status: badge.status === "VOTING" ? "CANCELLED" : "ENDED", endedDay: badge.group.lastSettledDay ?? badge.streakDay, endedAt: new Date() } });
+    if (badge.status === "ACTIVE") await db.message.create({ data: { groupId: badge.groupId, kind: "BADGE", text: "END", badgeId: badge.id } });
+    await publish(badge.groupId, { type: "refresh", reason: "badge" });
+    return badge.status === "VOTING" ? "Oylama iptal edildi" : "Rozet kaldırıldı";
   });
 }
 

@@ -7,6 +7,7 @@ import { penaltyFor, rulesFor } from "./rules";
 import { DAY, MIN, currentPeriod, formatDateTime, formatDayKey, lastClosedPeriod, minuteToTime, openPeriod, periodFor, shiftDayKey } from "./schedule";
 import { DAY_ACTIONS, sendDayStart } from "./day-push";
 import { processDues } from "./dues";
+import { finalizeVotes, processBadges } from "./badges";
 import { signQuickToken } from "./token";
 
 
@@ -24,6 +25,8 @@ export async function settleGroup(g: G, now = new Date()) {
   if (!claim.count) return 0;
   let total = 0;
   for (let key = next; key <= closed.dayKey; key = shiftDayKey(key, 1)) total += await settleDay(g, key);
+  // Rozetler: kapanan günlerle 7 günlük seriler ve kaldırma koşulları
+  await processBadges(g, closed.dayKey).catch((e) => console.error("rozet", e));
   await publish(g.id, { type: "refresh", reason: "day" });
   return total;
 }
@@ -65,6 +68,7 @@ export async function runCron(now = new Date()) {
   const stats = { settled: 0, penalties: 0, reminders: 0, countdowns: 0, expired: 0 };
   const db = getDb();
   const groups = await db.group.findMany({ include: { teams: true } });
+  await finalizeVotes(undefined, now).catch((e) => console.error("rozet oylaması", e));
 
   for (const g of groups) {
     if (await ensureDayCard(g, now)) await publish(g.id, { type: "refresh", reason: "card" });

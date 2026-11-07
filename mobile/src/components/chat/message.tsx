@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Check } from "lucide-react-native";
 import { Alert, Pressable, Text, View } from "react-native";
 import * as Clipboard from "expo-clipboard";
@@ -5,6 +6,7 @@ import { toast, useAction } from "@/lib/api";
 import { formatClock } from "@/lib/format";
 import { fonts, useColors } from "@/lib/theme";
 import type { ChatMessage } from "@/lib/types";
+import { BadgeChip } from "../badge-chip";
 import { Avatar } from "../ui";
 
 const NAME_COLORS = ["#be123c", "#b45309", "#047857", "#0369a1", "#6d28d9", "#c2410c", "#0f766e"];
@@ -14,7 +16,7 @@ const nameColor = (id: string) => {
   return NAME_COLORS[h % NAME_COLORS.length];
 };
 
-export function MessageBubble({ m, mine, showAuthor, canDelete }: { m: ChatMessage; mine: boolean; showAuthor: boolean; canDelete: boolean }) {
+export const MessageBubble = memo(function MessageBubble({ m, mine, showAuthor, canDelete }: { m: ChatMessage; mine: boolean; showAuthor: boolean; canDelete: boolean }) {
   const c = useColors();
   const action = useAction();
   const fg = mine ? c.chatMineFg : c.foreground;
@@ -80,7 +82,14 @@ export function MessageBubble({ m, mine, showAuthor, canDelete }: { m: ChatMessa
             }}
           />
         )}
-        {!mine && showAuthor && m.user && <Text style={{ fontFamily: fonts.bold, fontSize: 12, color: nameColor(m.user.id), marginBottom: 2 }}>{m.user.name}</Text>}
+        {!mine && showAuthor && m.user && (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 }}>
+            <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: fonts.bold, fontSize: 12, color: nameColor(m.user.id) }}>
+              {m.user.name}
+            </Text>
+            {m.user.badge && <BadgeChip tag={m.user.badge} />}
+          </View>
+        )}
         {poll ? (
           <View style={{ gap: 6 }}>
             <Text style={{ fontFamily: fonts.semibold, fontSize: 15, color: fg }}>{poll.question}</Text>
@@ -113,4 +122,4 @@ export function MessageBubble({ m, mine, showAuthor, canDelete }: { m: ChatMessa
       </Pressable>
     </View>
   );
-}
+});

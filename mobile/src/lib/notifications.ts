@@ -1,6 +1,7 @@
 // Okuma günü hatırlatmaları ve son 10 dakika geri sayımı cihazda planlanır;
 // böylece internet ya da push servisi olmadan da tam zamanında gelir.
 import * as Notifications from "expo-notifications";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 import { API_URL } from "./config";
@@ -239,9 +240,22 @@ export async function scheduledSummary() {
   return { count: all.length, next: times[0] ? new Date(times[0]) : null };
 }
 
+const HANDLED_KEY = "handled-actions";
+/**
+ * Aynı buton basışı hem arka plan görevine hem uygulama açılınca dinleyiciye gelebilir;
+ * ikinci kez gönderilmesin.
+ */
+async function alreadyHandled(key: string) {
+  const list = JSON.parse((await AsyncStorage.getItem(HANDLED_KEY).catch(() => null)) ?? "[]") as string[];
+  if (list.includes(key)) return true;
+  await AsyncStorage.setItem(HANDLED_KEY, JSON.stringify([key, ...list].slice(0, 30))).catch(() => {});
+  return false;
+}
+
 /** Bildirimdeki hızlı butona basıldığında okumayı sunucuya iletir (uygulama kapalıyken de çalışır). */
-export async function handleReportAction(actionId: string, data: ReportData, userText?: string) {
+export async function handleReportAction(actionId: string, data: ReportData, userText?: string, key?: string) {
   if (!["all", "pages", "min", "none"].includes(actionId) || !data?.token) return false;
+  if (key && (await alreadyHandled(key))) return true;
   const payload = { token: data.token, choice: actionId, pages: userText ? Number(userText) : undefined };
   let res: Response;
   try {

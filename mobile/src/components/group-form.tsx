@@ -1,7 +1,7 @@
 import { BookSuggestProvider, useBookSuggest } from "./book-match";
 import { AlarmClock, AtSign, BookOpen, ChevronDown, Globe, Landmark, Lock, PencilLine, Plus, ShieldCheck, Trash2, UserRound, Users, type LucideIcon } from "lucide-react-native";
 import { useState } from "react";
-import { Pressable, Switch, Text, View } from "react-native";
+import { Alert, Pressable, Switch, Text, View } from "react-native";
 import { fonts, useColors } from "@/lib/theme";
 import { booksOf, type Group, type Rules } from "@/lib/types";
 import { TimeField } from "./pickers";
@@ -86,9 +86,22 @@ export function GroupForm({ group, onSubmit, submitting, submitLabel }: { group?
   const suggest = useBookSuggest(!group);
   const [kickOnExpire, setKickOnExpire] = useState(group?.kickOnExpire ?? true);
   const [nameDisplay, setNameDisplay] = useState<"ENTERED" | "ACCOUNT" | "BOTH">(group?.nameDisplay ?? "ENTERED");
+  const [badgesEnabled, setBadgesEnabled] = useState(group?.badgesEnabled ?? false);
+  // Rozetler açılmadan önce uyarı onayı
+  const toggleBadges = (on: boolean) => {
+    if (!on) return setBadgesEnabled(false);
+    Alert.alert(
+      "Latife rozetleri",
+      "Rozetler gruba latife olsun diye konulmuş bir özelliktir.\n\nÜyeler rozet adı önerirken aşırıya kaçabilir ya da rozet verilen kişi konulan lakaba alınabilir. Uygunsuz şıkları ve rozetleri yönetici olarak kaldırabilirsin.\n\nRozetleri açmak istiyor musun?",
+      [
+        { text: "Vazgeç", style: "cancel" },
+        { text: "Anladım, aç", onPress: () => setBadgesEnabled(true) },
+      ],
+    );
+  };
   const edit = !!group;
   // Kaydedilmemiş değişiklik göstergesi
-  const snapshot = JSON.stringify([name, description, visibility, chatPolicy, shareProgress, rules, teamsEnabled, teams, startMinute, deadlineMinute, reminderHours, iban, ibanName, dueOffset, kickOnExpire, nameDisplay]);
+  const snapshot = JSON.stringify([name, description, visibility, chatPolicy, shareProgress, rules, teamsEnabled, teams, startMinute, deadlineMinute, reminderHours, iban, ibanName, dueOffset, kickOnExpire, nameDisplay, badgesEnabled]);
   const [saved, setSaved] = useState(snapshot);
   const dirty = snapshot !== saved;
   const time = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
@@ -180,7 +193,7 @@ export function GroupForm({ group, onSubmit, submitting, submitLabel }: { group?
       <Section
         icon={ShieldCheck}
         title="Sohbet ve üyeler"
-        summary={`${chatPolicy === "ALL" ? "Herkes yazar" : "Yalnızca yöneticiler yazar"} · ${{ ENTERED: "Yazdığı ad", ACCOUNT: "Hesap adı", BOTH: "Ad + hesap adı" }[nameDisplay]} · geçmiş ${shareProgress ? "açık" : "gizli"}`}
+        summary={`${chatPolicy === "ALL" ? "Herkes yazar" : "Yalnızca yöneticiler yazar"} · ${{ ENTERED: "Yazdığı ad", ACCOUNT: "Hesap adı", BOTH: "Ad + hesap adı" }[nameDisplay]} · geçmiş ${shareProgress ? "açık" : "gizli"} · rozetler ${badgesEnabled ? "açık" : "kapalı"}`}
         collapsible={edit}
       >
         <View>
@@ -212,6 +225,13 @@ export function GroupForm({ group, onSubmit, submitting, submitLabel }: { group?
             <Muted>Kapalıyken üyeler geçmiş tablosunda yalnızca kendilerini görür.</Muted>
           </View>
           <Switch value={shareProgress} onValueChange={setShareProgress} trackColor={{ true: c.primary, false: c.muted }} thumbColor="#fff" />
+        </Row>
+        <Row style={{ justifyContent: "space-between" }}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontFamily: fonts.semibold, fontSize: 14, color: c.foreground }}>Latife rozetleri</Text>
+            <Muted>7 gün üst üste tam okuyana Maşallah rozeti; 7 gün tam okuyamayana adını üyelerin oyladığı rozet. 2 gün içinde durum değişirse kalkar.</Muted>
+          </View>
+          <Switch value={badgesEnabled} onValueChange={toggleBadges} trackColor={{ true: c.primary, false: c.muted }} thumbColor="#fff" />
         </Row>
       </Section>
 
@@ -272,6 +292,7 @@ export function GroupForm({ group, onSubmit, submitting, submitLabel }: { group?
             dueOffsetDays: dueOffset,
             kickOnExpire: kickOnExpire ? "1" : "0",
             nameDisplay,
+            badgesEnabled: badgesEnabled ? "1" : "0",
             ...(group ? {} : { bookLinks: suggest.linksJson() }),
           });
         }}

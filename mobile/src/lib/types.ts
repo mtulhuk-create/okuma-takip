@@ -32,6 +32,7 @@ export type Group = Rules & {
   dueOffsetDays?: number;
   kickOnExpire?: boolean;
   nameDisplay?: "ENTERED" | "ACCOUNT" | "BOTH";
+  badgesEnabled?: boolean;
   tzOffset: number;
 };
 
@@ -43,6 +44,8 @@ export type Member = {
   teamId: string | null;
   joinedAt: string;
   user: PublicUser;
+  /** Gruba özel etkin rozet (yalnızca üyelere gelir) */
+  badge?: BadgeTag | null;
 };
 
 export type ReadingLog = { userId: string; dayKey: string; pages: number; requiredPages: number; minPages: number };
@@ -165,14 +168,32 @@ export type ProfileResponse = {
 export type ActionResult = { ok?: boolean; error?: string; message?: string; id?: string };
 
 export type PollView = { id: string; question: string; multiple: boolean; voters: number; options: { id: string; text: string; votes: number; mine: boolean; names: string[] }[] };
+export type BadgeTag = { kind: "GOOD" | "BAD"; label: string };
+export type BadgeView = {
+  id: string;
+  event: "VOTE" | "AWARD" | "END";
+  kind: "GOOD" | "BAD";
+  status: "VOTING" | "ACTIVE" | "ENDED" | "CANCELLED";
+  label: string | null;
+  user: { id: string; name: string; imageUrl: string | null };
+  isMe: boolean;
+  voteUntil: string | null;
+  voting: boolean;
+  voters: number;
+  options: { id: string; label: string; votes: number; mine: boolean; canDelete: boolean }[];
+  canVote: boolean;
+  proposed: boolean;
+  canRemove: boolean;
+};
 export type ChatMessage = {
   id: string;
-  kind: "TEXT" | "DAY" | "POLL";
+  kind: "TEXT" | "DAY" | "POLL" | "BADGE";
   text: string | null;
   createdAt: string;
-  user: { id: string; name: string; imageUrl: string | null } | null;
+  user: { id: string; name: string; imageUrl: string | null; badge?: BadgeTag | null } | null;
   day: DayCard | null;
   poll: PollView | null;
+  badge?: BadgeView | null;
   pending?: boolean;
   failed?: boolean;
 };

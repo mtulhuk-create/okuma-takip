@@ -120,6 +120,9 @@ function TeamCard({ team, index, canRemove, onChange, onRemove }: { team: TeamDr
 
 const dueOffsetText = (d: number) => (d === 0 ? "Her ayın son günü" : d < 0 ? `Ay sonundan ${-d} gün önce` : `Ay sonundan ${d} gün sonra`);
 
+const BADGE_WARNING =
+  "Rozetler gruba latife olsun diye konulmuş bir özelliktir.\n\nÜyeler rozet adı önerirken aşırıya kaçabilir ya da rozet verilen kişi konulan lakaba alınabilir. Uygunsuz şıkları ve rozetleri yönetici olarak kaldırabilirsin.\n\nRozetleri açmak istiyor musun?";
+
 export function GroupForm({ group }: { group?: Group & { teams?: Team[] } }) {
   const [visibility, setVisibility] = useState<"PRIVATE" | "PUBLIC">(group?.visibility ?? "PRIVATE");
   const [chatPolicy, setChatPolicy] = useState<"ALL" | "ADMINS">(group?.chatPolicy ?? "ALL");
@@ -136,9 +139,10 @@ export function GroupForm({ group }: { group?: Group & { teams?: Team[] } }) {
   const [dueOffset, setDueOffset] = useState(group?.dueOffsetDays ?? 0);
   const [kickOnExpire, setKickOnExpire] = useState(group?.kickOnExpire ?? true);
   const [nameDisplay, setNameDisplay] = useState<"ENTERED" | "ACCOUNT" | "BOTH">(group?.nameDisplay ?? "ENTERED");
+  const [badgesEnabled, setBadgesEnabled] = useState(group?.badgesEnabled ?? false);
   const edit = !!group;
   // Kaydedilmemiş değişiklik: seçimlerin ilk halinden farkı ya da metin alanlarına yazılması
-  const snapshot = JSON.stringify([visibility, chatPolicy, shareProgress, rules, teamsEnabled, teams, start, deadline, reminderHours, iban, dueOffset, kickOnExpire, nameDisplay]);
+  const snapshot = JSON.stringify([visibility, chatPolicy, shareProgress, rules, teamsEnabled, teams, start, deadline, reminderHours, iban, dueOffset, kickOnExpire, nameDisplay, badgesEnabled]);
   const [saved, setSaved] = useState(snapshot);
   const [typed, setTyped] = useState(false);
   const dirty = typed || snapshot !== saved;
@@ -184,6 +188,7 @@ export function GroupForm({ group }: { group?: Group & { teams?: Team[] } }) {
       <input type="hidden" name="dueOffsetDays" value={dueOffset} />
       <input type="hidden" name="kickOnExpire" value={kickOnExpire ? "1" : "0"} />
       <input type="hidden" name="nameDisplay" value={nameDisplay} />
+      <input type="hidden" name="badgesEnabled" value={badgesEnabled ? "1" : "0"} />
 
       <Section Icon={PencilLine} title="Genel" summary={`${group?.name ?? ""} · ${visibility === "PUBLIC" ? "Herkese açık" : "Özel"}`} collapsible={edit}>
         <div>
@@ -280,7 +285,7 @@ export function GroupForm({ group }: { group?: Group & { teams?: Team[] } }) {
       <Section
         Icon={ShieldCheck}
         title="Sohbet ve üyeler"
-        summary={`${chatPolicy === "ALL" ? "Herkes yazar" : "Yalnızca yöneticiler yazar"} · ${{ ENTERED: "Yazdığı ad", ACCOUNT: "Hesap adı", BOTH: "Ad + hesap adı" }[nameDisplay]} · geçmiş ${shareProgress ? "açık" : "gizli"}`}
+        summary={`${chatPolicy === "ALL" ? "Herkes yazar" : "Yalnızca yöneticiler yazar"} · ${{ ENTERED: "Yazdığı ad", ACCOUNT: "Hesap adı", BOTH: "Ad + hesap adı" }[nameDisplay]} · geçmiş ${shareProgress ? "açık" : "gizli"} · rozetler ${badgesEnabled ? "açık" : "kapalı"}`}
         collapsible={edit}
       >
         <div>
@@ -311,6 +316,15 @@ export function GroupForm({ group }: { group?: Group & { teams?: Team[] } }) {
           onChange={setShareProgress}
           title="Okuyucular birbirinin geçmişini görsün"
           desc="Kapalıyken üyeler sohbetteki geçmiş tablosunda yalnızca kendilerini görür."
+        />
+        <Toggle
+          checked={badgesEnabled}
+          onChange={(on) => {
+            if (on && !confirm(BADGE_WARNING)) return;
+            setBadgesEnabled(on);
+          }}
+          title="Latife rozetleri"
+          desc="7 gün üst üste tam okuyana Maşallah rozeti; 7 gün tam okuyamayana adını üyelerin oyladığı rozet. 2 gün içinde durum değişirse kalkar."
         />
       </Section>
 

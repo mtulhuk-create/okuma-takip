@@ -46,7 +46,8 @@ export function NotificationBridge() {
     if (last.actionIdentifier === Notifications.DEFAULT_ACTION_IDENTIFIER) {
       if (data?.groupId) router.push(`/group/${data.groupId}`);
     } else if (data?.token) {
-      handleReportAction(last.actionIdentifier, data as ReportData, last.userText).then(() => me.refetch());
+      const key = `${last.notification.request.identifier}:${last.actionIdentifier}:${last.notification.date}`;
+      handleReportAction(last.actionIdentifier, data as ReportData, last.userText, key).then(() => me.refetch());
     }
     Notifications.clearLastNotificationResponse();
     // eslint-disable-next-line react-hooks/exhaustive-deps

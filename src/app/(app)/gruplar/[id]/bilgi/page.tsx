@@ -1,3 +1,4 @@
+import { BadgeChip } from "@/components/badge-chip";
 import { ArrowLeft, Crown, LogOut, Receipt, Settings, Shield, Wallet } from "lucide-react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -135,9 +136,12 @@ export default async function GroupInfoPage({ params }: { params: Promise<{ id: 
           {group.members.map((m) => (
             <li key={m.id} className="flex items-center gap-3">
               <Avatar name={m.user.name} src={m.user.imageUrl} size={36} />
-              <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                {m.user.name}
-                {m.userId === user.id && <span className="text-muted-foreground"> (sen)</span>}
+              <span className="flex min-w-0 flex-1 items-center gap-1.5 text-sm font-medium">
+                <span className="truncate">
+                  {m.user.name}
+                  {m.userId === user.id && <span className="text-muted-foreground"> (sen)</span>}
+                </span>
+                {m.badge && <BadgeChip tag={m.badge} />}
               </span>
               {m.role === "ADMIN" && (
                 <span className="badge bg-primary/10 text-primary">

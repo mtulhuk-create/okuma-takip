@@ -5,10 +5,13 @@ export async function GET(req: Request) {
   const { userId } = await auth();
   if (!userId) return new Response("Unauthorized", { status: 401 });
   const url = new URL(req.url);
-  const q = (url.searchParams.get("q") ?? "").trim();
+  const q = (url.searchParams.get("q") ?? "").trim().slice(0, 50);
   const groupId = url.searchParams.get("groupId") ?? "";
   if (q.length < 2) return Response.json({ users: [] });
   const db = getDb();
+  // Kullanıcı araması yalnızca davet için: o grubun yöneticisi olmayan arama yapamaz
+  const me = groupId ? await db.groupMember.findUnique({ where: { groupId_userId: { groupId, userId } }, select: { role: true, status: true } }) : null;
+  if (me?.status !== "ACTIVE" || me.role !== "ADMIN") return Response.json({ users: [] }, { status: 403 });
   const users = await db.user.findMany({
     where: {
       id: { not: userId },

@@ -10,6 +10,7 @@ import { DayCardFull, DayShortcut } from "../day-card";
 import { Countdown } from "../countdown";
 import { DueBadge } from "../due-badge";
 import { PaySheet } from "../pay-sheet";
+import { BadgeCard } from "./badge-card";
 import { Bubble, PollBody, type UiMessage } from "./message-items";
 import { GroupHistory } from "./group-history";
 import { PollDialog } from "./poll-dialog";
@@ -176,10 +177,11 @@ export function ChatView({ initial }: { initial: Page }) {
       kind: "TEXT",
       text: body,
       createdAt: new Date().toISOString(),
-      user: { id: me.userId, name: "", imageUrl: null },
+      user: { id: me.userId, name: "", imageUrl: null, badge: null },
       mine: true,
       day: null,
       poll: null,
+      badge: null,
       pending: true,
     };
     setMessages((prev) => [...prev, tmp]);
@@ -310,6 +312,20 @@ export function ChatView({ initial }: { initial: Page }) {
               return (
                 <div key={m.id} className="my-5">
                   <DayCardFull card={m.day} groupId={groupId} onReported={refresh} />
+                </div>
+              );
+            }
+            if (m.kind === "BADGE" && !m.badge) return null;
+            if (m.kind === "BADGE" && m.badge) {
+              lastAuthor = null;
+              return (
+                <div key={m.id}>
+                  {sep && (
+                    <p className="sticky top-2 z-10 mx-auto my-3 w-fit rounded-lg bg-card/95 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground shadow-xs backdrop-blur">
+                      {dayLabel(day)}
+                    </p>
+                  )}
+                  <BadgeCard b={m.badge} onChanged={refresh} />
                 </div>
               );
             }

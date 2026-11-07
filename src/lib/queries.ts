@@ -1,4 +1,5 @@
 import "server-only";
+import { activeBadges, type BadgeTag } from "./badges";
 import { ensureDayCard } from "./chat";
 import { getDayCards } from "./day";
 import { maintainLater } from "./maintenance";
@@ -88,7 +89,9 @@ export async function getGroupDetail(id: string, userId: string) {
     },
   });
   if (!raw) return null;
-  const group = { ...raw, members: raw.members.map((m) => ({ ...m, user: withShownName(m.user, raw.nameDisplay) })) };
+  // Rozetler yalnızca grup üyelerine görünür
+  const tags = raw.members.some((m) => m.userId === userId) ? await activeBadges(raw) : new Map<string, BadgeTag>();
+  const group = { ...raw, members: raw.members.map((m) => ({ ...m, user: withShownName(m.user, raw.nameDisplay), badge: tags.get(m.userId) ?? null })) };
   const me = group.members.find((m) => m.userId === userId) ?? null;
   const myRules = me ? rulesFor(group, me) : null;
   if (!me) {
