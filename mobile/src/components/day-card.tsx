@@ -126,7 +126,7 @@ export function ReportControls({ groupId, card, compact, onDone }: { groupId: st
           );
         })}
       </View>
-      <Row gap={5} style={{ paddingTop: plan ? 6 : 0 }}>
+      <Row gap={5} style={{ paddingTop: plan ? 4 : 0 }}>
         {bottom.map((b) => {
           const fg = b.variant === "ghost" ? c.foreground : "#fff";
           return (
@@ -140,7 +140,7 @@ export function ReportControls({ groupId, card, compact, onDone }: { groupId: st
                 {
                   flexGrow: 1,
                   flexShrink: 1,
-                  height: 34,
+                  height: 30,
                   borderRadius: radius,
                   borderWidth: 1,
                   borderColor: b.variant === "ghost" ? c.border : "transparent",
@@ -148,20 +148,20 @@ export function ReportControls({ groupId, card, compact, onDone }: { groupId: st
                   flexDirection: "row",
                   alignItems: "center",
                   justifyContent: "center",
-                  gap: 4,
-                  paddingHorizontal: 6,
+                  gap: 3,
+                  paddingHorizontal: 5,
                   opacity: pressed ? 0.85 : 1,
                 },
                 active === b.key && { borderWidth: 2, borderColor: c.foreground + "80" },
               ]}
             >
               {b.corner && (
-                <View style={{ position: "absolute", top: -8, right: -4, backgroundColor: c.card, borderRadius: 99, borderWidth: 1, borderColor: KEFARET, paddingHorizontal: 4, elevation: 2 }}>
-                  <Text style={{ fontFamily: fonts.bold, fontSize: 9, lineHeight: 13, color: KEFARET }}>{b.corner}</Text>
+                <View style={{ position: "absolute", top: -6, right: -2, backgroundColor: c.card, borderRadius: 99, borderWidth: 0.8, borderColor: KEFARET, paddingHorizontal: 3 }}>
+                  <Text style={{ fontFamily: fonts.bold, fontSize: 7.5, lineHeight: 10, color: KEFARET }}>{b.corner}</Text>
                 </View>
               )}
-              {busy(b.key) ? <ActivityIndicator size="small" color={fg} /> : <b.Icon size={13} color={fg} />}
-              <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: fonts.semibold, fontSize: 11.5, color: fg }}>
+              {busy(b.key) ? <ActivityIndicator size="small" color={fg} /> : <b.Icon size={11} color={fg} />}
+              <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: fonts.semibold, fontSize: 10, color: fg }}>
                 {b.label}
               </Text>
             </Pressable>

@@ -102,7 +102,7 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
         })}
       </ul>
       {/* Kısa etiketli seçim grubu; ayrıntılar altındaki yardım satırında */}
-      <div className={`flex gap-1 ${plan ? "pt-1.5" : ""}`} role="group" aria-label="Bugünkü okumanı bildir">
+      <div className={`flex gap-1 ${plan ? "pt-1" : ""}`} role="group" aria-label="Bugünkü okumanı bildir">
         {plan && (
           <ChoiceButton
             className="bg-teal-600 text-white hover:bg-teal-700"
@@ -174,14 +174,14 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
 function ChoiceButton({ className, on, busy, disabled, Icon, label, corner, hint, onClick }: { className: string; on: boolean; busy: boolean; disabled: boolean; Icon: typeof Check; label: string; corner?: string; hint: string; onClick: () => void }) {
   return (
     <button
-      className={`btn relative h-8 min-w-0 flex-auto gap-1 whitespace-nowrap rounded-md px-1.5 text-[11.5px] font-semibold [&_svg]:size-3.5 ${className} ${ring(on)}`}
+      className={`btn relative h-7 min-w-0 flex-auto gap-0.5 whitespace-nowrap rounded-md px-1.5 text-[10px] font-semibold [&_svg]:size-3 ${className} ${ring(on)}`}
       aria-pressed={on}
       aria-label={hint}
       title={on ? `${hint} · tekrar bas: geri al` : hint}
       disabled={disabled}
       onClick={onClick}
     >
-      {corner && <span className="absolute -right-1 -top-2 rounded-full bg-card px-1 text-[9px] font-bold leading-[14px] text-teal-700 shadow-sm ring-1 ring-teal-600 dark:text-teal-300">{corner}</span>}
+      {corner && <span className="absolute -right-0.5 -top-1.5 rounded-full bg-card px-[3px] text-[7.5px] font-bold leading-[10px] text-teal-700 ring-1 ring-teal-600/70 dark:text-teal-300">{corner}</span>}
       {busy ? <Spinner /> : <Icon />}
       <span className="truncate">{label}</span>
     </button>
