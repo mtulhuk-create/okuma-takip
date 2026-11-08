@@ -40,7 +40,6 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const me = card.me!;
-  const single = me.books.length === 1;
 
   function send(fields: Record<string, string>, key: string) {
     setBusy(key);
@@ -59,7 +58,7 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
   }
 
   const total = me.pages ?? 0;
-  const status = me.pages == null ? null : total >= me.target ? "Hedef tamam" : total >= me.min ? "Alt sınır tamam" : "Alt sınırın altında";
+  const status = me.pages == null ? null : me.kefaret > 0 ? "Kefaret okuması" : total >= me.target ? "Hedef tamam" : total >= me.min ? "Alt sınır tamam" : "Alt sınırın altında";
   const active = me.kefaret > 0 ? "kefaret" : wholeChoice(me.books);
   const plan = me.plan;
 
@@ -102,7 +101,8 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
           );
         })}
       </ul>
-      <div className={`grid gap-1.5 ${plan ? "grid-cols-4" : "grid-cols-3"}`}>
+      {/* Kısa etiketli seçim grubu; ayrıntılar altındaki yardım satırında */}
+      <div className={`flex gap-1 ${plan ? "pt-1.5" : ""}`} role="group" aria-label="Bugünkü okumanı bildir">
         {plan && (
           <ChoiceButton
             className="bg-teal-600 text-white hover:bg-teal-700"
@@ -110,33 +110,21 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
             busy={busy === "kefaret"}
             disabled={pending}
             Icon={BookHeart}
-            title="Kefaret okuması"
-            caption={`≈${Math.round(plan.discountTotal / plan.days)} TL indirim`}
+            label="Kefaret"
             corner={`${me.target + plan.dailyExtra} sf`}
-            hint={`Bugün toplam ${me.target + plan.dailyExtra} sayfa oku: cezandan indirim kazandırır (${plan.doneDays}/${plan.days} gün)`}
+            hint={`Kefaret okuması: bugün toplam ${me.target + plan.dailyExtra} sayfa, ≈${Math.round(plan.discountTotal / plan.days)} TL indirim`}
             onClick={() => send({ choice: "kefaret" }, "kefaret")}
           />
         )}
-        <ChoiceButton
-          className="btn-success"
-          on={active === "all"}
-          busy={busy === "all"}
-          disabled={pending}
-          Icon={CheckCheck}
-          title={single ? "Okudum" : "Hepsini okudum"}
-          caption={`${me.target} sf · cezasız`}
-          hint={`Hedefin tamamı: ${me.target} sayfa, ceza yok`}
-          onClick={() => send({ choice: "all" }, "all")}
-        />
+        <ChoiceButton className="btn-success" on={active === "all"} busy={busy === "all"} disabled={pending} Icon={CheckCheck} label="Okudum" hint={`Hedefin tamamı: ${me.target} sayfa, ceza yok`} onClick={() => send({ choice: "all" }, "all")} />
         <ChoiceButton
           className="btn-primary"
           on={active === "min"}
           busy={busy === "min"}
           disabled={pending}
           Icon={Check}
-          title="Alt sınırı okudum"
-          caption={`${me.min} sf · ${me.fine.min ? `${me.fine.min} TL ceza` : "cezasız"}`}
-          hint={`Alt sınır: ${me.min} sayfa${me.fine.min ? `, ${me.fine.min} TL ceza yazılır` : ""}`}
+          label="Alt sınır"
+          hint={`Alt sınır: ${me.min} sayfa${me.fine.min ? `, ${me.fine.min} TL ceza` : ""}`}
           onClick={() => send({ choice: "min" }, "min")}
         />
         <ChoiceButton
@@ -145,21 +133,36 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
           busy={busy === "none"}
           disabled={pending}
           Icon={X}
-          title="Okuyamadım"
-          caption={`${me.fine.none} TL ceza`}
-          hint={`Bugün okumadım: ${me.fine.none} TL ceza yazılır`}
+          label="Okumadım"
+          hint={`Okumadım: ${me.fine.none} TL ceza`}
           onClick={() => send({ choice: "none" }, "none")}
         />
       </div>
+      {/* Yardım satırı: bildirmeden önce seçeneklerin sonucu, bildirdikten sonra bugünkü durum */}
+      <p className="text-center text-[11px] leading-snug text-muted-foreground">
+        {status ? (
+          <>
+            Bugün <b className="text-foreground">{total}</b>/{me.target} sf · {status} · seçili butona tekrar basınca geri alınır
+          </>
+        ) : (
+          <>
+            {plan && (
+              <>
+                <span className="text-teal-700 dark:text-teal-400">
+                  Kefaret <b>{me.target + plan.dailyExtra} sf</b>
+                </span>
+                {" · "}
+              </>
+            )}
+            Okudum <b className="text-foreground">{me.target} sf</b> · Alt sınır <b className="text-foreground">{me.min} sf</b>
+            {me.fine.min ? ` (${me.fine.min} TL)` : ""} · Okumadım <b className="text-foreground">{me.fine.none} TL</b> ceza
+          </>
+        )}
+      </p>
       {plan && (
         <p className="flex items-center justify-center gap-1 text-center text-[11px] leading-tight text-teal-700 dark:text-teal-400">
           <BookHeart className="size-3.5 shrink-0" />
-          Kefaret {plan.doneDays}/{plan.days} gün · günde {me.target + plan.dailyExtra} sf · kazanılan {plan.earned}/{plan.discountTotal} TL
-        </p>
-      )}
-      {status && (
-        <p className="text-center text-[11px] leading-tight text-muted-foreground">
-          Bugün <b className="text-foreground">{total}</b>/{me.target} sayfa · {status} · <span className="opacity-80">seçili butona tekrar basarak geri alabilirsin</span>
+          Kefaret {plan.doneDays}/{plan.days} gün · kazanılan {plan.earned}/{plan.discountTotal} TL · günlük ≈{Math.round(plan.discountTotal / plan.days)} TL indirim
         </p>
       )}
       {error && <p className="text-xs font-medium text-destructive">{error}</p>}
@@ -167,46 +170,20 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
   );
 }
 
-/** Gün kartı butonu: üstte ne yapıldığı, altta sayfa ve ceza; seçiliyse tekrar basınca geri alınır */
-function ChoiceButton({
-  className,
-  on,
-  busy,
-  disabled,
-  Icon,
-  title,
-  caption,
-  corner,
-  hint,
-  onClick,
-}: {
-  className: string;
-  on: boolean;
-  busy: boolean;
-  disabled: boolean;
-  Icon: typeof Check;
-  title: string;
-  caption: string;
-  corner?: string;
-  hint: string;
-  onClick: () => void;
-}) {
+/** Gün kartı butonu: kısa etiket; ayrıntı ipucunda ve yardım satırında. Seçiliyse tekrar basınca geri alınır */
+function ChoiceButton({ className, on, busy, disabled, Icon, label, corner, hint, onClick }: { className: string; on: boolean; busy: boolean; disabled: boolean; Icon: typeof Check; label: string; corner?: string; hint: string; onClick: () => void }) {
   return (
     <button
-      className={`btn relative h-auto min-h-11 flex-col gap-0 whitespace-normal px-1 py-1 text-center leading-tight ${className} ${ring(on)}`}
+      className={`btn relative h-8 min-w-0 flex-auto gap-1 whitespace-nowrap rounded-md px-1.5 text-[11.5px] font-semibold [&_svg]:size-3.5 ${className} ${ring(on)}`}
       aria-pressed={on}
+      aria-label={hint}
       title={on ? `${hint} · tekrar bas: geri al` : hint}
       disabled={disabled}
       onClick={onClick}
     >
-      {corner && (
-        <span className="absolute -right-1 -top-2 rounded-full bg-card px-1.5 text-[9px] font-bold leading-4 text-teal-700 shadow-sm ring-1 ring-teal-600 dark:text-teal-300">{corner}</span>
-      )}
-      <span className="flex items-center gap-1 text-[11px] font-semibold [&_svg]:size-3.5">
-        {busy ? <Spinner /> : <Icon />}
-        {title}
-      </span>
-      <span className="text-[9.5px] font-medium opacity-85">{caption}</span>
+      {corner && <span className="absolute -right-1 -top-2 rounded-full bg-card px-1 text-[9px] font-bold leading-[14px] text-teal-700 shadow-sm ring-1 ring-teal-600 dark:text-teal-300">{corner}</span>}
+      {busy ? <Spinner /> : <Icon />}
+      <span className="truncate">{label}</span>
     </button>
   );
 }

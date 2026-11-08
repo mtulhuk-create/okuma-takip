@@ -59,7 +59,6 @@ export function ReportControls({ groupId, card, compact, onDone }: { groupId: st
   const c = useColors();
   const action = useAction();
   const me = card.me!;
-  const single = me.books.length === 1;
   const busy = (key: string) => action.isPending && action.variables?.body?.key === key;
   // toggle: aynı butona tekrar basılırsa bildirim geri alınır (beklemeye döner)
   // dayKey: internet yoksa işlem bu güne ait olarak sıraya alınır
@@ -72,16 +71,16 @@ export function ReportControls({ groupId, card, compact, onDone }: { groupId: st
   const total = me.pages ?? 0;
   const active = me.kefaret ? "kefaret" : wholeChoice(me.books);
   const plan = me.plan ?? null;
-  const status = me.pages == null ? null : total >= me.target ? "Hedef tamam" : total >= me.min ? "Alt sınır tamam" : "Alt sınırın altında";
+  const status = me.pages == null ? null : me.kefaret ? "Kefaret okuması" : total >= me.target ? "Hedef tamam" : total >= me.min ? "Alt sınır tamam" : "Alt sınırın altında";
   const fine = me.fine;
-  const bottom: { key: string; label: string; caption: string; corner?: string; Icon: LucideIcon; variant: "kefaret" | "success" | "primary" | "ghost"; body: Record<string, unknown> }[] = [
-    // Kefaret okuması (süren plan varsa en başta): sağ üstte o gün okunacak toplam sayfa
+  // Kısa etiketler; ayrıntılar butonların altındaki yardım satırında
+  const bottom: { key: string; label: string; hint: string; corner?: string; Icon: LucideIcon; variant: "kefaret" | "success" | "primary" | "ghost"; body: Record<string, unknown> }[] = [
     ...(plan
-      ? [{ key: "kefaret", label: "Kefaret okuması", caption: `≈${Math.round(plan.discountTotal / plan.days)} TL indirim`, corner: `${me.target + plan.dailyExtra} sf`, Icon: BookHeart, variant: "kefaret" as const, body: { choice: "kefaret" } }]
+      ? [{ key: "kefaret", label: "Kefaret", hint: `Kefaret okuması: bugün ${me.target + plan.dailyExtra} sayfa`, corner: `${me.target + plan.dailyExtra} sf`, Icon: BookHeart, variant: "kefaret" as const, body: { choice: "kefaret" } }]
       : []),
-    { key: "all", label: single ? "Okudum" : "Hepsini okudum", caption: `${me.target} sf · cezasız`, Icon: CheckCheck, variant: "success", body: { choice: "all" } },
-    { key: "min", label: "Alt sınırı okudum", caption: `${me.min} sf${fine ? ` · ${fine.min ? `${fine.min} TL ceza` : "cezasız"}` : ""}`, Icon: Check, variant: "primary", body: { choice: "min" } },
-    { key: "none", label: "Okuyamadım", caption: fine ? `${fine.none} TL ceza` : "ceza yazılır", Icon: X, variant: "ghost", body: { choice: "none" } },
+    { key: "all", label: "Okudum", hint: `Okudum: ${me.target} sayfa`, Icon: CheckCheck, variant: "success", body: { choice: "all" } },
+    { key: "min", label: "Alt sınır", hint: `Alt sınırı okudum: ${me.min} sayfa`, Icon: Check, variant: "primary", body: { choice: "min" } },
+    { key: "none", label: "Okumadım", hint: "Okumadım", Icon: X, variant: "ghost", body: { choice: "none" } },
   ];
   return (
     <View style={{ gap: compact ? 6 : 8 }}>
@@ -127,67 +126,79 @@ export function ReportControls({ groupId, card, compact, onDone }: { groupId: st
           );
         })}
       </View>
-      <Row gap={6} style={{ alignItems: "stretch", paddingTop: plan ? 6 : 0 }}>
-        {bottom.map((b) => (
-          <Pressable
-            key={b.key}
-            disabled={action.isPending}
-            onPress={() => send(b.body, b.key)}
-            accessibilityState={{ selected: active === b.key }}
-            style={({ pressed }) => [
-              {
-                flex: 1,
-                minHeight: 44,
-                borderRadius: radius + 2,
-                borderWidth: 1,
-                borderColor: b.variant === "ghost" ? c.border : "transparent",
-                backgroundColor: b.variant === "kefaret" ? KEFARET : b.variant === "success" ? c.success : b.variant === "primary" ? c.primary : c.card,
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 1,
-                paddingHorizontal: 3,
-                paddingVertical: 5,
-                opacity: pressed ? 0.85 : 1,
-              },
-              active === b.key && { borderWidth: 2, borderColor: c.foreground + "80" },
-            ]}
-          >
-            {b.corner && (
-              <View style={{ position: "absolute", top: -8, right: -4, backgroundColor: c.card, borderRadius: 99, borderWidth: 1, borderColor: KEFARET, paddingHorizontal: 5, elevation: 2 }}>
-                <Text style={{ fontFamily: fonts.bold, fontSize: 9, lineHeight: 14, color: KEFARET }}>{b.corner}</Text>
-              </View>
-            )}
-            {busy(b.key) ? (
-              <ActivityIndicator size="small" color={b.variant === "ghost" ? c.foreground : "#fff"} />
-            ) : (
-              <>
-                <Row gap={3} style={{ justifyContent: "center" }}>
-                  <b.Icon size={13} color={b.variant === "ghost" ? c.foreground : "#fff"} />
-                  <Text numberOfLines={2} style={{ flexShrink: 1, fontFamily: fonts.semibold, fontSize: 11, lineHeight: 13, textAlign: "center", color: b.variant === "ghost" ? c.foreground : "#fff" }}>
-                    {b.label}
-                  </Text>
-                </Row>
-                <Text numberOfLines={1} style={{ fontFamily: fonts.medium, fontSize: 9.5, lineHeight: 12, textAlign: "center", color: b.variant === "ghost" ? c.mutedForeground : "#ffffffd9" }}>
-                  {b.caption}
-                </Text>
-              </>
-            )}
-          </Pressable>
-        ))}
+      <Row gap={5} style={{ paddingTop: plan ? 6 : 0 }}>
+        {bottom.map((b) => {
+          const fg = b.variant === "ghost" ? c.foreground : "#fff";
+          return (
+            <Pressable
+              key={b.key}
+              disabled={action.isPending}
+              onPress={() => send(b.body, b.key)}
+              accessibilityLabel={b.hint}
+              accessibilityState={{ selected: active === b.key }}
+              style={({ pressed }) => [
+                {
+                  flexGrow: 1,
+                  flexShrink: 1,
+                  height: 34,
+                  borderRadius: radius,
+                  borderWidth: 1,
+                  borderColor: b.variant === "ghost" ? c.border : "transparent",
+                  backgroundColor: b.variant === "kefaret" ? KEFARET : b.variant === "success" ? c.success : b.variant === "primary" ? c.primary : c.card,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 4,
+                  paddingHorizontal: 6,
+                  opacity: pressed ? 0.85 : 1,
+                },
+                active === b.key && { borderWidth: 2, borderColor: c.foreground + "80" },
+              ]}
+            >
+              {b.corner && (
+                <View style={{ position: "absolute", top: -8, right: -4, backgroundColor: c.card, borderRadius: 99, borderWidth: 1, borderColor: KEFARET, paddingHorizontal: 4, elevation: 2 }}>
+                  <Text style={{ fontFamily: fonts.bold, fontSize: 9, lineHeight: 13, color: KEFARET }}>{b.corner}</Text>
+                </View>
+              )}
+              {busy(b.key) ? <ActivityIndicator size="small" color={fg} /> : <b.Icon size={13} color={fg} />}
+              <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: fonts.semibold, fontSize: 11.5, color: fg }}>
+                {b.label}
+              </Text>
+            </Pressable>
+          );
+        })}
       </Row>
       <OfflinePending groupId={groupId} dayKey={card.dayKey} />
+      {/* Yardım satırı: bildirmeden önce seçeneklerin sonucu, bildirdikten sonra bugünkü durum */}
+      <Text style={{ textAlign: "center", fontFamily: fonts.regular, fontSize: 11, lineHeight: 15, color: c.mutedForeground }}>
+        {status ? (
+          <>
+            Bugün <Text style={{ fontFamily: fonts.bold, color: c.foreground }}>{total}</Text>/{me.target} sf · {status} · tekrar basınca geri alınır
+          </>
+        ) : (
+          <>
+            {plan ? (
+              <Text style={{ color: KEFARET }}>
+                Kefaret <Text style={{ fontFamily: fonts.bold }}>{me.target + plan.dailyExtra} sf</Text> ·{" "}
+              </Text>
+            ) : null}
+            Okudum <Text style={{ fontFamily: fonts.bold, color: c.foreground }}>{me.target} sf</Text> · Alt sınır <Text style={{ fontFamily: fonts.bold, color: c.foreground }}>{me.min} sf</Text>
+            {fine?.min ? ` (${fine.min} TL)` : ""}
+            {fine ? (
+              <>
+                {" "}· Okumadım <Text style={{ fontFamily: fonts.bold, color: c.foreground }}>{fine.none} TL</Text> ceza
+              </>
+            ) : null}
+          </>
+        )}
+      </Text>
       {plan && (
         <Row gap={4} style={{ justifyContent: "center" }}>
           <BookHeart size={12} color={KEFARET} />
-          <Text style={{ fontFamily: fonts.semibold, fontSize: 11, color: KEFARET }}>
-            Kefaret {plan.doneDays}/{plan.days} gün · günde {me.target + plan.dailyExtra} sf · kazanılan {plan.earned}/{plan.discountTotal} TL
+          <Text style={{ flexShrink: 1, fontFamily: fonts.semibold, fontSize: 11, color: KEFARET }}>
+            Kefaret {plan.doneDays}/{plan.days} gün · kazanılan {plan.earned}/{plan.discountTotal} TL · günlük ≈{Math.round(plan.discountTotal / plan.days)} TL
           </Text>
         </Row>
-      )}
-      {status && (
-        <Text style={{ textAlign: "center", fontFamily: fonts.regular, fontSize: 11, color: c.mutedForeground }}>
-          Bugün <Text style={{ fontFamily: fonts.bold, color: c.foreground }}>{total}</Text>/{me.target} sayfa · {status} · tekrar basınca geri alınır
-        </Text>
       )}
     </View>
   );
