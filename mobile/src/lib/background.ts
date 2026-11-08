@@ -1,6 +1,5 @@
 // Android: uygulama arka planda ya da kapalıyken bildirim butonlarını işler.
 import * as Notifications from "expo-notifications";
-import * as BackgroundTask from "expo-background-task";
 import * as TaskManager from "expo-task-manager";
 import { handleReportAction, type ReportData } from "./notifications";
 
@@ -38,12 +37,3 @@ TaskManager.defineTask<Notifications.NotificationTaskPayload>(TASK, async ({ dat
 });
 
 Notifications.registerTaskAsync(TASK).catch(() => {});
-
-// Arka planda mesaj kontrolü (expo-background-task) kapatıldı: eski Android'lerde (One UI 2) uygulamanın
-// arka planda tekrar tekrar çökmesine yol açıyordu. Önceki sürümlerden kalan kayıt bir kez temizlenir;
-// temizlenene kadar tetiklenirse hiçbir şey yapmadan biter.
-const INBOX_TASK = "okuma-takip-inbox";
-TaskManager.defineTask(INBOX_TASK, async () => BackgroundTask.BackgroundTaskResult.Success);
-TaskManager.isTaskRegisteredAsync(INBOX_TASK)
-  .then((registered) => (registered ? BackgroundTask.unregisterTaskAsync(INBOX_TASK) : undefined))
-  .catch(() => {});

@@ -77,7 +77,7 @@ function Navigation() {
   useEffect(() => {
     takeLastCrash().then((crash) => {
       if (!crash) return;
-      const text = `${crash.msg}\n\n${crash.stack.slice(0, 500)}`;
+      const text = `${crash.msg}\n\n${crash.stack.slice(0, 1500)}`;
       Alert.alert("Uygulama son kullanımda hata verdi", `${text}\n\nBu mesajın ekran görüntüsünü paylaşırsan sorunu çözebiliriz.`, [
         { text: "Kopyala", onPress: () => Clipboard.setStringAsync(text) },
         { text: "Tamam" },
