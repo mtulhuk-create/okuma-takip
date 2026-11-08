@@ -7,6 +7,8 @@ import { Platform } from "react-native";
 import { API_URL } from "./config";
 import { enqueue } from "./offline";
 import { LITE } from "./variant";
+import type { DayCard } from "./types";
+import { dayCardNotificationAvailable, hideDayCardNotification, showDayCardNotification, type DayCardPayload } from "../../modules/day-card-notification";
 
 export const REPORT_CATEGORY = "REPORT";
 // Tam sürüm: son 10 dakikada her dakika. Lite: telefonu yormasın, yalnızca 10 ve 1 dakika kala
@@ -111,14 +113,73 @@ export async function setStickyPref(on: boolean) {
   await SecureStore.setItemAsync(STICKY_KEY, on ? "1" : "0").catch(() => {});
 }
 
+// Kilit ekranı kartının içeriği için uygulamadaki gün kartları (me verisinden)
+let dayCards: Record<string, { name: string; card: DayCard }> = {};
+let lastSchedule: Schedule | null = null;
+
+/** Gün kartları değişince (okuma bildirildi, kefaret vb.) kilit ekranı kartı da güncellensin */
+export function setDayCards(groups: { group: { id: string; name: string }; card: DayCard }[]) {
+  dayCards = Object.fromEntries(groups.map((g) => [g.group.id, { name: g.group.name, card: g.card }]));
+  if (lastSchedule) showTodaySticky(lastSchedule).catch(() => {});
+}
+
+/** Uygulamadaki gün kartının özü: başlık, kalan süre, ilerleme, kefaret ve renkli butonlar + çentikler */
+function dayCardPayload(g: Schedule["groups"][number], p: Schedule["groups"][number]["periods"][number]): DayCardPayload {
+  const entry = dayCards[g.groupId];
+  const card = entry?.card.dayKey === p.dayKey ? entry.card : null;
+  const me = card?.me ?? null;
+  const target = me?.target ?? g.dailyPages;
+  const min = me?.min ?? g.minPages ?? 0;
+  const plan = me?.plan ?? null;
+  const fine = me?.fine;
+  const total = card ? card.read.length + card.min.length + card.none.length + card.pending.length : 0;
+  const myState: DayCardPayload["myState"] =
+    me?.pages == null ? null : me.kefaret ? "kefaret" : me.pages >= target ? "all" : me.pages >= min && me.pages > 0 ? "min" : "none";
+  return {
+    id: g.groupId,
+    dayKey: p.dayKey,
+    token: p.token,
+    apiUrl: API_URL,
+    title: entry?.name ?? g.name,
+    subtitle: `${dayText(p.dayKey)} · son bildirim ${hhmm(new Date(p.deadline))}`,
+    deadline: new Date(p.deadline).getTime(),
+    done: card ? card.read.length + card.min.length : 0,
+    total,
+    kefCount: card ? card.read.filter((x) => x.kefaret).length : 0,
+    myState,
+    buttons: [
+      ...(plan ? [{ key: "kefaret" as const, label: "Kefaret", top: `${target + plan.dailyExtra} sf` }] : []),
+      { key: "all", label: "Okudum", top: `${target} sf` },
+      { key: "min", label: "Alt sınır", top: `${min} sf`, bottom: fine?.min ? `-${fine.min} TL` : undefined },
+      { key: "none", label: "Okumadım", bottom: fine ? `-${fine.none} TL` : undefined },
+    ],
+    kefaretLine: plan ? `Kefaret ${plan.doneDays}${me?.kefaret ? "+1" : ""}/${plan.days} gün · ${plan.earned}/${plan.discountTotal} TL silindi` : null,
+  };
+}
+
 /**
- * Okuma günü açık ve henüz bildirilmemiş her grup için kilit ekranında duran (kaydırılarak silinemeyen)
- * gün kartı bildirimi gösterir; bildirildiyse ya da gün kapandıysa kaldırır.
+ * Kilit ekranında duran gün kartı. Android'de (tam sürüm) uygulamadaki gün kartının tasarımıyla özel bildirim;
+ * okuma bildirilse de gün boyunca durur ve seçili butonu gösterir; gün kapanınca kalkar.
+ * Özel bildirim yoksa (eski sürüm) basit sabit bildirim kullanılır.
  */
 export async function showTodaySticky(data: Schedule) {
+  lastSchedule = data;
   const on = await getStickyPref();
   const now = Date.now();
   const presented = await Notifications.getPresentedNotificationsAsync().catch(() => []);
+  if (dayCardNotificationAvailable) {
+    for (const g of data.groups) {
+      const p = g.periods.find((x) => new Date(x.start).getTime() <= now && new Date(x.deadline).getTime() > now);
+      // Aynı günün basit sabit bildirimi (gün başı) varsa kaldır: tek kart kalsın
+      for (const n of presented) {
+        const d = n.request.content.data as Partial<ReportData> | undefined;
+        if (d?.groupId === g.groupId && (d.sticky || n.request.identifier === `today-${g.groupId}`)) await Notifications.dismissNotificationAsync(n.request.identifier).catch(() => {});
+      }
+      if (on && p) showDayCardNotification(dayCardPayload(g, p));
+      else hideDayCardNotification(g.groupId);
+    }
+    return;
+  }
   for (const g of data.groups) {
     const id = `today-${g.groupId}`;
     const p = g.periods.find((x) => new Date(x.start).getTime() <= now && new Date(x.deadline).getTime() > now);

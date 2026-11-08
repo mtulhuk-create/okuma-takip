@@ -5,7 +5,7 @@ import { AppState, Pressable, Text } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApi, useApiFetch } from "@/lib/api";
 import { markInboxSeen, refreshInboxToken } from "@/lib/inbox";
-import { exactAlarmsAllowed, handleReportAction, requestExactAlarms, setupNotifications, syncSchedule, type ReportData, SCHEDULE_PATH } from "@/lib/notifications";
+import { exactAlarmsAllowed, handleReportAction, requestExactAlarms, setupNotifications, syncSchedule, type ReportData, SCHEDULE_PATH, setDayCards } from "@/lib/notifications";
 import { fonts, useColors } from "@/lib/theme";
 import type { MeResponse } from "@/lib/types";
 
@@ -27,6 +27,11 @@ export function NotificationBridge() {
       })
       .catch(() => setReady(true));
   }, []);
+
+  // Kilit ekranı kartı uygulamadaki gün kartlarıyla aynı kalsın
+  useEffect(() => {
+    if (me.data?.groups) setDayCards(me.data.groups);
+  }, [me.data]);
 
   // Okuma günleri/raporlar değiştikçe (me verisi tazelenince) planı güncelle
   useEffect(() => {

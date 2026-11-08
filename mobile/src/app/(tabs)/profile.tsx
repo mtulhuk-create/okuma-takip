@@ -134,7 +134,7 @@ export default function ProfileScreen() {
           <Row style={{ justifyContent: "space-between", borderTopWidth: 1, borderTopColor: c.border, paddingTop: 10 }}>
             <View style={{ flex: 1 }}>
               <Text style={{ fontFamily: fonts.semibold, fontSize: 14, color: c.foreground }}>Bugünün kartı kilit ekranında</Text>
-              <Muted>Okuma günü boyunca bildirim panelinde ve kilit ekranında sabit durur; bildirince kalkar.</Muted>
+              <Muted>Gün kartın okuma günü boyunca kilit ekranında ve bildirim panelinde durur: kalan süre, kaç kişinin okuduğu ve renkli butonlarla uygulamayı açmadan bildir. Gün bitince kalkar.</Muted>
             </View>
             <Switch
               value={sticky}

@@ -1,0 +1,6 @@
+[
+    {
+        "merged": "expo.modules.daycard.day-card-notification-release-2:/drawable-v21/notification_action_background.xml",
+        "source": "expo.modules.daycard.day-card-notification-core-1.17.0-8:/drawable-v21/notification_action_background.xml"
+    }
+]

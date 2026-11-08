@@ -1,0 +1,19 @@
+<lint-module
+    format="1"
+    dir="/home/user/okuma-takip/mobile/modules/day-card-notification/android"
+    name=":day-card-notification"
+    type="LIBRARY"
+    maven="expo.modules.daycard:day-card-notification:1.0.0"
+    agpVersion="9.2.1"
+    buildFolder="build"
+    bootClassPath="/root/android-sdk/platforms/android-37.0/android.jar:/root/android-sdk/build-tools/36.0.0/core-lambda-stubs.jar"
+    javaSourceLevel="17"
+    compileTarget="android-37.0"
+    neverShrinking="true"
+    highlightGradualR8Api="false">
+  <lintOptions
+      absolutePaths="true"
+      checkReleaseBuilds="true"
+      explainIssues="true"/>
+  <variant name="release"/>
+</lint-module>

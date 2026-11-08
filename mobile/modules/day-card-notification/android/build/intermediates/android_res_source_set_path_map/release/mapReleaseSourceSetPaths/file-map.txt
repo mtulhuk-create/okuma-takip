@@ -1,0 +1,9 @@
+expo.modules.daycard.day-card-notification-pngs-0 /home/user/okuma-takip/mobile/modules/day-card-notification/android/build/generated/res/pngs/release
+expo.modules.daycard.day-card-notification-updated_navigation_xml-1 /home/user/okuma-takip/mobile/modules/day-card-notification/android/build/generated/updated_navigation_xml/release
+expo.modules.daycard.day-card-notification-mergeReleaseResources-2 /home/user/okuma-takip/mobile/modules/day-card-notification/android/build/intermediates/incremental/release/mergeReleaseResources/merged.dir
+expo.modules.daycard.day-card-notification-mergeReleaseResources-3 /home/user/okuma-takip/mobile/modules/day-card-notification/android/build/intermediates/incremental/release/mergeReleaseResources/stripped.dir
+expo.modules.daycard.day-card-notification-release-4 /home/user/okuma-takip/mobile/modules/day-card-notification/android/build/intermediates/merged_res/release/mergeReleaseResources
+expo.modules.daycard.day-card-notification-release-5 /home/user/okuma-takip/mobile/modules/day-card-notification/android/build/intermediates/packaged_res/release/packageReleaseResources
+expo.modules.daycard.day-card-notification-main-6 /home/user/okuma-takip/mobile/modules/day-card-notification/android/src/main/res
+expo.modules.daycard.day-card-notification-release-7 /home/user/okuma-takip/mobile/modules/day-card-notification/android/src/release/res
+gradleHome-0 /root/.gradle

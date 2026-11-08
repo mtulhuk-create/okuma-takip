@@ -1,0 +1,48 @@
+{
+    "logs": [
+        {
+            "outputFile": "expo.modules.daycard.day-card-notification-mergeReleaseResources-0:/values-night-v8/values-night-v8.xml",
+            "map": [
+                {
+                    "source": "/home/user/okuma-takip/mobile/modules/day-card-notification/android/src/main/res/values-night/colors.xml",
+                    "from": {
+                        "startLines": "1,2,3,4,7,5,8,6",
+                        "startColumns": "2,2,2,2,2,2,2,2",
+                        "startOffsets": "14,60,110,151,285,195,332,241",
+                        "endColumns": "45,49,40,43,46,45,55,43",
+                        "endOffsets": "57,107,148,192,329,238,385,282"
+                    },
+                    "to": {
+                        "startLines": "2,3,4,5,6,7,8,9",
+                        "startColumns": "4,4,4,4,4,4,4,4",
+                        "startOffsets": "55,103,155,198,244,293,341,399",
+                        "endColumns": "47,51,42,45,48,47,57,45",
+                        "endOffsets": "98,150,193,239,288,336,394,440"
+                    }
+                }
+            ]
+        },
+        {
+            "outputFile": "expo.modules.daycard.day-card-notification-release-2:/values-night-v8/values-night-v8.xml",
+            "map": [
+                {
+                    "source": "/home/user/okuma-takip/mobile/modules/day-card-notification/android/src/main/res/values-night/colors.xml",
+                    "from": {
+                        "startLines": "1,2,3,4,7,5,8,6",
+                        "startColumns": "2,2,2,2,2,2,2,2",
+                        "startOffsets": "14,60,110,151,285,195,332,241",
+                        "endColumns": "45,49,40,43,46,45,55,43",
+                        "endOffsets": "57,107,148,192,329,238,385,282"
+                    },
+                    "to": {
+                        "startLines": "2,3,4,5,6,7,8,9",
+                        "startColumns": "4,4,4,4,4,4,4,4",
+                        "startOffsets": "55,103,155,198,244,293,341,399",
+                        "endColumns": "47,51,42,45,48,47,57,45",
+                        "endOffsets": "98,150,193,239,288,336,394,440"
+                    }
+                }
+            ]
+        }
+    ]
+}

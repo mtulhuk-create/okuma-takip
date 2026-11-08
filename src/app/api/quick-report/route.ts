@@ -4,7 +4,7 @@ import { verifyQuickToken } from "@/lib/token";
 
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => null)) as { token?: string; choice?: ReportChoice; pages?: number; at?: string } | null;
-  if (!body?.token || !body.choice || !["all", "min", "none", "pages"].includes(body.choice)) {
+  if (!body?.token || !body.choice || !["all", "min", "none", "pages", "kefaret"].includes(body.choice)) {
     return Response.json({ error: "Geçersiz istek" }, { status: 400 });
   }
   const t = await verifyQuickToken(body.token, body.at ? OFFLINE_GRACE_MS : 0);
