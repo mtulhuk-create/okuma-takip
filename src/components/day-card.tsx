@@ -62,8 +62,6 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
   const status = me.pages == null ? null : total >= me.target ? "Hedef tamam" : total >= me.min ? "Alt sınır tamam" : "Alt sınırın altında";
   const active = me.kefaret > 0 ? "kefaret" : wholeChoice(me.books);
   const plan = me.plan;
-  // Dar ekranda sığsın: ikon ve yazı yan yana, gerekirse yazı iki satıra iner
-  const btn = "h-auto min-h-9 gap-1 whitespace-normal px-1.5 py-1 text-center text-[11px] leading-tight [&_svg]:size-3.5";
 
   return (
     <div className={compact ? "space-y-1.5" : "space-y-2"} onClick={(e) => e.stopPropagation()}>
@@ -106,30 +104,57 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
       </ul>
       <div className={`grid gap-1.5 ${plan ? "grid-cols-4" : "grid-cols-3"}`}>
         {plan && (
-          <button
-            className={`btn ${btn} bg-teal-600 text-white hover:bg-teal-700 ${ring(active === "kefaret")}`}
-            aria-pressed={active === "kefaret"}
-            title={active === "kefaret" ? "Tekrar bas: geri al" : `Hedefin üstüne ${plan.dailyExtra} sayfa: indirimin bir payını kazandırır`}
+          <ChoiceButton
+            className="bg-teal-600 text-white hover:bg-teal-700"
+            on={active === "kefaret"}
+            busy={busy === "kefaret"}
             disabled={pending}
+            Icon={BookHeart}
+            title="Kefaret okuması"
+            caption={`≈${Math.round(plan.discountTotal / plan.days)} TL indirim`}
+            corner={`${me.target + plan.dailyExtra} sf`}
+            hint={`Bugün toplam ${me.target + plan.dailyExtra} sayfa oku: cezandan indirim kazandırır (${plan.doneDays}/${plan.days} gün)`}
             onClick={() => send({ choice: "kefaret" }, "kefaret")}
-          >
-            {busy === "kefaret" ? <Spinner /> : <BookHeart />} Kefaret +{plan.dailyExtra}
-          </button>
+          />
         )}
-        <button className={`btn-success ${btn} ${ring(active === "all")}`} aria-pressed={active === "all"} title={active === "all" ? "Tekrar bas: geri al" : undefined} disabled={pending} onClick={() => send({ choice: "all" }, "all")}>
-          {busy === "all" ? <Spinner /> : <CheckCheck />} {single ? "Okudum" : "Hepsini okudum"}
-        </button>
-        <button className={`btn-primary ${btn} ${ring(active === "min")}`} aria-pressed={active === "min"} title={active === "min" ? "Tekrar bas: geri al" : undefined} disabled={pending} onClick={() => send({ choice: "min" }, "min")}>
-          {busy === "min" ? <Spinner /> : <Check />} Alt sınırı okudum
-        </button>
-        <button className={`btn-ghost ${btn} ${active === "none" ? "border-rose-500 bg-rose-500/10 text-rose-700 dark:text-rose-400" : ""} ${ring(active === "none")}`} aria-pressed={active === "none"} title={active === "none" ? "Tekrar bas: geri al" : undefined} disabled={pending} onClick={() => send({ choice: "none" }, "none")}>
-          {busy === "none" ? <Spinner /> : <X />} Okuyamadım
-        </button>
+        <ChoiceButton
+          className="btn-success"
+          on={active === "all"}
+          busy={busy === "all"}
+          disabled={pending}
+          Icon={CheckCheck}
+          title={single ? "Okudum" : "Hepsini okudum"}
+          caption={`${me.target} sf · cezasız`}
+          hint={`Hedefin tamamı: ${me.target} sayfa, ceza yok`}
+          onClick={() => send({ choice: "all" }, "all")}
+        />
+        <ChoiceButton
+          className="btn-primary"
+          on={active === "min"}
+          busy={busy === "min"}
+          disabled={pending}
+          Icon={Check}
+          title="Alt sınırı okudum"
+          caption={`${me.min} sf · ${me.fine.min ? `${me.fine.min} TL ceza` : "cezasız"}`}
+          hint={`Alt sınır: ${me.min} sayfa${me.fine.min ? `, ${me.fine.min} TL ceza yazılır` : ""}`}
+          onClick={() => send({ choice: "min" }, "min")}
+        />
+        <ChoiceButton
+          className={`btn-ghost ${active === "none" ? "border-rose-500 bg-rose-500/10 text-rose-700 dark:text-rose-400" : ""}`}
+          on={active === "none"}
+          busy={busy === "none"}
+          disabled={pending}
+          Icon={X}
+          title="Okuyamadım"
+          caption={`${me.fine.none} TL ceza`}
+          hint={`Bugün okumadım: ${me.fine.none} TL ceza yazılır`}
+          onClick={() => send({ choice: "none" }, "none")}
+        />
       </div>
       {plan && (
         <p className="flex items-center justify-center gap-1 text-center text-[11px] leading-tight text-teal-700 dark:text-teal-400">
           <BookHeart className="size-3.5 shrink-0" />
-          Kefaret {plan.doneDays}/{plan.days} gün · günde {me.target}+{plan.dailyExtra} sf · kazanılan {plan.earned}/{plan.discountTotal} TL
+          Kefaret {plan.doneDays}/{plan.days} gün · günde {me.target + plan.dailyExtra} sf · kazanılan {plan.earned}/{plan.discountTotal} TL
         </p>
       )}
       {status && (
@@ -139,6 +164,50 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
       )}
       {error && <p className="text-xs font-medium text-destructive">{error}</p>}
     </div>
+  );
+}
+
+/** Gün kartı butonu: üstte ne yapıldığı, altta sayfa ve ceza; seçiliyse tekrar basınca geri alınır */
+function ChoiceButton({
+  className,
+  on,
+  busy,
+  disabled,
+  Icon,
+  title,
+  caption,
+  corner,
+  hint,
+  onClick,
+}: {
+  className: string;
+  on: boolean;
+  busy: boolean;
+  disabled: boolean;
+  Icon: typeof Check;
+  title: string;
+  caption: string;
+  corner?: string;
+  hint: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      className={`btn relative h-auto min-h-11 flex-col gap-0 whitespace-normal px-1 py-1 text-center leading-tight ${className} ${ring(on)}`}
+      aria-pressed={on}
+      title={on ? `${hint} · tekrar bas: geri al` : hint}
+      disabled={disabled}
+      onClick={onClick}
+    >
+      {corner && (
+        <span className="absolute -right-1 -top-2 rounded-full bg-card px-1.5 text-[9px] font-bold leading-4 text-teal-700 shadow-sm ring-1 ring-teal-600 dark:text-teal-300">{corner}</span>
+      )}
+      <span className="flex items-center gap-1 text-[11px] font-semibold [&_svg]:size-3.5">
+        {busy ? <Spinner /> : <Icon />}
+        {title}
+      </span>
+      <span className="text-[9.5px] font-medium opacity-85">{caption}</span>
+    </button>
   );
 }
 

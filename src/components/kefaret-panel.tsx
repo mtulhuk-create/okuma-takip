@@ -129,7 +129,10 @@ export function KefaretPanel({ groupId }: { groupId: string }) {
                   <td className="px-2 py-1.5 text-right font-semibold text-teal-700 dark:text-teal-400">{r.discountTotal} TL</td>
                   <td className="px-2 py-1.5 text-right">{r.pages} sf</td>
                   <td className="whitespace-nowrap px-2 py-1.5 text-right">
-                    {r.target}+<b>{r.dailyExtra}</b>
+                    <b>{r.target + r.dailyExtra} sf</b>
+                    <span className="block text-[9px] text-muted-foreground">
+                      hedef {r.target} + {r.dailyExtra}
+                    </span>
                   </td>
                   <td className={`px-2 py-1.5 text-right font-bold ${r.days > data.maxDays ? "text-destructive" : ""}`}>{r.days}</td>
                 </tr>

@@ -132,7 +132,7 @@ export async function startKefaret(groupId: string, adminId: string, discountPer
         [r.userId],
         {
           title: `📗 ${group.name}: kefaret okuması`,
-          body: `Cezana %${discountPercent} indirim (${r.discountTotal} TL) kazanabilirsin: ${r.days} gün, günde ${r.target}+${r.dailyExtra} sayfa oku. Gün kartındaki "Kefaret" butonunu kullan; istemezsen normal okumaya devam edebilirsin.`,
+          body: `Cezana %${discountPercent} indirim (${r.discountTotal} TL) kazanabilirsin: ${r.days} gün, günde ${r.target + r.dailyExtra} sayfa oku. Gün kartındaki "Kefaret okuması" butonunu kullan; istemezsen normal okumaya devam edebilirsin.`,
           url: `/gruplar/${groupId}`,
         },
         { inApp: true },
