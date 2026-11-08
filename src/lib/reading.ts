@@ -4,7 +4,7 @@ import { parseBookLogs, penaltyFor, rulesFor, type BookLog } from "./rules";
 import { openPeriod, periodFor } from "./schedule";
 
 /** all/min/none: tüm eserler için · pages: toplam sayfa (eserlere sırayla dağıtılır) · book: tek eser */
-export type ReportChoice = "all" | "min" | "none" | "pages";
+export type ReportChoice = "all" | "min" | "none" | "pages" | "kefaret";
 /** toggle: aynı seçim tekrar gönderilirse bildirimi geri al (beklemeye dön) */
 export type ReportInput = {
   choice: ReportChoice;
@@ -49,7 +49,26 @@ export async function submitReading(userId: string, groupId: string, input: Repo
   let books: BookLog[] = rules.books.map((b) => ({ id: b.id, title: b.title, target: b.targetPages, min: b.minPages, pages: prev.get(b.id) ?? null }));
 
   const before = books.map((b) => b.pages);
-  if (input.bookId) {
+  // Kefaret okuması: tüm eserler hedefinde + plandaki ek sayfa (eserlere hedefleri oranında dağıtılır)
+  let kefaret = { extra: 0, planId: null as string | null };
+  if (input.choice === "kefaret" && !input.bookId) {
+    const plan = await db.kefaretPlan.findFirst({ where: { groupId, userId, status: "ACTIVE", startDay: { lte: period.dayKey } }, orderBy: { createdAt: "desc" } });
+    if (!plan) throw new Error("Süren bir kefaret okuman yok");
+    // Aynı butona tekrar basıldı: kefaret bildirimi geri alınır
+    if (input.toggle && existing?.kefaretPlanId === plan.id) {
+      await db.readingLog.delete({ where: { id: existing.id } });
+      if (late) await fixSettledPenalty(member.group, member, period.dayKey, 0, rules);
+      return { log: null, period, member, rules, undone: true as const };
+    }
+    kefaret = { extra: plan.dailyExtra, planId: plan.id };
+    const total = books.reduce((s, b) => s + b.target, 0) || 1;
+    let left = plan.dailyExtra;
+    books = books.map((b, i) => {
+      const share = i === books.length - 1 ? left : Math.min(left, Math.floor((plan.dailyExtra * b.target) / total));
+      left -= share;
+      return { ...b, pages: b.target + share };
+    });
+  } else if (input.bookId) {
     const book = books.find((b) => b.id === input.bookId);
     if (!book) throw new Error("Eser bulunamadı");
     const next = input.bookChoice === "read" ? book.target : input.bookChoice === "min" ? book.min : 0;
@@ -69,7 +88,7 @@ export async function submitReading(userId: string, groupId: string, input: Repo
   }
 
   // Tümü için aynı seçim tekrar gönderildiyse (ya da hiçbir eser bildirimi kalmadıysa) bugünkü bildirim silinir: beklemede
-  const unchanged = !input.bookId && books.every((b, i) => b.pages === before[i]);
+  const unchanged = !input.bookId && !kefaret.planId && !existing?.kefaretPlanId && books.every((b, i) => b.pages === before[i]);
   if ((input.toggle && unchanged && existing) || (existing && books.every((b) => b.pages == null))) {
     await db.readingLog.delete({ where: { id: existing.id } });
     if (late) await fixSettledPenalty(member.group, member, period.dayKey, 0, rules);
@@ -81,6 +100,8 @@ export async function submitReading(userId: string, groupId: string, input: Repo
     requiredPages: rules.targetPages,
     minPages: rules.minPages,
     books,
+    kefaret: kefaret.extra,
+    kefaretPlanId: kefaret.planId,
   };
   const log = await db.readingLog.upsert({
     where: { groupId_userId_dayKey: { groupId, userId, dayKey: period.dayKey } },

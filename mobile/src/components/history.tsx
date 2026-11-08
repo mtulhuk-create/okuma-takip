@@ -1,10 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
-import { BookOpen, CalendarRange, Check, CheckCheck, ChevronDown, EyeOff, Flame, Layers, X } from "lucide-react-native";
+import { BookHeart, BookOpen, CalendarRange, Check, CheckCheck, ChevronDown, EyeOff, Flame, Layers, X } from "lucide-react-native";
 import { useState } from "react";
 import { ActivityIndicator, Modal, Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApiFetch } from "@/lib/api";
-import { fonts, useColors } from "@/lib/theme";
+import { fonts, KEFARET, useColors } from "@/lib/theme";
 import type { GroupHistory, HistoryRange, MyHistory, Stats } from "@/lib/types";
 import { Avatar, Card, Muted, Row } from "./ui";
 
@@ -18,7 +18,7 @@ const DOW_MON = ["Pt", "Sa", "Ça", "Pe", "Cu", "Ct", "Pz"];
 
 function useCellColor() {
   const c = useColors();
-  return (ch: string) => ({ r: c.success, m: "#f59e0b", n: c.destructive, p: "transparent", "-": c.muted, x: c.muted + "66" })[ch] ?? c.muted;
+  return (ch: string) => ({ r: c.success, k: KEFARET, m: "#f59e0b", n: c.destructive, p: "transparent", "-": c.muted, x: c.muted + "66" })[ch] ?? c.muted;
 }
 
 /** Pazartesi başlayan tam haftalara tamamlanmış gün listesi (x: aralık dışı) */
@@ -43,7 +43,7 @@ export function HistoryGrid({ start, cells }: { start: string; cells: string }) 
         {[...cells].map((ch, i) => {
           const key = addDays(start, i);
           const today = i === cells.length - 1;
-          const Icon = ch === "r" ? CheckCheck : ch === "m" ? Check : ch === "n" ? X : null;
+          const Icon = ch === "r" ? CheckCheck : ch === "k" ? BookHeart : ch === "m" ? Check : ch === "n" ? X : null;
           return (
             <View key={key} style={{ flex: 1, alignItems: "center", gap: 2 }}>
               <Text style={{ fontFamily: fonts.semibold, fontSize: 10, color: today ? c.primary : c.mutedForeground }}>{DOW[new Date(Date.parse(key)).getUTCDay()]}</Text>
@@ -87,7 +87,7 @@ export function HistoryGrid({ start, cells }: { start: string; cells: string }) 
                   today && todayRing,
                 ]}
               >
-                <Text style={{ fontFamily: fonts.semibold, fontSize: 11, color: "rnm".includes(ch) ? "#fff" : ch === "x" ? c.mutedForeground + "66" : c.mutedForeground }}>{Number(key.slice(8))}</Text>
+                <Text style={{ fontFamily: fonts.semibold, fontSize: 11, color: "rknm".includes(ch) ? "#fff" : ch === "x" ? c.mutedForeground + "66" : c.mutedForeground }}>{Number(key.slice(8))}</Text>
               </View>
             ))}
           </Row>

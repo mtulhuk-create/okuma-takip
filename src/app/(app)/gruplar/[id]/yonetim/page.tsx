@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { cancelInvite, createDue, deleteGroup, kickOverdueAction, removeMember, resolvePayment, respondJoinRequest, respondTeamChange, setMemberTeam, toggleAdmin, waivePenalty } from "@/app/actions";
 import { DiscountForm, ExtendForm } from "@/components/due-admin";
 import { DueBadge } from "@/components/due-badge";
+import { KefaretPanel } from "@/components/kefaret-panel";
 import { ActionForm, SubmitButton } from "@/components/action-form";
 import { Avatar } from "@/components/avatar";
 import { GroupForm } from "@/components/group-form";
@@ -307,6 +308,8 @@ export default async function AdminPage({ params, searchParams }: { params: Prom
               </details>
             </section>
           ))}
+
+          <KefaretPanel groupId={id} />
 
           {unpaidPenalties.length > 0 && (
             <section className="card space-y-3">

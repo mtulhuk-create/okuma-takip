@@ -62,6 +62,12 @@ enum MessageKind {
   BADGE // rozet kartı (oylama / kazanıldı / kalktı)
 }
 
+enum KefaretStatus {
+  ACTIVE
+  DONE // tüm günler okundu ya da indirim yapılacak borç kalmadı
+  CANCELLED
+}
+
 enum BadgeKind {
   GOOD // 7 gün üst üste tam okuma: "Maşallah"
   BAD // 7 gün üst üste tam okuyamama: adı üyelerin oylamasıyla belirlenir
@@ -107,6 +113,7 @@ model User {
   pollVotes         PollVote[]
   bookLinks         BookLink[]
   badges            Badge[]
+  kefaretPlans      KefaretPlan[]
   badgeOptions      BadgeOption[]
   badgeVotes        BadgeVote[]
 
@@ -158,6 +165,7 @@ model Group {
   events       GroupEvent[]
   teamChanges  TeamChangeRequest[]
   badges       Badge[]
+  kefaretPlans KefaretPlan[]
 
   @@index([visibility])
 }
@@ -190,6 +198,8 @@ model ReadingLog {
   requiredPages Int // o günkü hedef
   minPages      Int      @default(0) // o günkü alt sınır
   books         Json? // eser bazında: [{id, title, pages, target, min}]
+  kefaret       Int      @default(0) // kefaret okumasıyla hedefin üstüne okunan ek sayfa
+  kefaretPlanId String?
   note          String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -466,4 +476,35 @@ model BadgeVote {
   user     User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([badgeId, userId])
+}
+
+/**
+ * Kefaret okuması: yönetici cezalara indirimi okuma karşılığı verir. Üye her kefaret gününde günlük hedefinin
+ * üstüne ek sayfa okur; her tamamlanan gün indirimin bir payını kazandırır. Üye istemezse normal okumaya devam eder.
+ */
+model KefaretPlan {
+  id              String        @id @default(cuid())
+  groupId         String
+  group           Group         @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdById     String
+  status          KefaretStatus @default(ACTIVE)
+  discountPercent Int // cezalara indirim oranı
+  raisePercent    Int // günlük hedefe zam oranı
+  penaltyTotal    Int // başlarken ödenmemiş ceza (TL)
+  missedPages     Int // bu cezalarda eksik kalan sayfa
+  discountTotal   Int // kazanılabilecek toplam indirim (TL)
+  pageValue       Float // grup geneli: 1 TL indirim kaç kefaret sayfası
+  pages           Int // toplam kefaret sayfası
+  dailyExtra      Int // kefaret gününde hedefin üstüne okunacak sayfa
+  days            Int // gereken kefaret günü
+  doneDays        Int           @default(0)
+  earned          Int           @default(0) // kazanılıp cezalardan düşülen TL
+  startDay        String // bu günden (dahil) itibaren kefaret okunabilir
+  createdAt       DateTime      @default(now())
+  endedAt         DateTime?
+
+  @@index([groupId, status])
+  @@index([groupId, userId])
 }

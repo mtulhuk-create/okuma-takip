@@ -8,6 +8,7 @@ import { DAY, MIN, currentPeriod, formatDateTime, formatDayKey, lastClosedPeriod
 import { DAY_ACTIONS, sendDayStart } from "./day-push";
 import { processDues } from "./dues";
 import { finalizeVotes, processBadges } from "./badges";
+import { processKefaretDay } from "./kefaret";
 import { signQuickToken } from "./token";
 
 
@@ -24,7 +25,11 @@ export async function settleGroup(g: G, now = new Date()) {
   const claim = await getDb().group.updateMany({ where: { id: g.id, lastSettledDay: g.lastSettledDay }, data: { lastSettledDay: closed.dayKey } });
   if (!claim.count) return 0;
   let total = 0;
-  for (let key = next; key <= closed.dayKey; key = shiftDayKey(key, 1)) total += await settleDay(g, key);
+  for (let key = next; key <= closed.dayKey; key = shiftDayKey(key, 1)) {
+    total += await settleDay(g, key);
+    // Kefaret okuyanların planı ilerler, indirimin o güne düşen payı cezalarından düşülür
+    await processKefaretDay(g, key).catch((e) => console.error("kefaret", e));
+  }
   // Rozetler: kapanan günlerle 7 günlük seriler ve kaldırma koşulları
   await processBadges(g, closed.dayKey).catch((e) => console.error("rozet", e));
   await publish(g.id, { type: "refresh", reason: "day" });

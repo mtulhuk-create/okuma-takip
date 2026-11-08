@@ -9,7 +9,7 @@ import type { ActionResult } from "./types";
 /** Sıradaki işlem için kısa açıklama */
 export function reportLabel(body: Record<string, unknown>) {
   const c = String(body.bookChoice ?? body.choice ?? "");
-  return { all: "Okudum", read: "Okudum", min: "Alt sınırı okudum", none: "Okumadım", pages: "Sayfa bildirimi" }[c] ?? "Bildirim";
+  return { all: "Okudum", read: "Okudum", min: "Alt sınırı okudum", none: "Okumadım", pages: "Sayfa bildirimi", kefaret: "Kefaret okuması" }[c] ?? "Bildirim";
 }
 
 export class ApiError extends Error {}

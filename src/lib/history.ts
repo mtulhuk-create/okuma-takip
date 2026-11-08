@@ -23,7 +23,7 @@ export function streakOf(cells: string) {
   let i = cells.length - 1;
   if (cells[i] === "p") i--;
   let n = 0;
-  for (; i >= 0 && (cells[i] === "r" || cells[i] === "m"); i--) n++;
+  for (; i >= 0 && (cells[i] === "r" || cells[i] === "k" || cells[i] === "m"); i--) n++;
   return n;
 }
 
@@ -41,8 +41,8 @@ function combine(rows: HistoryRow[]): HistoryRow {
       const i = Math.round((Date.parse(k) - Date.parse(r.start)) / 86_400_000);
       return i >= 0 && i < r.cells.length ? r.cells[i] : "-";
     });
-    const c = day.includes("n") ? "n" : day.includes("p") ? "p" : day.includes("m") ? "m" : day.includes("r") ? "r" : "-";
-    if (c === "r") stats.read++;
+    const c = day.includes("n") ? "n" : day.includes("p") ? "p" : day.includes("m") ? "m" : day.includes("k") ? "k" : day.includes("r") ? "r" : "-";
+    if (c === "r" || c === "k") stats.read++;
     else if (c === "m") stats.min++;
     else if (c === "n") stats.none++;
     cells += c;
@@ -51,7 +51,7 @@ function combine(rows: HistoryRow[]): HistoryRow {
 }
 
 type G = { id: string; startMinute: number; deadlineMinute: number; tzOffset: number; reminderHours: number; createdAt: Date };
-type Log = { userId: string; dayKey: string; pages: number; requiredPages: number; minPages: number };
+type Log = { userId: string; dayKey: string; pages: number; requiredPages: number; minPages: number; kefaret?: number };
 
 function row(g: G, joinedAt: Date, startKey: string, endKey: string, logs: Map<string, Log>, now: Date): HistoryRow {
   let cells = "";
@@ -62,9 +62,11 @@ function row(g: G, joinedAt: Date, startKey: string, endKey: string, logs: Map<s
     let c = "-";
     if (log) {
       c = categoryOf(log.pages, { targetPages: log.requiredPages, minPages: log.minPages })[0];
+      // k: kefaret okuması (hedefin üstüne ek sayfa)
+      if (c === "r" && log.kefaret) c = "k";
       stats.pages += log.pages;
     } else if (joinedAt <= p.start) c = now < p.deadline ? "p" : "n";
-    if (c === "r") stats.read++;
+    if (c === "r" || c === "k") stats.read++;
     else if (c === "m") stats.min++;
     else if (c === "n") stats.none++;
     cells += c;

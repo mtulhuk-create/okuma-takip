@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, Check, CheckCheck, ChevronDown, Flame, X } from "lucide-react";
+import { BookHeart, BookOpen, Check, CheckCheck, ChevronDown, Flame, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 export type Range = "7d" | "1m" | "3m" | "1y" | "all";
@@ -9,14 +9,15 @@ export type Stats = { read: number; min: number; none: number; pages: number };
 
 const COLOR: Record<string, string> = {
   r: "bg-emerald-500",
+  k: "bg-teal-600", // kefaret okuması (maviye çalan yeşil)
   m: "bg-amber-400",
   n: "bg-rose-500",
   p: "bg-transparent ring-1 ring-inset ring-muted-foreground/40",
   "-": "bg-muted",
   x: "bg-muted/40", // aralık dışı (takvimi tamamlayan) günler
 };
-const TEXT: Record<string, string> = { r: "text-white", m: "text-white", n: "text-white", p: "text-muted-foreground", "-": "text-muted-foreground/70", x: "text-muted-foreground/40" };
-const TITLE: Record<string, string> = { r: "Okudu", m: "Alt sınır", n: "Okumadı", p: "Bekleniyor", "-": "Üye değildi", x: "Aralık dışı" };
+const TEXT: Record<string, string> = { k: "text-white", r: "text-white", m: "text-white", n: "text-white", p: "text-muted-foreground", "-": "text-muted-foreground/70", x: "text-muted-foreground/40" };
+const TITLE: Record<string, string> = { k: "Kefaret okuması", r: "Okudu", m: "Alt sınır", n: "Okumadı", p: "Bekleniyor", "-": "Üye değildi", x: "Aralık dışı" };
 const DOW = ["Pz", "Pt", "Sa", "Ça", "Pe", "Cu", "Ct"];
 const DOW_MON = ["Pt", "Sa", "Ça", "Pe", "Cu", "Ct", "Pz"];
 const MONTHS = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"];
@@ -48,6 +49,7 @@ export function HistoryGrid({ start, cells }: { start: string; cells: string }) 
               <span className={`text-[10px] font-semibold leading-none ${today ? "text-primary" : "text-muted-foreground"}`}>{DOW[new Date(Date.parse(key)).getUTCDay()]}</span>
               <span className={`flex h-7 w-full items-center justify-center rounded-md ${COLOR[c]} ${today ? "outline-2 outline-offset-1 outline-primary/60" : ""}`}>
                 {c === "r" && <CheckCheck className="size-3.5 text-white" strokeWidth={3} />}
+                {c === "k" && <BookHeart className="size-3.5 text-white" strokeWidth={2.5} />}
                 {c === "m" && <Check className="size-3.5 text-white" strokeWidth={3} />}
                 {c === "n" && <X className="size-3.5 text-white" strokeWidth={3} />}
               </span>

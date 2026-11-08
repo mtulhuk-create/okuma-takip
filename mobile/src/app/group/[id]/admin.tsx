@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Alert, Pressable, ScrollView, Text, View } from "react-native";
 import { GroupForm } from "@/components/group-form";
 import { DiscountControls, ExtendControls } from "@/components/due-admin";
+import { KefaretPanel } from "@/components/kefaret-panel";
 import { DueBadge } from "@/components/due-badge";
 import { DateTimeField } from "@/components/pickers";
 import { TeamPicker } from "@/components/team-picker";
@@ -264,6 +265,7 @@ export default function AdminScreen() {
             </Card>
           ))}
 
+          <KefaretPanel groupId={id} />
           {unpaidPenalties.length > 0 && (
             <Card>
               <Row style={{ justifyContent: "space-between" }}>
