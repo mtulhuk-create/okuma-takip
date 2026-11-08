@@ -3,6 +3,7 @@ import { router, Stack, useFocusEffect, useLocalSearchParams } from "expo-router
 import { BarChart3, CalendarRange, ChevronDown, Info, Landmark, Lock, SendHorizontal, Settings } from "lucide-react-native";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppState, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import Animated, { useAnimatedKeyboard, useAnimatedStyle } from "react-native-reanimated";
 import Svg, { Defs, Path, Pattern, Rect } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BadgeCard } from "@/components/chat/badge-card";
@@ -57,6 +58,11 @@ function Composer({ canPost, onSend, onPoll }: { canPost: boolean; onSend: (text
   const c = useColors();
   const insets = useSafeAreaInsets();
   const [text, setText] = useState("");
+  // Android'de uygulama kenardan kenara çizildiği için pencere klavyeyle küçülmüyor:
+  // yazma alanı klavye yüksekliği kadar yukarı itilir (iOS'ta KeyboardAvoidingView yapar)
+  const kb = useAnimatedKeyboard({ isStatusBarTranslucentAndroid: true, isNavigationBarTranslucentAndroid: true });
+  const bottom = insets.bottom;
+  const lift = useAnimatedStyle(() => ({ paddingBottom: Platform.OS === "android" ? Math.max(kb.height.value + 6, bottom, 6) : Math.max(6, bottom) }));
   const send = () => {
     const body = text.trim();
     if (!body) return;
@@ -64,7 +70,7 @@ function Composer({ canPost, onSend, onPoll }: { canPost: boolean; onSend: (text
     onSend(body);
   };
   return (
-    <View style={{ backgroundColor: c.chatBg, paddingHorizontal: 6, paddingTop: 6, paddingBottom: Math.max(6, insets.bottom) }}>
+    <Animated.View style={[{ backgroundColor: c.chatBg, paddingHorizontal: 6, paddingTop: 6 }, lift]}>
       {canPost ? (
         <Row gap={6} style={{ alignItems: "flex-end" }}>
           <View style={{ flex: 1, flexDirection: "row", alignItems: "flex-end", backgroundColor: c.card, borderRadius: 24, paddingLeft: 4, elevation: 1 }}>
@@ -91,7 +97,7 @@ function Composer({ canPost, onSend, onPoll }: { canPost: boolean; onSend: (text
           <Text style={{ fontFamily: fonts.regular, fontSize: 13, color: c.mutedForeground }}>Bu grupta yalnızca yöneticiler mesaj gönderebilir</Text>
         </Row>
       )}
-    </View>
+    </Animated.View>
   );
 }
 

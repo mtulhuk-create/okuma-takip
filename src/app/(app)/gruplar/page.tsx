@@ -21,6 +21,25 @@ function GroupIcon({ name, size = "size-12" }: { name: string; size?: string }) 
   );
 }
 
+const COVERS = ["#9b2c2c", "#2f6f4f", "#1e4e79", "#8a5a1f", "#5b3a8a", "#0f766e", "#7c2d4a"];
+function coverColor(id: string) {
+  let h = 0;
+  for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return COVERS[h % COVERS.length];
+}
+
+/** Okuma grubunu temsil eden küçük kitap kapağı */
+function BookCover({ name, color }: { name: string; color: string }) {
+  return (
+    <span className="relative flex h-12 w-9 shrink-0 items-center justify-center overflow-hidden rounded-[3px_7px_7px_3px] font-serif text-base font-bold text-white shadow-sm" style={{ background: `linear-gradient(135deg, ${color}, ${color}cc)` }}>
+      <span className="absolute inset-y-0 left-1 w-px bg-white/35" aria-hidden />
+      <span className="absolute inset-x-2 top-1.5 h-px bg-white/40" aria-hidden />
+      <span className="absolute inset-x-2 bottom-1.5 h-px bg-white/40" aria-hidden />
+      {name[0]?.toUpperCase()}
+    </span>
+  );
+}
+
 type Rulesish = Parameters<typeof booksOf>[0] & Parameters<typeof describePenalty>[0];
 
 /** Ekiplerin günlük hedefleri: katılmadan önce kim ne kadar okuyacak görünsün */
@@ -82,71 +101,65 @@ export default async function GroupsPage({ searchParams }: { searchParams: Promi
             const members = group._count.members;
             const done = t.myPages != null && t.myPages >= t.myTarget;
             const partial = t.myPages != null && !done;
+            const pct = members ? Math.round((t.reported / members) * 100) : 0;
+            const status = done
+              ? { text: "Tamam", cls: "bg-emerald-600 text-white", Icon: Check }
+              : partial
+                ? { text: `${t.myPages}/${t.myTarget} sf`, cls: "bg-amber-500 text-white", Icon: BookOpen }
+                : t.open
+                  ? { text: "Bekliyor", cls: "bg-primary/10 text-primary", Icon: Clock }
+                  : { text: "Kapandı", cls: "bg-muted text-muted-foreground", Icon: Clock };
             return (
-              <Link key={group.id} href={`/gruplar/${group.id}`} prefetch className="card group block space-y-2.5 p-3 transition-colors hover:border-primary/40">
-                <div className="flex items-center gap-3">
-                  <GroupIcon name={group.name} />
-                  <div className="min-w-0 flex-1">
-                    <p className="flex items-center gap-1.5 font-semibold">
-                      <span className="truncate">{group.name}</span>
-                      {role === "ADMIN" && <Crown className="size-3.5 shrink-0 text-amber-500" aria-label="Yönetici" />}
+              <Link
+                key={group.id}
+                href={`/gruplar/${group.id}`}
+                prefetch
+                className="card group relative flex items-center gap-3 overflow-hidden py-2.5 pl-4 pr-3 transition-colors hover:border-primary/40"
+              >
+                {/* Kitap sırtı */}
+                <span className="absolute inset-y-0 left-0 w-1.5" style={{ background: coverColor(group.id) }} aria-hidden />
+                <BookCover name={group.name} color={coverColor(group.id)} />
+                <div className="min-w-0 flex-1 space-y-1">
+                  <div className="flex items-center gap-1.5">
+                    <p className="min-w-0 flex-1 truncate font-semibold leading-tight">
+                      {group.name}
+                      {role === "ADMIN" && <Crown className="ml-1 inline size-3.5 -translate-y-px text-amber-500" aria-label="Yönetici" />}
                     </p>
-                    <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        {group.visibility === "PUBLIC" ? <Globe className="size-3" /> : <Lock className="size-3" />}
-                        {members} üye
-                      </span>
-                      {t.teamName && (
-                        <span className="flex items-center gap-1">
-                          <Shield className="size-3" /> {t.teamName}
-                        </span>
-                      )}
-                    </p>
-                  </div>
-                  <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
-                </div>
-
-                {/* Bugünkü durum */}
-                <div className={`flex items-center gap-2 rounded-xl px-2.5 py-2 ${done ? "bg-emerald-500/10" : partial ? "bg-amber-500/10" : t.open ? "bg-primary/5" : "bg-muted"}`}>
-                  <span className={`flex size-7 shrink-0 items-center justify-center rounded-full ${done ? "bg-emerald-600 text-white" : partial ? "bg-amber-500 text-white" : "bg-card text-muted-foreground"}`}>
-                    {done ? <Check className="size-4" strokeWidth={3} /> : partial ? <BookOpen className="size-3.5" /> : <Clock className="size-3.5" />}
-                  </span>
-                  <div className="min-w-0 flex-1 leading-tight">
-                    <p className="text-[13px] font-semibold">
-                      {done ? "Bugünkü okuman tamam" : partial ? `Bugün ${t.myPages}/${t.myTarget} sayfa` : t.open ? "Bugün henüz bildirmedin" : "Okuma günü kapandı"}
-                    </p>
-                    <p className="text-[11px] text-muted-foreground">
-                      {t.open ? (
-                        <>
-                          <Countdown to={t.deadline} /> · {minuteToTime(group.deadlineMinute)}&apos;e kadar
-                        </>
-                      ) : (
-                        `Yeni gün ${minuteToTime(group.startMinute)}'de başlar`
-                      )}
-                    </p>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <p className="text-sm font-bold">
-                      {t.reported}/{members}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground">okudu</p>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap gap-1.5 text-[11px]">
-                  <span className="badge bg-muted text-foreground">
-                    <BookOpen /> günde {t.myTarget} sf · alt {t.myMin}
-                  </span>
-                  <span className="badge bg-muted text-foreground">
-                    <Coins /> {t.penalty}
-                  </span>
-                  {t.debt > 0 && (
-                    <span className="badge bg-destructive/10 text-destructive">
-                      <Wallet /> borcun {t.debt} TL
+                    <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold ${status.cls}`}>
+                      <status.Icon className="size-3" strokeWidth={3} /> {status.text}
                     </span>
-                  )}
-                  {t.debt > 0 && t.due && <DueBadge due={t.due} compact />}
+                  </div>
+                  <p className="truncate text-[11px] text-muted-foreground">
+                    {t.books.join(" · ")} · günde {t.myTarget} sf (alt {t.myMin}){t.teamName ? ` · ${t.teamName}` : ""}
+                  </p>
+                  <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                    <span className="h-1.5 min-w-12 flex-1 overflow-hidden rounded-full bg-muted" title={`${t.reported}/${members} okudu`}>
+                      <span className="block h-full rounded-full bg-emerald-500" style={{ width: `${pct}%` }} />
+                    </span>
+                    <span className="shrink-0 font-semibold text-foreground">
+                      {t.reported}/{members}
+                    </span>
+                    <span className="shrink-0">
+                      {t.open ? <Countdown to={t.deadline} /> : `yeni gün ${minuteToTime(group.startMinute)}`}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
+                    <span className="inline-flex items-center gap-1">
+                      {group.visibility === "PUBLIC" ? <Globe className="size-3" /> : <Lock className="size-3" />} {members} üye
+                    </span>
+                    <span>·</span>
+                    <span className="inline-flex items-center gap-1">
+                      <Coins className="size-3" /> {t.penalty}
+                    </span>
+                    {t.debt > 0 && (
+                      <span className="badge bg-destructive/10 py-0 text-[10px] text-destructive">
+                        <Wallet /> borcun {t.debt} TL
+                      </span>
+                    )}
+                    {t.debt > 0 && t.due && <DueBadge due={t.due} compact />}
+                  </div>
                 </div>
+                <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
               </Link>
             );
           })

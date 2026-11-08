@@ -281,7 +281,7 @@ export default function AdminScreen() {
                     {p.originalAmount != null && p.originalAmount !== p.amount && <Text style={{ fontFamily: fonts.regular, fontSize: 12, color: c.mutedForeground, textDecorationLine: "line-through" }}>{p.originalAmount}</Text>}
                     <Body style={{ fontFamily: fonts.bold }}>{p.amount} TL</Body>
                   </Row>
-                  <Row style={{ justifyContent: "flex-end" }}>
+                  <Row gap={6}>
                     <DiscountControls groupId={id} penaltyId={p.id} compact />
                     {p.status === "UNPAID" && <Button title="Affet" small variant="ghost" onPress={() => run("waivePenalty", { penaltyId: p.id })} />}
                   </Row>

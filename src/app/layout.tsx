@@ -26,6 +26,8 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  // Klavye açılınca sayfa küçülsün: sohbetteki yazma alanı klavyenin üstünde kalır (Android Chrome)
+  interactiveWidget: "resizes-content",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

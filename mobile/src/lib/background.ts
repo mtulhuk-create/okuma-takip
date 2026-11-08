@@ -1,6 +1,8 @@
 // Android: uygulama arka planda ya da kapalıyken bildirim butonlarını işler.
 import * as Notifications from "expo-notifications";
+import * as BackgroundTask from "expo-background-task";
 import * as TaskManager from "expo-task-manager";
+import { checkInbox } from "./inbox";
 import { handleReportAction, type ReportData } from "./notifications";
 
 const TASK = "okuma-takip-notification-action";
@@ -37,3 +39,15 @@ TaskManager.defineTask<Notifications.NotificationTaskPayload>(TASK, async ({ dat
 });
 
 Notifications.registerTaskAsync(TASK).catch(() => {});
+
+// Gruplara yazılan yeni mesajlar (uygulama kapalıyken; Android en az ~15 dakikada bir çalıştırır)
+const INBOX_TASK = "okuma-takip-inbox";
+TaskManager.defineTask(INBOX_TASK, async () => {
+  try {
+    await checkInbox();
+    return BackgroundTask.BackgroundTaskResult.Success;
+  } catch {
+    return BackgroundTask.BackgroundTaskResult.Failed;
+  }
+});
+BackgroundTask.registerTaskAsync(INBOX_TASK, { minimumInterval: 15 }).catch(() => {});

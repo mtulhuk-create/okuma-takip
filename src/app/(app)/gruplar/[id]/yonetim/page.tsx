@@ -317,22 +317,27 @@ export default async function AdminPage({ params, searchParams }: { params: Prom
               <DiscountForm groupId={id} title="Toplu indirim (tüm grubun ödenmemiş cezaları)" />
               <ul className="divide-y divide-border">
                 {unpaidPenalties.map((p) => (
-                  <li key={p.id} className="flex flex-wrap items-center gap-2 py-2 text-sm">
-                    <span className="min-w-0 flex-1 truncate">
-                      {p.user.name} <span className="text-muted-foreground">· {formatDayKey(p.dayKey)}</span>
-                      {p.status === "IN_DUE" && <span className="ml-1 text-[11px] text-amber-600">· vadede</span>}
-                    </span>
-                    <b>
-                      {p.originalAmount != null && p.originalAmount !== p.amount && <s className="mr-1 font-normal text-muted-foreground">{p.originalAmount}</s>}
-                      {p.amount} TL
-                    </b>
-                    <DiscountForm groupId={id} penaltyId={p.id} compact />
-                    {p.status === "UNPAID" && (
-                      <ActionForm action={waivePenalty}>
-                        <input type="hidden" name="penaltyId" value={p.id} />
-                        <SubmitButton className="btn-quiet btn-sm">Affet</SubmitButton>
-                      </ActionForm>
-                    )}
+                  <li key={p.id} className="space-y-1.5 py-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="min-w-0 flex-1 truncate">
+                        {p.user.name} <span className="text-muted-foreground">· {formatDayKey(p.dayKey)}</span>
+                        {p.status === "IN_DUE" && <span className="ml-1 text-[11px] text-amber-600">· vadede</span>}
+                      </span>
+                      <b className="shrink-0">
+                        {p.originalAmount != null && p.originalAmount !== p.amount && <s className="mr-1 font-normal text-muted-foreground">{p.originalAmount}</s>}
+                        {p.amount} TL
+                      </b>
+                    </div>
+                    {/* İndirim satırı: kutular satıra sığar, taşmaz */}
+                    <div className="flex items-center gap-1.5">
+                      <DiscountForm groupId={id} penaltyId={p.id} compact />
+                      {p.status === "UNPAID" && (
+                        <ActionForm action={waivePenalty}>
+                          <input type="hidden" name="penaltyId" value={p.id} />
+                          <SubmitButton className="btn-quiet btn-sm">Affet</SubmitButton>
+                        </ActionForm>
+                      )}
+                    </div>
                   </li>
                 ))}
               </ul>

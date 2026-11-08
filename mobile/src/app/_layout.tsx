@@ -4,6 +4,7 @@ import { LibreBaskerville_700Bold } from "@expo-google-fonts/libre-baskerville";
 import { Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700Bold, useFonts } from "@expo-google-fonts/poppins";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { resourceCache } from "@clerk/expo/resource-cache";
+import { clearInbox } from "@/lib/inbox";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
 import { QueryClient } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
@@ -49,7 +50,10 @@ function Navigation() {
   }, [isLoaded]);
   // Yalnızca gerçekten çıkış yapıldığında önbelleği temizle (Clerk yüklenmeden önce değil; internetsiz açılışta veriler kalsın)
   useEffect(() => {
-    if (isLoaded && isSignedIn === false) queryClient.clear();
+    if (isLoaded && isSignedIn === false) {
+      queryClient.clear();
+      clearInbox();
+    }
   }, [isLoaded, isSignedIn]);
   if (!isLoaded) return null;
 

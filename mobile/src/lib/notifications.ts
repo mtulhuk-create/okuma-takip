@@ -52,6 +52,12 @@ export async function setupNotifications() {
       vibrationPattern: [0, 250, 150, 250],
       showBadge: true,
     });
+    await Notifications.setNotificationChannelAsync("messages", {
+      name: "Grup mesajları",
+      description: "Gruplara yazılan yeni mesajlar ve anketler",
+      // eslint-disable-next-line import/namespace -- enum `export *` ile geliyor, eklenti göremiyor
+      importance: Notifications.AndroidImportance.DEFAULT,
+    });
     await Notifications.setNotificationChannelAsync("countdown", {
       name: "Son 10 dakika geri sayımı",
       // eslint-disable-next-line import/namespace -- enum `export *` ile geliyor, eklenti göremiyor
@@ -149,8 +155,80 @@ export async function sendTestNotification(fetchSchedule: () => Promise<Schedule
   return false;
 }
 
-/** Sunucudaki okuma günlerine göre bildirimleri yeniden planlar. */
-export async function syncSchedule(fetchSchedule: () => Promise<Schedule>) {
+type Planned = { identifier: string; key: string; request: Notifications.NotificationRequestInput };
+const PLAN_KEY = "notif-plan-v2";
+/** Geri sayım yalnızca en yakın iki okuma günü için planlanır (cihazda gereksiz alarm birikmesin) */
+const COUNTDOWN_PERIODS = 2;
+
+/** Planlanması gereken bildirimler (her biri sabit kimlikli; aynı plan tekrar kurulmaz) */
+function buildPlan(data: Schedule, sticky: boolean, now: number): Planned[] {
+  const out: Planned[] = [];
+  // Not: "alarmClock" teslimi kullanılmaz. Android 10 ve öncesinde her bildirim çalar saat alarmı olarak
+  // kurulup durum çubuğu/kilit ekranındaki "sonraki alarm"ı sürekli değiştiriyor, eski Samsung'larda
+  // (One UI 2) sistem arayüzünü kilitliyordu. Varsayılan tam zamanlı alarm yeterli.
+  const at = (t: number, channelId: string) => ({ type: Notifications.SchedulableTriggerInputTypes.DATE, date: t, channelId }) as const;
+  const add = (identifier: string, t: number, content: Notifications.NotificationContentInput, channelId: string) =>
+    out.push({ identifier, key: `${t}|${channelId}|${content.title}|${content.body}|${content.sticky ? 1 : 0}`, request: { identifier, content, trigger: at(t, channelId) } });
+  for (const g of data.groups) {
+    let countdownPeriods = 0;
+    for (const p of g.periods) {
+      const start = new Date(p.start).getTime();
+      const deadline = new Date(p.deadline);
+      if (p.reported) continue;
+      const payload: ReportData = { token: p.token, groupId: g.groupId, dayKey: p.dayKey };
+      // Gün başlarken gün kartı bildirimi
+      if (start > now) add(`day-${g.groupId}-${p.dayKey}`, start, { ...dayCardContent(g, deadline, p.dayKey), categoryIdentifier: REPORT_CATEGORY, data: { ...payload, sticky }, sticky, autoDismiss: false }, "today");
+      const remindAt = deadline.getTime() - g.reminderHours * 3_600_000;
+      if (g.reminderHours > 0 && remindAt > now && remindAt >= start) {
+        add(
+          `rem-${g.groupId}-${p.dayKey}`,
+          remindAt,
+          { title: `📚 ${g.name}: okuma hatırlatması`, body: `Bugünkü ${g.dailyPages} sayfanı henüz bildirmedin. Son bildirim saati ${hhmm(deadline)}.`, categoryIdentifier: REPORT_CATEGORY, data: payload },
+          "reminders",
+        );
+      }
+      if (countdownPeriods++ >= COUNTDOWN_PERIODS) continue;
+      for (const m of COUNTDOWN_MINUTES) {
+        const t = deadline.getTime() - m * 60_000;
+        if (t <= now) continue;
+        add(
+          `cd-${g.groupId}-${p.dayKey}-${m}`,
+          t,
+          { title: `⏳ ${m} dakika kaldı · ${g.name}`, body: `Son bildirim ${hhmm(deadline)}. Okuduysan hemen bildir, yoksa ceza yazılacak!`, categoryIdentifier: REPORT_CATEGORY, data: payload },
+          "countdown",
+        );
+      }
+    }
+  }
+  return out;
+}
+
+let syncing: Promise<void> | null = null;
+let again = false;
+
+/**
+ * Sunucudaki okuma günlerine göre bildirimleri planlar. Yalnızca değişen bildirimler iptal edilip
+ * yeniden kurulur; plan aynıysa cihaza hiç dokunulmaz (eski cihazlarda sistem arayüzünü yormamak için).
+ */
+export async function syncSchedule(fetchSchedule: () => Promise<Schedule>): Promise<void> {
+  if (syncing) {
+    again = true;
+    return syncing;
+  }
+  syncing = (async () => {
+    try {
+      do {
+        again = false;
+        await syncOnce(fetchSchedule);
+      } while (again);
+    } finally {
+      syncing = null;
+    }
+  })();
+  return syncing;
+}
+
+async function syncOnce(fetchSchedule: () => Promise<Schedule>) {
   let data: Schedule;
   try {
     data = await fetchSchedule();
@@ -158,67 +236,48 @@ export async function syncSchedule(fetchSchedule: () => Promise<Schedule>) {
     lastSync = { at: Date.now(), error: `Plan alınamadı: ${(e as Error).message}`, count: 0 };
     throw e;
   }
-  await Notifications.cancelAllScheduledNotificationsAsync();
   const now = Date.now();
   const sticky = await getStickyPref();
   await showTodaySticky(data).catch(() => {});
-  const jobs: Promise<string>[] = [];
-  for (const g of data.groups) {
-    for (const p of g.periods) {
-      const start = new Date(p.start).getTime();
-      const deadline = new Date(p.deadline);
-      // Gün başladıktan sonra katılan (ya da grubu kuran) kişiye ceza yazılmaz ama bildirebilir: bildirimler yine planlanır
-      if (p.reported) continue;
-      const data: ReportData = { token: p.token, groupId: g.groupId, dayKey: p.dayKey };
-      const at = (t: number, channelId: string) =>
-        ({ type: Notifications.SchedulableTriggerInputTypes.DATE, date: t, channelId, delivery: "alarmClock" }) as const;
+  const plan = buildPlan(data, sticky, now);
 
-      // Gün başlarken gün kartı bildirimi
-      if (start > now) {
-        jobs.push(
-          Notifications.scheduleNotificationAsync({
-            identifier: `day-${g.groupId}-${p.dayKey}`,
-            content: { ...dayCardContent(g, deadline, p.dayKey), categoryIdentifier: REPORT_CATEGORY, data: { ...data, sticky }, sticky, autoDismiss: false },
-            trigger: at(start, "today"),
-          }),
-        );
-      }
+  const raw = await AsyncStorage.getItem(PLAN_KEY).catch(() => null);
+  let prev: Record<string, string> | null = null;
+  try {
+    prev = raw ? (JSON.parse(raw) as Record<string, string>) : null;
+  } catch {}
+  const scheduled = await Notifications.getAllScheduledNotificationsAsync().catch(() => []);
+  const existing = new Set(scheduled.map((n) => n.identifier));
+  const wanted = new Map(plan.map((p) => [p.identifier, p]));
 
-      const remindAt = deadline.getTime() - g.reminderHours * 3_600_000;
-      if (g.reminderHours > 0 && remindAt > now && remindAt >= start) {
-        jobs.push(
-          Notifications.scheduleNotificationAsync({
-            content: {
-              title: `📚 ${g.name}: okuma hatırlatması`,
-              body: `Bugünkü ${g.dailyPages} sayfanı henüz bildirmedin. Son bildirim saati ${hhmm(deadline)}.`,
-              categoryIdentifier: REPORT_CATEGORY,
-              data,
-            },
-            trigger: at(remindAt, "reminders"),
-          }),
-        );
-      }
-      for (const m of COUNTDOWN_MINUTES) {
-        const t = deadline.getTime() - m * 60_000;
-        if (t <= now) continue;
-        jobs.push(
-          Notifications.scheduleNotificationAsync({
-            identifier: `cd-${g.groupId}-${p.dayKey}-${m}`,
-            content: {
-              title: `⏳ ${m} dakika kaldı · ${g.name}`,
-              body: `Son bildirim ${hhmm(deadline)}. Okuduysan hemen bildir, yoksa ceza yazılacak!`,
-              categoryIdentifier: REPORT_CATEGORY,
-              data,
-            },
-            trigger: at(t, "countdown"),
-          }),
-        );
-      }
+  let cancel: string[];
+  let create: Planned[];
+  if (!prev) {
+    // İlk çalıştırma (ya da eski sürümden geçiş): eski alarmların hepsi kaldırılıp plan baştan kurulur
+    await Notifications.cancelAllScheduledNotificationsAsync().catch(() => {});
+    cancel = [];
+    create = plan;
+  } else {
+    cancel = scheduled.map((n) => n.identifier).filter((id) => !wanted.has(id) || prev![id] !== wanted.get(id)!.key);
+    create = plan.filter((p) => !existing.has(p.identifier) || prev![p.identifier] !== p.key);
+  }
+  // Sırayla: aynı anda onlarca alarm isteği göndermek eski cihazları yoruyor
+  for (const id of cancel) await Notifications.cancelScheduledNotificationAsync(id).catch(() => {});
+  let failed = 0;
+  let firstError = "";
+  const done: Record<string, string> = {};
+  for (const p of plan) if (!create.includes(p) && existing.has(p.identifier)) done[p.identifier] = p.key;
+  for (const p of create) {
+    try {
+      await Notifications.scheduleNotificationAsync(p.request);
+      done[p.identifier] = p.key;
+    } catch (e) {
+      failed++;
+      firstError ||= String((e as Error)?.message ?? e);
     }
   }
-  const results = await Promise.allSettled(jobs);
-  const failed = results.filter((r) => r.status === "rejected") as PromiseRejectedResult[];
-  lastSync = { at: Date.now(), count: results.length - failed.length, error: failed.length ? `${failed.length} bildirim planlanamadı: ${String(failed[0].reason?.message ?? failed[0].reason)}` : null };
+  await AsyncStorage.setItem(PLAN_KEY, JSON.stringify(done)).catch(() => {});
+  lastSync = { at: Date.now(), count: Object.keys(done).length, error: failed ? `${failed} bildirim planlanamadı: ${firstError}` : null };
 }
 
 /** Son plan senkronizasyonunun sonucu (profildeki bildirim durumu için) */

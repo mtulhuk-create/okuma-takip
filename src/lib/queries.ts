@@ -201,6 +201,7 @@ export async function getGroupsOverview(userId: string, q: string) {
       myTarget: rules.targetPages,
       myMin: rules.minPages,
       teamName: rules.teamName,
+      books: rules.books.map((b) => b.title),
       penalty: describePenalty(rules),
       debt: debts.find((d) => d.groupId === m.groupId)?._sum.amount ?? 0,
       due: (() => {

@@ -109,6 +109,8 @@ export type GroupToday = {
   myTarget: number;
   myMin: number;
   teamName: string | null;
+  /** Kişinin bu gruptaki eserleri (eski sunucuda yok) */
+  books?: string[];
   penalty: string;
   debt: number;
   due?: (DueInfo & { id: string; amount: number }) | null;
