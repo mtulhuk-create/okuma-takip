@@ -20,9 +20,6 @@ object DayCardRenderer {
   private const val PREFS = "okuma_day_card"
   private const val CHANNEL = "today"
 
-  /** JS anahtarı → yerleşimdeki buton yuvası */
-  private val SLOTS = mapOf("kefaret" to "kefaret", "all" to "read", "min" to "min", "none" to "none")
-
   fun notificationId(id: String) = 7000 + (id.hashCode() and 0x7fffffff) % 100000
 
   fun save(context: Context, p: JSONObject) {
@@ -52,7 +49,8 @@ object DayCardRenderer {
     save(context, p)
     val small = RemoteViews(context.packageName, R.layout.okuma_day_card_small)
     val big = RemoteViews(context.packageName, R.layout.okuma_day_card_big)
-    for (v in listOf(small, big)) fill(context, v, p, status, left)
+    fill(context, small, p, status, left, big = false)
+    fill(context, big, p, status, left, big = true)
 
     val icon = context.resources.getIdentifier("notification_icon", "drawable", context.packageName).takeIf { it != 0 } ?: android.R.drawable.ic_dialog_info
     val open = context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
@@ -84,11 +82,11 @@ object DayCardRenderer {
     }
   }
 
-  private fun fill(context: Context, v: RemoteViews, p: JSONObject, status: String?, left: Long) {
+  private fun fill(context: Context, v: RemoteViews, p: JSONObject, status: String?, left: Long, big: Boolean) {
     val id = p.getString("id")
     v.setTextViewText(R.id.title, p.optString("title"))
     val subtitle = listOfNotNull(status, p.optString("subtitle").takeIf { it.isNotEmpty() }).joinToString(" · ")
-    runCatching { v.setTextViewText(R.id.subtitle, subtitle) }
+    v.setTextViewText(R.id.subtitle, subtitle)
     val done = p.optInt("done")
     val total = p.optInt("total")
     v.setTextViewText(R.id.count, "$done/$total")
@@ -98,45 +96,64 @@ object DayCardRenderer {
     // Yalnızca resmi RemoteViews API'si (desteklenmeyen çağrı bildirimi bozar)
     v.setProgressBar(R.id.progress, maxOf(total, 1), done, false)
     v.setProgressBar(R.id.progress_kef, maxOf(total, 1), p.optInt("kefCount"), false)
-    runCatching {
-      val line = p.optString("kefaretLine").takeIf { it.isNotEmpty() && it != "null" }
-      v.setViewVisibility(R.id.kefaret_line, if (line != null) View.VISIBLE else View.GONE)
-      if (line != null) v.setTextViewText(R.id.kefaret_line, line)
-    }
+    val line = p.optString("kefaretLine").takeIf { it.isNotEmpty() && it != "null" }
+    v.setViewVisibility(R.id.kefaret_line, if (line != null) View.VISIBLE else View.GONE)
+    if (line != null) v.setTextViewText(R.id.kefaret_line, line)
 
-    val buttons = p.optJSONArray("buttons")
-    val shown = mutableSetOf<String>()
-    val state = p.optString("myState")
-    if (buttons != null) {
-      for (i in 0 until buttons.length()) {
-        val b = buttons.getJSONObject(i)
-        val key = b.getString("key")
-        val slot = SLOTS[key] ?: continue
-        shown += slot
-        val btn = viewId(context, "btn_$slot")
-        v.setViewVisibility(viewId(context, "btn_${slot}_slot"), View.VISIBLE)
-        v.setTextViewText(btn, b.optString("label"))
-        val on = state == key
-        v.setInt(btn, "setBackgroundResource", drawableId(context, if (on) "okuma_btn_${slot}_on" else "okuma_btn_$slot"))
-        notch(v, viewId(context, "btn_${slot}_top"), b.optString("top"))
-        notch(v, viewId(context, "btn_${slot}_bot"), b.optString("bottom"))
+    // Eserler ve küçük butonları (kapalı kartta yalnızca ilk eser)
+    v.removeAllViews(R.id.books)
+    val books = p.optJSONArray("books") ?: return
+    val plan = p.optBoolean("plan")
+    val kefaretOn = p.optBoolean("kefaretOn")
+    val count = if (big) books.length() else minOf(1, books.length())
+    for (i in 0 until count) {
+      val b = books.getJSONObject(i)
+      val row = RemoteViews(context.packageName, if (big) R.layout.okuma_book_row else R.layout.okuma_book_row_small)
+      val bookId = b.getString("id")
+      val target = b.optInt("target")
+      val min = b.optInt("min")
+      val pages = if (b.isNull("pages")) null else b.optInt("pages")
+      row.setTextViewText(R.id.book_title, b.optString("title"))
+      if (big) {
+        val info = buildString {
+          append("Hedef $target · alt sınır $min")
+          if (pages != null) append(" · $pages sf")
+          if (plan && b.has("kefPages")) append(" · kefaret ${b.optInt("kefPages")}")
+        }
+        row.setTextViewText(R.id.book_info, info)
+      }
+      val state = when {
+        kefaretOn -> "kefaret"
+        pages == null -> null
+        pages >= target -> "read"
+        pages == 0 -> "none"
+        pages >= min -> "min"
+        else -> null
+      }
+      for ((k, viewName) in listOf("kefaret" to "b_kefaret", "read" to "b_read", "min" to "b_min", "none" to "b_none")) {
+        val vid = viewId(context, viewName)
+        if (k == "kefaret" && !plan) {
+          row.setViewVisibility(vid, View.GONE)
+          continue
+        }
+        val on = state == k || (k == "read" && state == "kefaret")
+        row.setInt(vid, "setBackgroundResource", drawableId(context, if (on) "okuma_chip_${k}_on" else "okuma_chip_$k"))
+        row.setImageViewResource(vid, drawableId(context, if (on) "okuma_ic_${k}_on" else "okuma_ic_$k"))
         val intent = Intent(context, DayCardReceiver::class.java).apply {
           action = DayCardReceiver.ACTION
           putExtra("id", id)
-          putExtra("choice", key)
-          data = Uri.parse("okumatakip://daycard/$id/$key")
+          if (k == "kefaret") putExtra("choice", "kefaret") else {
+            putExtra("choice", "all")
+            putExtra("bookId", bookId)
+            putExtra("bookChoice", k)
+          }
+          data = Uri.parse("okumatakip://daycard/$id/$bookId/$k")
         }
-        val pi = PendingIntent.getBroadcast(context, notificationId(id) * 4 + i, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-        v.setOnClickPendingIntent(btn, pi)
+        val code = (id + bookId + k).hashCode()
+        row.setOnClickPendingIntent(vid, PendingIntent.getBroadcast(context, code, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
       }
+      v.addView(R.id.books, row)
     }
-    for (slot in SLOTS.values) if (slot !in shown) v.setViewVisibility(viewId(context, "btn_${slot}_slot"), View.GONE)
-  }
-
-  private fun notch(v: RemoteViews, id: Int, text: String?) {
-    val t = text?.takeIf { it.isNotEmpty() && it != "null" }
-    v.setViewVisibility(id, if (t != null) View.VISIBLE else View.GONE)
-    if (t != null) v.setTextViewText(id, t)
   }
 
   private fun viewId(context: Context, name: String) = context.resources.getIdentifier(name, "id", context.packageName)

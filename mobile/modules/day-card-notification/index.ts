@@ -2,7 +2,8 @@
 // Butonlar okumayı JS açılmadan doğrudan sunucuya bildirir.
 import { requireOptionalNativeModule } from "expo-modules-core";
 
-export type DayCardButton = { key: "kefaret" | "all" | "min" | "none"; label: string; top?: string; bottom?: string };
+/** Kart satırı: eser ve yanındaki küçük butonlar (kefaret · okudum · alt sınır · okumadım) */
+export type DayCardBook = { id: string; title: string; target: number; min: number; pages: number | null; kefPages?: number };
 export type DayCardPayload = {
   id: string;
   dayKey: string;
@@ -14,8 +15,11 @@ export type DayCardPayload = {
   done: number;
   total: number;
   kefCount: number;
-  myState: "kefaret" | "all" | "min" | "none" | null;
-  buttons: DayCardButton[];
+  books: DayCardBook[];
+  /** Süren kefaret okuması varsa kefaret butonu görünür */
+  plan: boolean;
+  /** Bugün kefaret okuması bildirildi */
+  kefaretOn: boolean;
   kefaretLine: string | null;
 };
 
