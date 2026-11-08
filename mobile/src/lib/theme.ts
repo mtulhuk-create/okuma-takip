@@ -65,6 +65,9 @@ export function useColors(): Colors {
 /** Kefaret okuması rengi (maviye çalan yeşil): buton, geçmiş tablosu ve simge */
 export const KEFARET = "#0d9488";
 
+/** Gün durumu renkleri: butonlar, eser satırları ve okuma takip tablosu aynı tonu kullanır */
+export const STATE = { read: "#10b981", min: "#f59e0b", none: "#f43f5e", kefaret: KEFARET } as const;
+
 export const fonts = {
   regular: "Poppins_400Regular",
   medium: "Poppins_500Medium",

@@ -10,6 +10,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useColorScheme,
   View,
   type StyleProp,
   type TextInputProps,
@@ -213,18 +214,52 @@ export function Badge({ text, tone = "neutral" }: { text: string; tone?: Tone })
   );
 }
 
-export function Avatar({ name, uri, size = 36 }: { name: string; uri?: string | null; size?: number }) {
-  const c = useColors();
-  const initials = name
-    .split(" ")
-    .map((p) => p[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
-  if (uri) return <Image source={{ uri }} style={{ width: size, height: size, borderRadius: size / 2 }} />;
+// Her kişiye sabit renk: açık modda açık, koyu modda koyu tonlar [arka plan, yazı]
+const AVATAR_LIGHT = [
+  ["#ffe4e6", "#9f1239"],
+  ["#fef3c7", "#92400e"],
+  ["#d1fae5", "#065f46"],
+  ["#e0f2fe", "#075985"],
+  ["#ede9fe", "#5b21b6"],
+  ["#ffedd5", "#9a3412"],
+  ["#ccfbf1", "#115e59"],
+  ["#fae8ff", "#86198f"],
+  ["#ecfccb", "#3f6212"],
+  ["#e0e7ff", "#3730a3"],
+] as const;
+const AVATAR_DARK = [
+  ["#881337", "#ffe4e6"],
+  ["#78350f", "#fef3c7"],
+  ["#064e3b", "#d1fae5"],
+  ["#0c4a6e", "#e0f2fe"],
+  ["#4c1d95", "#ede9fe"],
+  ["#7c2d12", "#ffedd5"],
+  ["#134e4a", "#ccfbf1"],
+  ["#701a75", "#fae8ff"],
+  ["#365314", "#ecfccb"],
+  ["#312e81", "#e0e7ff"],
+] as const;
+
+/** Clerk'in fotoğrafsız kullanıcılara verdiği varsayılan resim gerçek fotoğraf sayılmaz */
+export function isRealPhoto(uri?: string | null): uri is string {
+  return !!uri && !uri.includes("eyJ0eXBlIjoiZGVmYXVsdCI");
+}
+
+/**
+ * Profil resmi: mail hesabından gelen fotoğraf varsa o; yoksa kişiye özel renkte,
+ * hesap (mail) adının baş harfiyle sistem avatarı.
+ */
+export function Avatar({ name, uri, size = 36, initial, seed }: { name: string; uri?: string | null; size?: number; initial?: string; seed?: string }) {
+  const dark = useColorScheme() === "dark";
+  if (isRealPhoto(uri)) return <Image source={{ uri }} style={{ width: size, height: size, borderRadius: size / 2 }} />;
+  const key = seed || name;
+  let h = 0;
+  for (const ch of key) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  const [bg, fg] = (dark ? AVATAR_DARK : AVATAR_LIGHT)[h % AVATAR_LIGHT.length];
+  const letter = (initial || name.trim().match(/\p{L}|\d/u)?.[0] || "?").toLocaleUpperCase("tr-TR");
   return (
-    <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: c.accent, alignItems: "center", justifyContent: "center" }}>
-      <Text style={{ fontFamily: fonts.bold, fontSize: size * 0.36, color: c.accentForeground }}>{initials}</Text>
+    <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: bg, alignItems: "center", justifyContent: "center" }}>
+      <Text style={{ fontFamily: fonts.serif, fontSize: size * 0.42, lineHeight: size * 0.6, color: fg }}>{letter}</Text>
     </View>
   );
 }

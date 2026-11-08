@@ -28,9 +28,9 @@ function bookState(b: { pages: number | null; target: number; min: number }): Bo
 }
 
 const BOOK_BTNS: { key: BookChoice; Icon: typeof Check; label: string; on: string }[] = [
-  { key: "read", Icon: CheckCheck, label: "Okudum", on: "bg-emerald-600 text-white border-emerald-600" },
+  { key: "read", Icon: CheckCheck, label: "Okudum", on: "bg-emerald-500 text-white border-emerald-500" },
   { key: "min", Icon: Check, label: "Alt sınırı okudum", on: "bg-amber-500 text-white border-amber-500" },
-  { key: "none", Icon: X, label: "Okumadım", on: "bg-rose-600 text-white border-rose-600" },
+  { key: "none", Icon: X, label: "Okumadım", on: "bg-rose-500 text-white border-rose-500" },
 ];
 
 /** Eser satırları + tümü için butonlar; hem sohbet kartında hem Bugün kartında kullanılır. */
@@ -59,6 +59,17 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
 
   const active = me.kefaret > 0 ? "kefaret" : wholeChoice(me.books);
   const plan = me.plan;
+  // Kefaret okumasında her esere düşen sayfa (sunucudaki dağıtımla aynı: hedefleri oranında)
+  const kefPages = new Map<string, number>();
+  if (plan) {
+    const sum = me.books.reduce((n, b) => n + b.target, 0) || 1;
+    let left = plan.dailyExtra;
+    me.books.forEach((b, i) => {
+      const share = i === me.books.length - 1 ? left : Math.min(left, Math.floor((plan.dailyExtra * b.target) / sum));
+      left -= share;
+      kefPages.set(b.id, b.target + share);
+    });
+  }
 
   return (
     <div className={compact ? "space-y-1.5" : "space-y-2"} onClick={(e) => e.stopPropagation()}>
@@ -72,6 +83,7 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
                 <p className="truncate text-[13px] font-semibold leading-snug">{b.title}</p>
                 <p className="text-[10px] leading-tight text-muted-foreground">
                   Hedef {b.target} · alt sınır {b.min}
+                  {plan && <span className="text-teal-700 dark:text-teal-400"> · kefaret {kefPages.get(b.id)}</span>}
                   {b.pages != null && <b className="text-foreground"> · {b.pages} sf</b>}
                 </p>
                 {b.linked?.length ? (
@@ -81,6 +93,18 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
                 ) : null}
               </div>
               <div className="flex gap-1">
+                {plan && (
+                  <button
+                    title={`Kefaret okuması: bugün toplam ${me.target + plan.dailyExtra} sayfa`}
+                    aria-label={`${b.title}: kefaret okuması`}
+                    aria-pressed={active === "kefaret"}
+                    disabled={pending}
+                    onClick={() => send({ choice: "kefaret" }, `${b.id}-kefaret`)}
+                    className={`flex size-7 items-center justify-center rounded-md border disabled:opacity-60 ${press} ${active === "kefaret" ? "border-teal-600 bg-teal-600 text-white" : "border-teal-600/40 text-teal-700 hover:bg-teal-500/10 dark:text-teal-400"}`}
+                  >
+                    {busy === `${b.id}-kefaret` ? <Spinner /> : <BookHeart className="size-3.5" strokeWidth={2.5} />}
+                  </button>
+                )}
                 {BOOK_BTNS.map(({ key, Icon, label, on }) => (
                   <button
                     key={key}
@@ -89,7 +113,7 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
                     aria-pressed={st === key}
                     disabled={pending}
                     onClick={() => send({ bookId: b.id, bookChoice: key }, `${b.id}-${key}`)}
-                    className={`flex size-7 items-center justify-center rounded-md border transition-colors disabled:opacity-60 ${st === key ? on : "border-border text-muted-foreground hover:bg-muted"}`}
+                    className={`flex size-7 items-center justify-center rounded-md border disabled:opacity-60 ${press} ${st === key ? on : "border-border text-muted-foreground hover:bg-muted"}`}
                   >
                     {busy === `${b.id}-${key}` ? <Spinner /> : <Icon className="size-3.5" strokeWidth={2.5} />}
                   </button>
@@ -99,9 +123,9 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
           );
         })}
       </ul>
-      {plan && <KefaretOffer plan={plan} today={card.dayKey} dailyPages={me.target + plan.dailyExtra} />}
+      {plan && <KefaretOffer plan={plan} today={card.dayKey} dailyPages={me.target + plan.dailyExtra} markedToday={me.kefaret > 0} />}
       {/* Kısa etiketli seçim grubu; sayfa / ceza sağ üst çentiklerde */}
-      <div className="flex gap-1 pt-1" role="group" aria-label="Bugünkü okumanı bildir">
+      <div className="flex gap-1 pb-1.5 pt-1" role="group" aria-label="Bugünkü okumanı bildir">
         {plan && (
           <ChoiceButton
             className="bg-teal-600 text-white hover:bg-teal-700"
@@ -114,14 +138,16 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
             cornerTone="text-teal-700 ring-teal-600/70 dark:text-teal-300"
             hint={`Kefaret okuması: bugün toplam ${me.target + plan.dailyExtra} sayfa, ≈${Math.round(plan.discountTotal / plan.days)} TL indirim`}
             onClick={() => send({ choice: "kefaret" }, "kefaret")}
+            dense
           />
         )}
         <ChoiceButton
-          className="btn-success"
+          className="bg-emerald-500 text-white hover:bg-emerald-600"
           on={active === "all"}
           busy={busy === "all"}
           disabled={pending}
           Icon={CheckCheck}
+          dense={!!plan}
           label="Okudum"
           corner={`${me.target} sf`}
           cornerTone="text-emerald-700 ring-emerald-600/70 dark:text-emerald-300"
@@ -129,26 +155,28 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
           onClick={() => send({ choice: "all" }, "all")}
         />
         <ChoiceButton
-          className="btn-primary"
+          className="bg-amber-500 text-white hover:bg-amber-600"
           on={active === "min"}
           busy={busy === "min"}
           disabled={pending}
           Icon={Check}
+          dense={!!plan}
           label="Alt sınır"
-          corner={me.fine.min ? `${me.min} sf · ${me.fine.min} TL` : `${me.min} sf`}
-          cornerTone="text-primary ring-primary/60"
+          corner={`${me.min} sf`}
+          cornerTone="text-amber-700 ring-amber-500/70 dark:text-amber-300"
+          fine={me.fine.min ? `-${me.fine.min} TL` : undefined}
           hint={`Alt sınır: ${me.min} sayfa${me.fine.min ? `, ${me.fine.min} TL ceza` : ""}`}
           onClick={() => send({ choice: "min" }, "min")}
         />
         <ChoiceButton
-          className={`btn-ghost ${active === "none" ? "border-rose-500 bg-rose-500/10 text-rose-700 dark:text-rose-400" : ""}`}
+          className="bg-rose-500 text-white hover:bg-rose-600"
           on={active === "none"}
           busy={busy === "none"}
           disabled={pending}
           Icon={X}
+          dense={!!plan}
           label="Okumadım"
-          corner={`${me.fine.none} TL`}
-          cornerTone="text-rose-700 ring-rose-500/60 dark:text-rose-300"
+          fine={`-${me.fine.none} TL`}
           hint={`Okumadım: ${me.fine.none} TL ceza`}
           onClick={() => send({ choice: "none" }, "none")}
         />
@@ -163,10 +191,13 @@ const shortDay = (k: string) => `${Number(k.slice(8))} ${MONTHS_SHORT[Number(k.s
 const addDay = (k: string, n: number) => new Date(Date.parse(k) + n * 86_400_000).toISOString().slice(0, 10);
 
 /** Yöneticinin kefaret teklifi: kaç gün, ne kadar silinecek, ne kadarı silindi ve son günlerde kefaret yapılıp yapılmadığı */
-function KefaretOffer({ plan, today, dailyPages }: { plan: NonNullable<NonNullable<Card["me"]>["plan"]>; today: string; dailyPages: number }) {
+function KefaretOffer({ plan, today, dailyPages, markedToday }: { plan: NonNullable<NonNullable<Card["me"]>["plan"]>; today: string; dailyPages: number; markedToday: boolean }) {
   const perDay = Math.round(plan.discountTotal / plan.days);
   const used = new Set(plan.usedDays ?? []);
+  if (markedToday) used.add(today);
   const pct = plan.discountTotal ? Math.min(100, Math.round((plan.earned / plan.discountTotal) * 100)) : 0;
+  // Bugün kefaret okunduysa: payı gün kapanınca düşer, o zamana kadar "bekliyor" olarak görünür
+  const pendingPct = markedToday && plan.discountTotal ? Math.min(100 - pct, Math.round((perDay / plan.discountTotal) * 100)) : 0;
   // Son 7 gün (başlangıçtan önceki günler gösterilmez)
   const recent: string[] = [];
   for (let i = 6; i >= 0; i--) {
@@ -181,15 +212,18 @@ function KefaretOffer({ plan, today, dailyPages }: { plan: NonNullable<NonNullab
           Kefaret teklifi{plan.discountPercent ? ` · %${plan.discountPercent} indirim` : ""}
         </span>
         <span className="tabular-nums">
-          {plan.doneDays}/{plan.days} gün
+          {plan.doneDays}
+          {markedToday && <span className="opacity-70">+1</span>}/{plan.days} gün
         </span>
       </div>
       <div className="flex items-center gap-2">
-        <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
-          <span className="block h-full rounded-full bg-teal-600" style={{ width: `${pct}%` }} />
+        <span className="flex h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+          <span className="block h-full bg-teal-600" style={{ width: `${pct}%` }} />
+          <span className="block h-full bg-teal-600/40" style={{ width: `${pendingPct}%` }} title="Bugünkü kefaret: gün kapanınca borçtan düşer" />
         </span>
         <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
           <b className="text-foreground">{plan.earned}</b>/{plan.discountTotal} TL silindi
+          {markedToday && <span className="text-teal-700 dark:text-teal-400"> · bugün +{perDay} TL</span>}
         </span>
       </div>
       <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
@@ -220,7 +254,9 @@ function ChoiceButton({
   label,
   corner,
   cornerTone,
+  fine,
   hint,
+  dense,
   onClick,
 }: {
   className: string;
@@ -231,12 +267,16 @@ function ChoiceButton({
   label: string;
   corner?: string;
   cornerTone?: string;
+  /** Sağ alt çentik: yazılacak ceza ("-10 TL"); sayfa çentiğiyle asla aynı yerde değil */
+  fine?: string;
   hint: string;
+  /** 4 buton (kefaret) varken bir tık küçük */
+  dense?: boolean;
   onClick: () => void;
 }) {
   return (
     <button
-      className={`btn relative h-7 min-w-0 flex-auto gap-0.5 whitespace-nowrap rounded-md px-1.5 text-[10px] font-semibold [&_svg]:size-3 ${className} ${ring(on)}`}
+      className={`btn relative min-w-0 flex-auto gap-0.5 whitespace-nowrap rounded-md font-semibold ${press} ${dense ? "h-6 px-1 text-[9px] [&_svg]:size-2.5" : "h-7 px-1.5 text-[10px] [&_svg]:size-3"} ${className} ${ring(on)}`}
       aria-pressed={on}
       aria-label={hint}
       title={on ? `${hint} · tekrar bas: geri al` : hint}
@@ -245,6 +285,7 @@ function ChoiceButton({
     >
       {/* Sağ üst çentik: sayfa / ceza; köşe yuvarlaklığı butonla aynı */}
       {corner && <span className={`absolute -right-0.5 -top-1.5 rounded-md bg-card px-[3px] text-[7.5px] font-bold leading-[10px] ring-1 ${cornerTone ?? ""}`}>{corner}</span>}
+      {fine && <span className="absolute -bottom-1.5 -right-0.5 rounded-md bg-card px-[3px] text-[7.5px] font-bold leading-[10px] text-rose-700 ring-1 ring-rose-500/60 dark:text-rose-300">{fine}</span>}
       {busy ? <Spinner /> : <Icon />}
       <span className="truncate">{label}</span>
     </button>
@@ -259,7 +300,9 @@ function wholeChoice(books: { pages: number | null; target: number; min: number 
   if (books.every((b) => b.pages === b.min)) return "min";
   return null;
 }
-const ring = (on: boolean) => (on ? "ring-2 ring-offset-1 ring-offset-card ring-foreground/40" : "");
+// Seçili buton belirgin çerçeveli; basınca küçülüp kararır (dokunma geri bildirimi)
+const ring = (on: boolean) => (on ? "ring-2 ring-offset-2 ring-offset-card ring-foreground/70 shadow-md" : "");
+const press = "transition-[transform,filter] duration-75 active:scale-90 active:brightness-75";
 
 function Spinner() {
   return <span className="size-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />;
@@ -269,14 +312,17 @@ function Spinner() {
 function DayProgress({ card }: { card: Card }) {
   const total = card.read.length + card.min.length + card.none.length + card.pending.length;
   const done = card.read.length + card.min.length;
+  const kef = card.read.filter((p) => p.kefaret).length;
   if (!total) return null;
   return (
     <div
       className="flex items-center gap-2"
-      title={`${card.read.length} okudu · ${card.min.length} alt sınır · ${card.none.length} okumadı · ${card.pending.length} bekleniyor`}
+      title={`${card.read.length} okudu${kef ? ` (${kef} kefaret)` : ""} · ${card.min.length} alt sınır · ${card.none.length} okumadı · ${card.pending.length} bekleniyor`}
     >
       <div className="flex h-2.5 flex-1 overflow-hidden rounded-full bg-muted">
-        <span className="bg-emerald-500" style={{ width: `${(card.read.length / total) * 100}%` }} />
+        {/* Kefaret okuyanlar ayrı renkte: diğerlerinden fazlasını okudukları belli olsun */}
+        <span className="bg-teal-600" style={{ width: `${(kef / total) * 100}%` }} />
+        <span className="bg-emerald-500" style={{ width: `${((card.read.length - kef) / total) * 100}%` }} />
         <span className="bg-amber-500" style={{ width: `${(card.min.length / total) * 100}%` }} />
         <span className="bg-rose-500" style={{ width: `${(card.none.length / total) * 100}%` }} />
       </div>
@@ -469,13 +515,13 @@ export function DayShortcut({ card, groupId, onJump, onReported }: { card: Card;
   }
 
   // Gün kartındaki butonlarla aynı: kefaret (varsa) en başta, sağ üst çentikte sayfa / ceza
-  const btns: { key: Choice | "kefaret"; state: string; label: string; corner?: string; tone: string; Icon: typeof Check; on: string }[] = [
+  const btns: { key: Choice | "kefaret"; state: string; label: string; corner?: string; fine?: string; tone: string; Icon: typeof Check; on: string }[] = [
     ...(plan && me
       ? [{ key: "kefaret" as const, state: "kefaret", label: "Kefaret", corner: `${me.target + plan.dailyExtra} sf`, tone: "text-teal-700 ring-teal-600/70", Icon: BookHeart, on: "bg-teal-600 text-white border-teal-600" }]
       : []),
     { key: "all", state: "read", label: "Okudum", corner: me ? `${me.target} sf` : undefined, tone: "text-emerald-700 ring-emerald-600/70", Icon: CheckCheck, on: "bg-emerald-600 text-white border-emerald-600" },
-    { key: "min", state: "min", label: "Alt sınır", corner: me ? (me.fine?.min ? `${me.min} sf · ${me.fine.min} TL` : `${me.min} sf`) : undefined, tone: "text-primary ring-primary/60", Icon: Check, on: "bg-primary text-primary-foreground border-primary" },
-    { key: "none", state: "none", label: "Okumadım", corner: me?.fine ? `${me.fine.none} TL` : undefined, tone: "text-rose-700 ring-rose-500/60", Icon: X, on: "bg-rose-600 text-white border-rose-600" },
+    { key: "min", state: "min", label: "Alt sınır", corner: me ? `${me.min} sf` : undefined, fine: me?.fine?.min ? `-${me.fine.min} TL` : undefined, tone: "text-amber-700 ring-amber-500/70", Icon: Check, on: "bg-amber-500 text-white border-amber-500" },
+    { key: "none", state: "none", label: "Okumadım", fine: me?.fine ? `-${me.fine.none} TL` : undefined, tone: "text-rose-700 ring-rose-500/60", Icon: X, on: "bg-rose-500 text-white border-rose-500" },
   ];
 
   return (
@@ -496,17 +542,18 @@ export function DayShortcut({ card, groupId, onJump, onReported }: { card: Card;
         </span>
       </button>
       {card.open && me ? (
-        <div className="flex shrink-0 gap-1 pt-1">
-          {btns.map(({ key, state, label, corner, tone, Icon, on }) => (
+        <div className="flex shrink-0 gap-1 pb-1 pt-1">
+          {btns.map(({ key, state, label, corner, fine, tone, Icon, on }) => (
             <button
               key={key}
               disabled={pending}
               onClick={() => send(key)}
               aria-pressed={myState === state}
               title={label}
-              className={`relative flex h-7 items-center gap-1 rounded-md border px-1.5 text-[10px] font-semibold transition-colors disabled:opacity-60 ${myState === state ? on : "border-border bg-card hover:bg-muted"}`}
+              className={`relative flex h-7 items-center gap-1 rounded-md border px-1.5 text-[10px] font-semibold disabled:opacity-60 ${press} ${myState === state ? on : "border-border bg-card hover:bg-muted"}`}
             >
               {corner && <span className={`absolute -right-0.5 -top-1.5 rounded-md bg-card px-[3px] text-[7px] font-bold leading-[9px] ring-1 ${tone}`}>{corner}</span>}
+              {fine && <span className="absolute -bottom-1.5 -right-0.5 rounded-md bg-card px-[3px] text-[7px] font-bold leading-[9px] text-rose-700 ring-1 ring-rose-500/60">{fine}</span>}
               {busy === key ? <Spinner /> : <Icon className="size-3" strokeWidth={2.5} />}
               <span className="hidden min-[400px]:inline">{label}</span>
             </button>

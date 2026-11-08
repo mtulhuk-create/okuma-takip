@@ -1,4 +1,5 @@
-export type PublicUser = { id: string; name: string; username: string | null; imageUrl: string | null };
+/** initial: avatar harfi (hesap adının baş harfi; eski sunucuda yok) */
+export type PublicUser = { id: string; name: string; username: string | null; imageUrl: string | null; initial?: string };
 export type Me = PublicUser & { nameConfirmed: boolean };
 export type Period = { dayKey: string; start: string; deadline: string; nextStart: string };
 export type PenaltyMode = "FIXED" | "PER_PAGE";
@@ -50,7 +51,7 @@ export type Member = {
 
 export type ReadingLog = { userId: string; dayKey: string; pages: number; requiredPages: number; minPages: number };
 
-export type DayPerson = { id: string; name: string; imageUrl: string | null; pages: number | null; required: number; kefaret?: number };
+export type DayPerson = { id: string; name: string; imageUrl: string | null; initial?: string; pages: number | null; required: number; kefaret?: number };
 /** Süren kefaret okuması: hedefin üstüne ek sayfa, her gün indirimin bir payını kazandırır */
 export type DayKefaret = {
   planId: string;
@@ -217,7 +218,7 @@ export type ChatMessage = {
   kind: "TEXT" | "DAY" | "POLL" | "BADGE";
   text: string | null;
   createdAt: string;
-  user: { id: string; name: string; imageUrl: string | null; badge?: BadgeTag | null } | null;
+  user: { id: string; name: string; imageUrl: string | null; initial?: string; badge?: BadgeTag | null } | null;
   day: DayCard | null;
   poll: PollView | null;
   badge?: BadgeView | null;

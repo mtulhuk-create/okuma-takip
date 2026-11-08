@@ -6,9 +6,14 @@ import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 import { API_URL } from "./config";
 import { enqueue } from "./offline";
+import { LITE } from "./variant";
 
 export const REPORT_CATEGORY = "REPORT";
-const COUNTDOWN_MINUTES = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
+// Tam sürüm: son 10 dakikada her dakika. Lite: telefonu yormasın, yalnızca 10 ve 1 dakika kala
+const COUNTDOWN_MINUTES = LITE ? [10, 1] : [10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
+/** Kaç okuma günü ileriye planlanır (uygulama uzun süre açılmasa da bildirimler gelsin) */
+export const PLAN_DAYS = LITE ? 4 : 7;
+export const SCHEDULE_PATH = `/api/me/schedule?days=${PLAN_DAYS}`;
 
 type Schedule = {
   groups: {
@@ -99,6 +104,7 @@ function dayCardContent(g: Schedule["groups"][number], deadline: Date, dayKey: s
 const STICKY_KEY = "sticky-today";
 /** Kilit ekranında sabit bildirim tercihi (isteğe bağlı, varsayılan kapalı) */
 export async function getStickyPref() {
+  if (LITE) return false; // Lite: kilit ekranı sabit kartı yok
   return (await SecureStore.getItemAsync(STICKY_KEY).catch(() => null)) === "1";
 }
 export async function setStickyPref(on: boolean) {
@@ -158,7 +164,7 @@ export async function sendTestNotification(fetchSchedule: () => Promise<Schedule
 type Planned = { identifier: string; key: string; request: Notifications.NotificationRequestInput };
 const PLAN_KEY = "notif-plan-v2";
 /** Geri sayım yalnızca en yakın iki okuma günü için planlanır (cihazda gereksiz alarm birikmesin) */
-const COUNTDOWN_PERIODS = 2;
+const COUNTDOWN_PERIODS = LITE ? 1 : 2;
 
 /** Planlanması gereken bildirimler (her biri sabit kimlikli; aynı plan tekrar kurulmaz) */
 function buildPlan(data: Schedule, sticky: boolean, now: number): Planned[] {
@@ -311,6 +317,17 @@ async function alreadyHandled(key: string) {
   return false;
 }
 
+/** Yalnızca bu grubun bu günkü bildirimlerini kaldırır (diğer grupların kartları kalsın) */
+async function dismissDayNotifications(data: Pick<ReportData, "groupId" | "dayKey">) {
+  const presented = await Notifications.getPresentedNotificationsAsync().catch(() => []);
+  for (const n of presented) {
+    const d = n.request.content.data as Partial<ReportData> | undefined;
+    if (n.request.identifier === "report-result" || (d?.groupId === data.groupId && d?.dayKey === data.dayKey)) {
+      await Notifications.dismissNotificationAsync(n.request.identifier).catch(() => {});
+    }
+  }
+}
+
 /** Bildirimdeki hızlı butona basıldığında okumayı sunucuya iletir (uygulama kapalıyken de çalışır). */
 export async function handleReportAction(actionId: string, data: ReportData, userText?: string, key?: string) {
   if (!["all", "pages", "min", "none"].includes(actionId) || !data?.token) return false;
@@ -323,7 +340,7 @@ export async function handleReportAction(actionId: string, data: ReportData, use
     // İnternet yok: bildirim butonundaki seçim sıraya alınır, bağlanınca işlem anıyla gönderilir
     const label = { all: "Okudum", min: "Alt sınırı okudum", none: "Okumadım", pages: "Sayfa bildirimi" }[actionId] ?? "Bildirim";
     await enqueue({ kind: "quick", groupId: data.groupId, dayKey: data.dayKey, label, body: payload });
-    await Notifications.dismissAllNotificationsAsync();
+    await dismissDayNotifications(data);
     await Notifications.scheduleNotificationAsync({
       identifier: "report-result",
       content: { title: "📴 Çevrimdışı kaydedildi", body: `${label}: internet gelince işlem saatiyle gönderilecek.` },
@@ -344,7 +361,7 @@ export async function handleReportAction(actionId: string, data: ReportData, use
         .map((n) => Notifications.cancelScheduledNotificationAsync(n.identifier)),
     );
   }
-  await Notifications.dismissAllNotificationsAsync();
+  await dismissDayNotifications(data);
   await Notifications.scheduleNotificationAsync({
     identifier: "report-result",
     content: {

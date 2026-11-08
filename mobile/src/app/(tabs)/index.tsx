@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { CalendarDays, CloudOff, Plus, Receipt, Search, Wallet } from "lucide-react-native";
+import { CalendarDays, CloudOff, Plus, Receipt, Search } from "lucide-react-native";
 import { Pressable, Text, View } from "react-native";
 import { DayCardMini } from "@/components/day-card";
 import { MyHistorySection } from "@/components/history";
@@ -27,7 +27,7 @@ export default function TodayScreen() {
         <Row gap={8}>
           <DebtButton total={data.money.unpaidTotal} items={data.money.debts ?? []} />
           <Pressable onPress={() => router.push("/profile")}>
-            <Avatar name={data.user.name} uri={data.user.imageUrl} size={42} />
+            <Avatar name={data.user.name} uri={data.user.imageUrl} initial={data.user.initial} seed={data.user.id} size={42} />
           </Pressable>
         </Row>
       </Row>
@@ -53,14 +53,6 @@ export default function TodayScreen() {
           </Card>
         </Pressable>
       ))}
-
-      {data.money.unpaidTotal > 0 && (
-        <Card style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-          <Wallet size={22} color={c.mutedForeground} />
-          <Text style={{ flex: 1, fontFamily: fonts.regular, color: c.foreground }}>Ödenmemiş cezan</Text>
-          <Text style={{ fontFamily: fonts.bold, fontSize: 18, color: c.destructive }}>{data.money.unpaidTotal} TL</Text>
-        </Card>
-      )}
 
       {data.groups.length === 0 ? (
         <Card style={{ alignItems: "center", paddingVertical: 28 }}>

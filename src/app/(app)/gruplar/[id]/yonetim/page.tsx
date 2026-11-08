@@ -82,7 +82,7 @@ export default async function AdminPage({ params, searchParams }: { params: Prom
             return (
               <div key={m.id} className="p-3">
                 <div className="flex items-center gap-3">
-                  <Avatar name={m.user.name} src={m.user.imageUrl} size={40} />
+                  <Avatar name={m.user.name} src={m.user.imageUrl} initial={m.user.initial} seed={m.user.id} size={40} />
                   <div className="min-w-0 flex-1">
                     <p className="flex items-center gap-1.5 truncate text-sm font-semibold">
                       {m.user.name}

@@ -1,4 +1,4 @@
-import { AlarmClock, BookOpen, Check, ChevronRight, Clock, Coins, Crown, Globe, Lock, Plus, Search, Shield, UserRound, Users, Wallet } from "lucide-react";
+import { AlarmClock, BookOpen, Check, ChevronRight, Clock, Coins, Crown, Globe, Lock, Plus, Search, Shield, Target, UserRound, Users, Wallet } from "lucide-react";
 import Link from "next/link";
 import { cancelJoinRequest, requestJoin } from "@/app/actions";
 import { ActionForm, SubmitButton } from "@/components/action-form";
@@ -12,14 +12,6 @@ import { booksOf, describePenalty, teamsActive } from "@/lib/rules";
 import { minuteToTime } from "@/lib/schedule";
 
 export const metadata = { title: "Gruplar" };
-
-function GroupIcon({ name, size = "size-12" }: { name: string; size?: string }) {
-  return (
-    <span className={`flex ${size} shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-primary/70 font-serif text-lg font-bold text-primary-foreground shadow-xs`}>
-      {name[0]?.toUpperCase()}
-    </span>
-  );
-}
 
 const COVERS = ["#9b2c2c", "#2f6f4f", "#1e4e79", "#8a5a1f", "#5b3a8a", "#0f766e", "#7c2d4a"];
 function coverColor(id: string) {
@@ -39,6 +31,43 @@ function BookCover({ name, color }: { name: string; color: string }) {
     </span>
   );
 }
+
+/** Etiketli bilgi satırları: ne nerede olduğu ilk bakışta anlaşılsın */
+function InfoRows({ rows }: { rows: { Icon: typeof Lock; label: string; value: React.ReactNode }[] }) {
+  return (
+    <dl className="space-y-0.5 text-xs">
+      {rows.map(({ Icon, label, value }) => (
+        <div key={label} className="flex items-start gap-1.5">
+          <Icon className="mt-0.5 size-3.5 shrink-0 text-primary" />
+          <dt className="w-[4.5rem] shrink-0 text-muted-foreground">{label}</dt>
+          <dd className="min-w-0 flex-1 font-medium">{value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+/** Gruplarım ve Keşfet için ortak kart başlığı: kitap kapağı, tam görünen grup adı, kısa bilgi */
+function CardHead({ id, name, admin, meta, right }: { id: string; name: string; admin?: boolean; meta: React.ReactNode; right?: React.ReactNode }) {
+  return (
+    <div className="flex items-start gap-3">
+      <BookCover name={name} color={coverColor(id)} />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-start gap-1.5">
+          <p className="min-w-0 flex-1 font-semibold leading-snug [overflow-wrap:anywhere]">
+            {name}
+            {admin && <Crown className="ml-1 inline size-3.5 -translate-y-px text-amber-500" aria-label="Yönetici" />}
+          </p>
+          {right}
+        </div>
+        <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">{meta}</p>
+      </div>
+    </div>
+  );
+}
+
+const cardCls = "card relative block space-y-2.5 overflow-hidden py-3 pl-4 pr-3";
+const Spine = ({ id }: { id: string }) => <span className="absolute inset-y-0 left-0 w-1.5" style={{ background: coverColor(id) }} aria-hidden />;
 
 type Rulesish = Parameters<typeof booksOf>[0] & Parameters<typeof describePenalty>[0];
 
@@ -103,63 +132,73 @@ export default async function GroupsPage({ searchParams }: { searchParams: Promi
             const partial = t.myPages != null && !done;
             const pct = members ? Math.round((t.reported / members) * 100) : 0;
             const status = done
-              ? { text: "Tamam", cls: "bg-emerald-600 text-white", Icon: Check }
+              ? { text: "Okudun", cls: "bg-emerald-500 text-white", Icon: Check }
               : partial
                 ? { text: `${t.myPages}/${t.myTarget} sf`, cls: "bg-amber-500 text-white", Icon: BookOpen }
                 : t.open
                   ? { text: "Bekliyor", cls: "bg-primary/10 text-primary", Icon: Clock }
                   : { text: "Kapandı", cls: "bg-muted text-muted-foreground", Icon: Clock };
             return (
-              <Link
-                key={group.id}
-                href={`/gruplar/${group.id}`}
-                prefetch
-                className="card group relative flex items-center gap-3 overflow-hidden py-2.5 pl-4 pr-3 transition-colors hover:border-primary/40"
-              >
-                {/* Kitap sırtı */}
-                <span className="absolute inset-y-0 left-0 w-1.5" style={{ background: coverColor(group.id) }} aria-hidden />
-                <BookCover name={group.name} color={coverColor(group.id)} />
-                <div className="min-w-0 flex-1 space-y-1">
-                  <div className="flex items-center gap-1.5">
-                    <p className="min-w-0 flex-1 truncate font-semibold leading-tight">
-                      {group.name}
-                      {role === "ADMIN" && <Crown className="ml-1 inline size-3.5 -translate-y-px text-amber-500" aria-label="Yönetici" />}
-                    </p>
-                    <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold ${status.cls}`}>
-                      <status.Icon className="size-3" strokeWidth={3} /> {status.text}
-                    </span>
-                  </div>
-                  <p className="truncate text-[11px] text-muted-foreground">
-                    {t.books.join(" · ")} · günde {t.myTarget} sf (alt {t.myMin}){t.teamName ? ` · ${t.teamName}` : ""}
-                  </p>
-                  <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                    <span className="h-1.5 min-w-12 flex-1 overflow-hidden rounded-full bg-muted" title={`${t.reported}/${members} okudu`}>
-                      <span className="block h-full rounded-full bg-emerald-500" style={{ width: `${pct}%` }} />
-                    </span>
-                    <span className="shrink-0 font-semibold text-foreground">
-                      {t.reported}/{members}
-                    </span>
-                    <span className="shrink-0">
-                      {t.open ? <Countdown to={t.deadline} /> : `yeni gün ${minuteToTime(group.startMinute)}`}
-                    </span>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
-                    <span className="inline-flex items-center gap-1">
-                      {group.visibility === "PUBLIC" ? <Globe className="size-3" /> : <Lock className="size-3" />} {members} üye
-                    </span>
-                    <span>·</span>
-                    <span className="inline-flex items-center gap-1">
-                      <Coins className="size-3" /> {t.penalty}
-                    </span>
-                    {t.debt > 0 && (
-                      <span className="badge bg-destructive/10 py-0 text-[10px] text-destructive">
-                        <Wallet /> borcun {t.debt} TL
+              <Link key={group.id} href={`/gruplar/${group.id}`} prefetch className={`${cardCls} group transition-colors hover:border-primary/40`}>
+                <Spine id={group.id} />
+                <CardHead
+                  id={group.id}
+                  name={group.name}
+                  admin={role === "ADMIN"}
+                  right={<ChevronRight className="mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />}
+                  meta={
+                    <>
+                      <span className="inline-flex items-center gap-1">
+                        <Users className="size-3" /> {members} üye
                       </span>
+                      <span className="inline-flex items-center gap-1">
+                        {group.visibility === "PUBLIC" ? <Globe className="size-3" /> : <Lock className="size-3" />} {group.visibility === "PUBLIC" ? "Herkese açık" : "Özel"}
+                      </span>
+                      {t.teamName && (
+                        <span className="inline-flex items-center gap-1">
+                          <Shield className="size-3" /> {t.teamName}
+                        </span>
+                      )}
+                    </>
+                  }
+                />
+                <InfoRows
+                  rows={[
+                    { Icon: BookOpen, label: "Eserler", value: t.books.join(", ") },
+                    { Icon: Target, label: "Günlük", value: `${t.myTarget} sayfa · alt sınır ${t.myMin}` },
+                    { Icon: Coins, label: "Ceza", value: t.penalty },
+                  ]}
+                />
+                {/* Bugün */}
+                <div className="flex items-center gap-2 rounded-lg bg-muted/50 px-2 py-1.5">
+                  <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold ${status.cls}`}>
+                    <status.Icon className="size-3" strokeWidth={3} /> {status.text}
+                  </span>
+                  <span className="h-1.5 min-w-8 flex-1 overflow-hidden rounded-full bg-muted" title={`${t.reported}/${members} okudu`}>
+                    <span className="block h-full rounded-full bg-emerald-500" style={{ width: `${pct}%` }} />
+                  </span>
+                  <span className="shrink-0 text-[11px] text-muted-foreground">
+                    <b className="text-foreground">{t.reported}</b>/{members} okudu
+                  </span>
+                  <span className="shrink-0 text-[11px] text-muted-foreground">
+                    {t.open ? (
+                      <>
+                        <AlarmClock className="mr-0.5 inline size-3" />
+                        <Countdown to={t.deadline} />
+                      </>
+                    ) : (
+                      `yeni gün ${minuteToTime(group.startMinute)}`
                     )}
-                    {t.debt > 0 && t.due && <DueBadge due={t.due} compact />}
-                  </div>
+                  </span>
                 </div>
-                <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                {t.debt > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="badge bg-destructive/10 text-destructive">
+                      <Wallet /> Borcun {t.debt} TL
+                    </span>
+                    {t.due && <DueBadge due={t.due} compact />}
+                  </div>
+                )}
               </Link>
             );
           })
@@ -177,45 +216,35 @@ export default async function GroupsPage({ searchParams }: { searchParams: Promi
           const teams = teamsActive(g) ? g.teams : [];
           const books = booksOf(g);
           return (
-            <div key={g.id} className="card space-y-3 p-3.5">
-              <div className="flex items-start gap-3">
-                <GroupIcon name={g.name} />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-semibold">{g.name}</p>
-                  <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1">
+            <div key={g.id} className={cardCls}>
+              <Spine id={g.id} />
+              <CardHead
+                id={g.id}
+                name={g.name}
+                meta={
+                  <>
+                    <span className="inline-flex items-center gap-1">
                       <Users className="size-3" /> {g._count.members} üye
                     </span>
-                    <span className="flex items-center gap-1">
-                      <UserRound className="size-3" /> {g.owner.name}
+                    <span className="inline-flex items-center gap-1">
+                      <UserRound className="size-3" /> Kurucu: {g.owner.name}
                     </span>
-                  </p>
-                  {g.description && <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{g.description}</p>}
-                </div>
-              </div>
-
+                  </>
+                }
+              />
+              {g.description && <p className="line-clamp-2 text-xs text-muted-foreground">{g.description}</p>}
               {teams.length ? (
                 <TeamTargets teams={teams} />
               ) : (
-                <div className="grid grid-cols-3 gap-1.5 text-center">
-                  <div className="rounded-xl bg-muted/60 px-2 py-2">
-                    <BookOpen className="mx-auto mb-0.5 size-4 text-primary" />
-                    <p className="text-sm font-bold leading-tight">{g.targetPages} sf</p>
-                    <p className="text-[10px] text-muted-foreground">günlük · alt {g.minPages}</p>
-                  </div>
-                  <div className="rounded-xl bg-muted/60 px-2 py-2">
-                    <Coins className="mx-auto mb-0.5 size-4 text-primary" />
-                    <p className="text-sm font-bold leading-tight">{g.penaltyAmount} TL</p>
-                    <p className="text-[10px] text-muted-foreground">{g.penaltyMode === "PER_PAGE" ? "eksik sayfa başı" : g.minDiscount ? `alt sınırda %${g.minDiscount} ind.` : "günlük ceza"}</p>
-                  </div>
-                  <div className="rounded-xl bg-muted/60 px-2 py-2">
-                    <AlarmClock className="mx-auto mb-0.5 size-4 text-primary" />
-                    <p className="text-sm font-bold leading-tight">{minuteToTime(g.deadlineMinute)}</p>
-                    <p className="text-[10px] text-muted-foreground">son bildirim</p>
-                  </div>
-                </div>
+                <InfoRows
+                  rows={[
+                    { Icon: BookOpen, label: "Eserler", value: books.map((b) => b.title).join(", ") },
+                    { Icon: Target, label: "Günlük", value: `${g.targetPages} sayfa · alt sınır ${g.minPages}` },
+                    { Icon: Coins, label: "Ceza", value: describePenalty(g) },
+                    { Icon: AlarmClock, label: "Son bildirim", value: minuteToTime(g.deadlineMinute) },
+                  ]}
+                />
               )}
-              {!teams.length && <p className="truncate text-[11px] text-muted-foreground">📖 {books.map((b) => b.title).join(" · ")}</p>}
 
               {requested.has(g.id) ? (
                 <ActionForm action={cancelJoinRequest} className="flex items-center justify-between gap-2 rounded-xl bg-muted/60 px-3 py-2">

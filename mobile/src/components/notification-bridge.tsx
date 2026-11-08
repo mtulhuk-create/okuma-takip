@@ -5,7 +5,7 @@ import { AppState, Pressable, Text } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApi, useApiFetch } from "@/lib/api";
 import { markInboxSeen, refreshInboxToken } from "@/lib/inbox";
-import { exactAlarmsAllowed, handleReportAction, requestExactAlarms, setupNotifications, syncSchedule, type ReportData } from "@/lib/notifications";
+import { exactAlarmsAllowed, handleReportAction, requestExactAlarms, setupNotifications, syncSchedule, type ReportData, SCHEDULE_PATH } from "@/lib/notifications";
 import { fonts, useColors } from "@/lib/theme";
 import type { MeResponse } from "@/lib/types";
 
@@ -30,7 +30,7 @@ export function NotificationBridge() {
 
   // Okuma günleri/raporlar değiştikçe (me verisi tazelenince) planı güncelle
   useEffect(() => {
-    if (ready && me.dataUpdatedAt) syncSchedule(() => fetcher("/api/me/schedule")).catch(() => {});
+    if (ready && me.dataUpdatedAt) syncSchedule(() => fetcher(SCHEDULE_PATH)).catch(() => {});
   }, [ready, me.dataUpdatedAt, fetcher]);
 
   // Mesaj bildirimi için arka plan token'ı; uygulama açıkken görülen mesajlar sonradan bildirilmez

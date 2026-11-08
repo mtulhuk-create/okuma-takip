@@ -1,31 +1,31 @@
 import { router } from "expo-router";
 import { BookHeart, BookOpen, Check, CheckCheck, ChevronRight, Clock, CloudOff, Link2, Lock, X, type LucideIcon } from "lucide-react-native";
 import { memo, useState } from "react";
-import { ActivityIndicator, Pressable, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, Text, View, Platform, Vibration } from "react-native";
 import { useAction } from "@/lib/api";
 import { useOfflineQueue } from "@/lib/offline";
 import { formatDayLong, formatClock } from "@/lib/format";
-import { fonts, KEFARET, radius, useColors } from "@/lib/theme";
+import { fonts, KEFARET, radius, STATE, useColors } from "@/lib/theme";
 import type { DayCard as Card } from "@/lib/types";
 import { Countdown } from "./countdown";
 import { Avatar, Row } from "./ui";
 
 type Cat = { key: "read" | "min" | "none" | "pending"; label: string; Icon: LucideIcon; color: (c: ReturnType<typeof useColors>) => string };
 const CATS: Cat[] = [
-  { key: "read", label: "Okudu", Icon: CheckCheck, color: (c) => c.success },
-  { key: "min", label: "Alt sınır", Icon: Check, color: (c) => c.warning },
-  { key: "none", label: "Okumadı", Icon: X, color: (c) => c.destructive },
+  { key: "read", label: "Okudu", Icon: CheckCheck, color: () => STATE.read },
+  { key: "min", label: "Alt sınır", Icon: Check, color: () => STATE.min },
+  { key: "none", label: "Okumadı", Icon: X, color: () => STATE.none },
   { key: "pending", label: "Bekleniyor", Icon: Clock, color: (c) => c.mutedForeground },
 ];
 
-export function AvatarStack({ people, size = 26, max = 5 }: { people: { id: string; name: string; imageUrl: string | null }[]; size?: number; max?: number }) {
+export function AvatarStack({ people, size = 26, max = 5 }: { people: { id: string; name: string; imageUrl: string | null; initial?: string }[]; size?: number; max?: number }) {
   const c = useColors();
   const rest = people.length - max;
   return (
     <View style={{ flexDirection: "row" }}>
       {people.slice(0, max).map((p, i) => (
         <View key={p.id} style={{ marginLeft: i ? -8 : 0, borderWidth: 2, borderColor: c.card, borderRadius: size }}>
-          <Avatar name={p.name} uri={p.imageUrl} size={size} />
+          <Avatar name={p.name} uri={p.imageUrl} initial={p.initial} seed={p.id} size={size} />
         </View>
       ))}
       {rest > 0 && (
@@ -62,23 +62,36 @@ export function ReportControls({ groupId, card, compact, onDone }: { groupId: st
   const busy = (key: string) => action.isPending && action.variables?.body?.key === key;
   // toggle: aynı butona tekrar basılırsa bildirim geri alınır (beklemeye döner)
   // dayKey: internet yoksa işlem bu güne ait olarak sıraya alınır
-  const send = (body: Record<string, unknown>, key: string) => action.mutate({ name: "reportReading", body: { groupId, dayKey: card.dayKey, ...body, key, toggle: "1" } }, { onSuccess: () => onDone?.() });
+  const send = (body: Record<string, unknown>, key: string) => tap() || action.mutate({ name: "reportReading", body: { groupId, dayKey: card.dayKey, ...body, key, toggle: "1" } }, { onSuccess: () => onDone?.() });
   const BTNS: { key: BookChoice; Icon: LucideIcon; color: string }[] = [
-    { key: "read", Icon: CheckCheck, color: c.success },
-    { key: "min", Icon: Check, color: c.warning },
-    { key: "none", Icon: X, color: c.destructive },
+    { key: "read", Icon: CheckCheck, color: STATE.read },
+    { key: "min", Icon: Check, color: STATE.min },
+    { key: "none", Icon: X, color: STATE.none },
   ];
   const active = me.kefaret ? "kefaret" : wholeChoice(me.books);
   const plan = me.plan ?? null;
   const fine = me.fine;
+  // Kefaret okumasında her esere düşen sayfa (sunucudaki dağıtımla aynı: hedefleri oranında)
+  const kefPages = new Map<string, number>();
+  if (plan) {
+    const sum = me.books.reduce((n, b) => n + b.target, 0) || 1;
+    let left = plan.dailyExtra;
+    me.books.forEach((b, i) => {
+      const share = i === me.books.length - 1 ? left : Math.min(left, Math.floor((plan.dailyExtra * b.target) / sum));
+      left -= share;
+      kefPages.set(b.id, b.target + share);
+    });
+  }
+  const dense = !!plan; // 4 buton varken bir tık küçük
   // Kısa etiketler; ayrıntılar butonların altındaki yardım satırında
-  const bottom: { key: string; label: string; hint: string; corner?: string; Icon: LucideIcon; variant: "kefaret" | "success" | "primary" | "ghost"; body: Record<string, unknown> }[] = [
+  // Renkler okuma takip tablosuyla aynı; sağ üst çentik sayfa, sağ alt çentik ceza ("-10 TL")
+  const bottom: { key: string; label: string; hint: string; corner?: string; fine?: string; Icon: LucideIcon; color: string; body: Record<string, unknown> }[] = [
     ...(plan
-      ? [{ key: "kefaret", label: "Kefaret", hint: `Kefaret okuması: bugün ${me.target + plan.dailyExtra} sayfa`, corner: `${me.target + plan.dailyExtra} sf`, Icon: BookHeart, variant: "kefaret" as const, body: { choice: "kefaret" } }]
+      ? [{ key: "kefaret", label: "Kefaret", hint: `Kefaret okuması: bugün ${me.target + plan.dailyExtra} sayfa`, corner: `${me.target + plan.dailyExtra} sf`, Icon: BookHeart, color: STATE.kefaret, body: { choice: "kefaret" } }]
       : []),
-    { key: "all", label: "Okudum", hint: `Okudum: ${me.target} sayfa`, corner: `${me.target} sf`, Icon: CheckCheck, variant: "success", body: { choice: "all" } },
-    { key: "min", label: "Alt sınır", hint: `Alt sınırı okudum: ${me.min} sayfa`, corner: fine?.min ? `${me.min} sf · ${fine.min} TL` : `${me.min} sf`, Icon: Check, variant: "primary", body: { choice: "min" } },
-    { key: "none", label: "Okumadım", hint: fine ? `Okumadım: ${fine.none} TL ceza` : "Okumadım", corner: fine ? `${fine.none} TL` : undefined, Icon: X, variant: "ghost", body: { choice: "none" } },
+    { key: "all", label: "Okudum", hint: `Okudum: ${me.target} sayfa`, corner: `${me.target} sf`, Icon: CheckCheck, color: STATE.read, body: { choice: "all" } },
+    { key: "min", label: "Alt sınır", hint: `Alt sınırı okudum: ${me.min} sayfa${fine?.min ? `, ${fine.min} TL ceza` : ""}`, corner: `${me.min} sf`, fine: fine?.min ? `-${fine.min} TL` : undefined, Icon: Check, color: STATE.min, body: { choice: "min" } },
+    { key: "none", label: "Okumadım", hint: fine ? `Okumadım: ${fine.none} TL ceza` : "Okumadım", fine: fine ? `-${fine.none} TL` : undefined, Icon: X, color: STATE.none, body: { choice: "none" } },
   ];
   return (
     <View style={{ gap: compact ? 6 : 8 }}>
@@ -94,6 +107,7 @@ export function ReportControls({ groupId, card, compact, onDone }: { groupId: st
                 </Text>
                 <Text style={{ fontFamily: fonts.regular, fontSize: 10, color: c.mutedForeground }}>
                   Hedef {b.target} · alt sınır {b.min}
+                  {plan ? <Text style={{ color: KEFARET }}> · kefaret {kefPages.get(b.id)}</Text> : null}
                   {b.pages != null ? <Text style={{ fontFamily: fonts.semibold, color: c.foreground }}> · {b.pages} sf</Text> : null}
                 </Text>
                 {b.linked?.length ? (
@@ -105,6 +119,16 @@ export function ReportControls({ groupId, card, compact, onDone }: { groupId: st
                   </Row>
                 ) : null}
               </View>
+              {plan && (
+                <Pressable
+                  accessibilityLabel={`${b.title}: kefaret okuması`}
+                  disabled={action.isPending}
+                  onPress={() => send({ choice: "kefaret" }, `${b.id}-kefaret`)}
+                  style={({ pressed }) => [{ width: 30, height: 30, borderRadius: 7, borderWidth: 1, borderColor: active === "kefaret" ? KEFARET : KEFARET + "66", backgroundColor: active === "kefaret" ? KEFARET : c.card, alignItems: "center", justifyContent: "center" }, pressFx(pressed)]}
+                >
+                  {busy(`${b.id}-kefaret`) ? <ActivityIndicator size="small" color={active === "kefaret" ? "#fff" : KEFARET} /> : <BookHeart size={15} color={active === "kefaret" ? "#fff" : KEFARET} strokeWidth={2.4} />}
+                </Pressable>
+              )}
               {BTNS.map(({ key, Icon, color }) => {
                 const on = st === key;
                 const k = `${b.id}-${key}`;
@@ -114,7 +138,7 @@ export function ReportControls({ groupId, card, compact, onDone }: { groupId: st
                     accessibilityLabel={`${b.title}: ${key === "read" ? "Okudum" : key === "min" ? "Alt sınırı okudum" : "Okumadım"}`}
                     disabled={action.isPending}
                     onPress={() => send({ bookId: b.id, bookChoice: key }, k)}
-                    style={{ width: 30, height: 30, borderRadius: 7, borderWidth: 1, borderColor: on ? color : c.border, backgroundColor: on ? color : c.card, alignItems: "center", justifyContent: "center" }}
+                    style={({ pressed }) => [{ width: 30, height: 30, borderRadius: 7, borderWidth: 1, borderColor: on ? color : c.border, backgroundColor: on ? color : c.card, alignItems: "center", justifyContent: "center" }, pressFx(pressed)]}
                   >
                     {busy(k) ? <ActivityIndicator size="small" color={on ? "#fff" : color} /> : <Icon size={15} color={on ? "#fff" : c.mutedForeground} strokeWidth={2.6} />}
                   </Pressable>
@@ -124,11 +148,10 @@ export function ReportControls({ groupId, card, compact, onDone }: { groupId: st
           );
         })}
       </View>
-      {plan && <KefaretOffer plan={plan} today={card.dayKey} dailyPages={me.target + plan.dailyExtra} />}
-      <Row gap={5} style={{ paddingTop: 4 }}>
+      {plan && <KefaretOffer plan={plan} today={card.dayKey} dailyPages={me.target + plan.dailyExtra} markedToday={!!me.kefaret} />}
+      <Row gap={5} style={{ paddingTop: 4, paddingBottom: 5 }}>
         {bottom.map((b) => {
-          const fg = b.variant === "ghost" ? c.foreground : "#fff";
-          const tone = b.variant === "kefaret" ? KEFARET : b.variant === "success" ? c.success : b.variant === "primary" ? c.primary : c.destructive;
+          const fg = "#fff";
           return (
             <Pressable
               key={b.key}
@@ -140,29 +163,35 @@ export function ReportControls({ groupId, card, compact, onDone }: { groupId: st
                 {
                   flexGrow: 1,
                   flexShrink: 1,
-                  height: 30,
+                  height: dense ? 26 : 30,
                   borderRadius: radius,
                   borderWidth: 1,
-                  borderColor: b.variant === "ghost" ? c.border : "transparent",
-                  backgroundColor: b.variant === "kefaret" ? KEFARET : b.variant === "success" ? c.success : b.variant === "primary" ? c.primary : c.card,
+                  borderColor: "transparent",
+                  backgroundColor: b.color,
                   flexDirection: "row",
                   alignItems: "center",
                   justifyContent: "center",
-                  gap: 3,
-                  paddingHorizontal: 5,
-                  opacity: pressed ? 0.85 : 1,
+                  gap: dense ? 2 : 3,
+                  paddingHorizontal: dense ? 3 : 5,
                 },
-                active === b.key && { borderWidth: 2, borderColor: c.foreground + "80" },
+                pressFx(pressed),
+                active === b.key && { borderWidth: 2, borderColor: c.foreground, elevation: 3 },
               ]}
             >
               {b.corner && (
-                // Sağ üst çentik: sayfa / ceza; köşe yuvarlaklığı butonla aynı
-                <View style={{ position: "absolute", top: -6, right: -2, backgroundColor: c.card, borderRadius: radius, borderWidth: 0.8, borderColor: tone, paddingHorizontal: 3 }}>
-                  <Text style={{ fontFamily: fonts.bold, fontSize: 7.5, lineHeight: 10, color: tone }}>{b.corner}</Text>
+                // Sağ üst çentik: sayfa; köşe yuvarlaklığı butonla aynı
+                <View style={{ position: "absolute", top: -6, right: -2, backgroundColor: c.card, borderRadius: radius, borderWidth: 0.8, borderColor: b.color, paddingHorizontal: 3 }}>
+                  <Text style={{ fontFamily: fonts.bold, fontSize: 7.5, lineHeight: 10, color: b.color }}>{b.corner}</Text>
                 </View>
               )}
-              {busy(b.key) ? <ActivityIndicator size="small" color={fg} /> : <b.Icon size={11} color={fg} />}
-              <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: fonts.semibold, fontSize: 10, color: fg }}>
+              {b.fine && (
+                // Sağ alt çentik: yazılacak ceza
+                <View style={{ position: "absolute", bottom: -6, right: -2, backgroundColor: c.card, borderRadius: radius, borderWidth: 0.8, borderColor: STATE.none, paddingHorizontal: 3 }}>
+                  <Text style={{ fontFamily: fonts.bold, fontSize: 7.5, lineHeight: 10, color: STATE.none }}>{b.fine}</Text>
+                </View>
+              )}
+              {busy(b.key) ? <ActivityIndicator size="small" color={fg} /> : <b.Icon size={dense ? 9 : 11} color={fg} />}
+              <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: fonts.semibold, fontSize: dense ? 9 : 10, color: fg }}>
                 {b.label}
               </Text>
             </Pressable>
@@ -177,11 +206,14 @@ export function ReportControls({ groupId, card, compact, onDone }: { groupId: st
 const addDay = (k: string, n: number) => new Date(Date.parse(k) + n * 86_400_000).toISOString().slice(0, 10);
 
 /** Yöneticinin kefaret teklifi: kaç gün, ne kadar silinecek, ne kadarı silindi ve son günlerde kefaret yapılıp yapılmadığı */
-function KefaretOffer({ plan, today, dailyPages }: { plan: NonNullable<NonNullable<Card["me"]>["plan"]>; today: string; dailyPages: number }) {
+function KefaretOffer({ plan, today, dailyPages, markedToday }: { plan: NonNullable<NonNullable<Card["me"]>["plan"]>; today: string; dailyPages: number; markedToday: boolean }) {
   const c = useColors();
   const perDay = Math.round(plan.discountTotal / plan.days);
   const used = new Set(plan.usedDays ?? []);
+  if (markedToday) used.add(today);
   const pct = plan.discountTotal ? Math.min(100, Math.round((plan.earned / plan.discountTotal) * 100)) : 0;
+  // Bugün kefaret okunduysa payı gün kapanınca düşer; o zamana kadar "bekliyor" görünür
+  const pendingPct = markedToday && plan.discountTotal ? Math.min(100 - pct, Math.round((perDay / plan.discountTotal) * 100)) : 0;
   const recent: string[] = [];
   for (let i = 6; i >= 0; i--) {
     const k = addDay(today, -i);
@@ -197,15 +229,20 @@ function KefaretOffer({ plan, today, dailyPages }: { plan: NonNullable<NonNullab
           Kefaret teklifi{plan.discountPercent ? ` · %${plan.discountPercent} indirim` : ""}
         </Text>
         <Text style={{ fontFamily: fonts.semibold, fontSize: 10.5, color: KEFARET }}>
-          {plan.doneDays}/{plan.days} gün
+          {plan.doneDays}
+          {markedToday ? "+1" : ""}/{plan.days} gün
         </Text>
       </Row>
       <Row gap={8}>
         <View style={{ flex: 1, height: 5, borderRadius: 3, backgroundColor: c.muted, overflow: "hidden" }}>
-          <View style={{ width: `${pct}%`, height: "100%", borderRadius: 3, backgroundColor: KEFARET }} />
+          <View style={{ flexDirection: "row", width: "100%", height: "100%" }}>
+            <View style={{ width: `${pct}%`, height: "100%", backgroundColor: KEFARET }} />
+            <View style={{ width: `${pendingPct}%`, height: "100%", backgroundColor: KEFARET + "66" }} />
+          </View>
         </View>
         <Text style={small}>
           <Text style={strong}>{plan.earned}</Text>/{plan.discountTotal} TL silindi
+          {markedToday ? <Text style={{ color: KEFARET }}> · bugün +{perDay} TL</Text> : null}
         </Text>
       </Row>
       <Row gap={8}>
@@ -221,6 +258,14 @@ function KefaretOffer({ plan, today, dailyPages }: { plan: NonNullable<NonNullab
     </View>
   );
 }
+
+/** Dokunma geri bildirimi: kısa titreşim (Android) */
+function tap(): false {
+  if (Platform.OS === "android") Vibration.vibrate(12);
+  return false;
+}
+/** Basılıyken küçülüp kararır; seçiliyse belirgin çerçeve */
+const pressFx = (pressed: boolean) => (pressed ? { transform: [{ scale: 0.9 }], opacity: 0.7 } : null);
 
 /** Çevrimdışı kaydedilip henüz gönderilmemiş işlemler */
 function OfflinePending({ groupId, dayKey }: { groupId: string; dayKey: string }) {
@@ -244,14 +289,17 @@ function DayProgress({ card }: { card: Card }) {
   const c = useColors();
   const total = card.read.length + card.min.length + card.none.length + card.pending.length;
   const done = card.read.length + card.min.length;
+  const kef = card.read.filter((p) => p.kefaret).length;
   if (!total) return null;
   const seg = (n: number, color: string) => (n ? <View style={{ flex: n, backgroundColor: color }} /> : null);
   return (
     <Row gap={8}>
       <View style={{ flex: 1, height: 10, borderRadius: 5, overflow: "hidden", flexDirection: "row", backgroundColor: c.muted }}>
-        {seg(card.read.length, c.success)}
-        {seg(card.min.length, c.warning)}
-        {seg(card.none.length, c.destructive)}
+        {/* Kefaret okuyanlar ayrı renkte */}
+        {seg(kef, STATE.kefaret)}
+        {seg(card.read.length - kef, STATE.read)}
+        {seg(card.min.length, STATE.min)}
+        {seg(card.none.length, STATE.none)}
         {seg(card.pending.length, c.muted)}
       </View>
       <Text style={{ fontFamily: fonts.bold, fontSize: 12, color: c.foreground }}>
@@ -449,11 +497,11 @@ export function DayShortcut({ card, groupId, onJump, onReported }: { card: Card;
   const plan = me?.plan ?? null;
   const fine = me?.fine;
   // Gün kartındaki butonlarla aynı: kefaret (varsa) en başta, sağ üst çentikte sayfa / ceza
-  const btns: { choice: string; state: string; label: string; corner?: string; Icon: LucideIcon; color: string }[] = [
+  const btns: { choice: string; state: string; label: string; corner?: string; fine?: string; Icon: LucideIcon; color: string }[] = [
     ...(plan && me ? [{ choice: "kefaret", state: "kefaret", label: "Kefaret okuması", corner: `${me.target + plan.dailyExtra} sf`, Icon: BookHeart, color: KEFARET }] : []),
-    { choice: "all", state: "read", label: "Okudum", corner: me ? `${me.target} sf` : undefined, Icon: CheckCheck, color: c.success },
-    { choice: "min", state: "min", label: "Alt sınır", corner: me ? (fine?.min ? `${me.min} sf · ${fine.min} TL` : `${me.min} sf`) : undefined, Icon: Check, color: c.primary },
-    { choice: "none", state: "none", label: "Okumadım", corner: fine ? `${fine.none} TL` : undefined, Icon: X, color: c.destructive },
+    { choice: "all", state: "read", label: "Okudum", corner: me ? `${me.target} sf` : undefined, Icon: CheckCheck, color: STATE.read },
+    { choice: "min", state: "min", label: "Alt sınır", corner: me ? `${me.min} sf` : undefined, fine: fine?.min ? `-${fine.min} TL` : undefined, Icon: Check, color: STATE.min },
+    { choice: "none", state: "none", label: "Okumadım", fine: fine ? `-${fine.none} TL` : undefined, Icon: X, color: STATE.none },
   ];
   const busy = (k: string) => action.isPending && action.variables?.body?.key === `sc-${k}`;
   return (
@@ -475,7 +523,7 @@ export function DayShortcut({ card, groupId, onJump, onReported }: { card: Card;
         </View>
       </Pressable>
       {card.open && me ? (
-        <Row gap={4} style={{ paddingTop: 4 }}>
+        <Row gap={4} style={{ paddingTop: 4, paddingBottom: 4 }}>
           {btns.map((b) => {
             const on = myState === b.state;
             return (
@@ -483,12 +531,17 @@ export function DayShortcut({ card, groupId, onJump, onReported }: { card: Card;
                 key={b.choice}
                 disabled={action.isPending}
                 accessibilityLabel={b.label}
-                onPress={() => action.mutate({ name: "reportReading", body: { groupId, dayKey: card.dayKey, choice: b.choice, key: `sc-${b.choice}`, toggle: "1" } }, { onSuccess: () => onReported?.() })}
-                style={{ height: 32, minWidth: 34, paddingHorizontal: 7, borderRadius: 8, borderWidth: 1, borderColor: on ? b.color : c.border, backgroundColor: on ? b.color : c.card, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 3 }}
+                onPress={() => tap() || action.mutate({ name: "reportReading", body: { groupId, dayKey: card.dayKey, choice: b.choice, key: `sc-${b.choice}`, toggle: "1" } }, { onSuccess: () => onReported?.() })}
+                style={({ pressed }) => [{ height: 32, minWidth: 34, paddingHorizontal: 7, borderRadius: 8, borderWidth: 1, borderColor: on ? b.color : c.border, backgroundColor: on ? b.color : c.card, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 3 }, pressFx(pressed)]}
               >
                 {b.corner && (
                   <View style={{ position: "absolute", top: -6, right: -3, backgroundColor: c.card, borderRadius: radius, borderWidth: 0.8, borderColor: b.color, paddingHorizontal: 2 }}>
                     <Text style={{ fontFamily: fonts.bold, fontSize: 7, lineHeight: 9, color: b.color }}>{b.corner}</Text>
+                  </View>
+                )}
+                {b.fine && (
+                  <View style={{ position: "absolute", bottom: -6, right: -3, backgroundColor: c.card, borderRadius: radius, borderWidth: 0.8, borderColor: STATE.none, paddingHorizontal: 2 }}>
+                    <Text style={{ fontFamily: fonts.bold, fontSize: 7, lineHeight: 9, color: STATE.none }}>{b.fine}</Text>
                   </View>
                 )}
                 {busy(b.choice) ? <ActivityIndicator size="small" color={on ? "#fff" : b.color} /> : <b.Icon size={14} color={on ? "#fff" : b.color} strokeWidth={2.6} />}

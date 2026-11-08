@@ -1,26 +1,17 @@
 import { useBookCheck } from "@/components/book-match";
 import { router } from "expo-router";
-import { AlarmClock, BookOpen, Check, ChevronRight, Clock, Coins, Crown, Globe, Lock, Plus, Search, UserRound, Users, Wallet } from "lucide-react-native";
+import { AlarmClock, BookOpen, Check, ChevronRight, Clock, Coins, Crown, Globe, Lock, Plus, Search, Shield, Target, UserRound, Users, Wallet } from "lucide-react-native";
 import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { Countdown } from "@/components/countdown";
 import { DueBadge } from "@/components/due-badge";
 import { TeamPicker } from "@/components/team-picker";
-import { Badge, Body, Button, Card, ErrorView, H1, Input, Label, Loading, Muted, Row, Screen } from "@/components/ui";
+import { Badge, Button, Card, ErrorView, H1, Input, Label, Loading, Muted, Row, Screen } from "@/components/ui";
 import { useAction, useApi } from "@/lib/api";
 import { LITE } from "@/lib/variant";
 import { minuteToTime } from "@/lib/format";
-import { fonts, useColors } from "@/lib/theme";
-import { booksOf, teamsActive, type GroupsResponse } from "@/lib/types";
-
-function GroupIcon({ name }: { name: string }) {
-  const c = useColors();
-  return (
-    <View style={{ width: 46, height: 46, borderRadius: 16, backgroundColor: c.primary, alignItems: "center", justifyContent: "center" }}>
-      <Text style={{ fontFamily: fonts.serif, fontSize: 18, color: c.primaryForeground }}>{name[0]?.toUpperCase()}</Text>
-    </View>
-  );
-}
+import { fonts, STATE, useColors } from "@/lib/theme";
+import { booksOf, describePenalty, teamsActive, type GroupsResponse } from "@/lib/types";
 
 const COVERS = ["#9b2c2c", "#2f6f4f", "#1e4e79", "#8a5a1f", "#5b3a8a", "#0f766e", "#7c2d4a"];
 function coverColor(id: string) {
@@ -39,6 +30,54 @@ function BookCover({ name, color }: { name: string; color: string }) {
       <Text style={{ fontFamily: fonts.serif, fontSize: 17, color: "#fff" }}>{name[0]?.toUpperCase()}</Text>
     </View>
   );
+}
+
+/** Etiketli bilgi satırları: ne nerede olduğu ilk bakışta anlaşılsın */
+function InfoRows({ rows }: { rows: { Icon: typeof BookOpen; label: string; value: string }[] }) {
+  const c = useColors();
+  return (
+    <View style={{ gap: 2 }}>
+      {rows.map(({ Icon, label, value }) => (
+        <Row key={label} gap={6} style={{ alignItems: "flex-start" }}>
+          <Icon size={12} color={c.primary} style={{ marginTop: 2 }} />
+          <Text style={{ width: 74, fontFamily: fonts.regular, fontSize: 11.5, color: c.mutedForeground }}>{label}</Text>
+          <Text style={{ flex: 1, fontFamily: fonts.medium, fontSize: 11.5, color: c.foreground }}>{value}</Text>
+        </Row>
+      ))}
+    </View>
+  );
+}
+
+/** Gruplarım ve Keşfet için ortak kart başlığı: kitap kapağı, tam görünen grup adı, kısa bilgi */
+function CardHead({ id, name, admin, meta, right }: { id: string; name: string; admin?: boolean; meta: { Icon: typeof BookOpen; text: string }[]; right?: React.ReactNode }) {
+  const c = useColors();
+  return (
+    <Row gap={10} style={{ alignItems: "flex-start" }}>
+      <BookCover name={name} color={coverColor(id)} />
+      <View style={{ flex: 1, gap: 3 }}>
+        <Row gap={5} style={{ alignItems: "flex-start" }}>
+          <Text numberOfLines={2} style={{ flex: 1, fontFamily: fonts.semibold, fontSize: 15, lineHeight: 20, color: c.foreground }}>
+            {name}
+          </Text>
+          {admin && <Crown size={13} color="#f59e0b" style={{ marginTop: 3 }} />}
+          {right}
+        </Row>
+        <Row gap={8} style={{ flexWrap: "wrap" }}>
+          {meta.map(({ Icon, text }) => (
+            <Row key={text} gap={3}>
+              <Icon size={11} color={c.mutedForeground} />
+              <Text style={{ fontFamily: fonts.regular, fontSize: 11, color: c.mutedForeground }}>{text}</Text>
+            </Row>
+          ))}
+        </Row>
+      </View>
+    </Row>
+  );
+}
+
+/** Kartın sol kenarındaki kitap sırtı */
+function Spine({ id }: { id: string }) {
+  return <View style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 5, backgroundColor: coverColor(id) }} />;
 }
 
 function Chip({ icon: Icon, text, tone }: { icon: typeof BookOpen; text: string; tone?: "danger" }) {
@@ -83,73 +122,68 @@ export default function GroupsScreen() {
         const members = group._count.members;
         const done = !!t && t.myPages != null && t.myPages >= t.myTarget;
         const partial = !!t && t.myPages != null && !done;
-        const cover = coverColor(group.id);
         const status = !t
           ? null
           : done
-            ? { text: "Tamam", bg: c.success, fg: "#fff", Icon: Check }
+            ? { text: "Okudun", bg: STATE.read, fg: "#fff", Icon: Check }
             : partial
-              ? { text: `${t.myPages}/${t.myTarget} sf`, bg: "#f59e0b", fg: "#fff", Icon: BookOpen }
+              ? { text: `${t.myPages}/${t.myTarget} sf`, bg: STATE.min, fg: "#fff", Icon: BookOpen }
               : t.open
                 ? { text: "Bekliyor", bg: c.primary + "1a", fg: c.primary, Icon: Clock }
                 : { text: "Kapandı", bg: c.muted, fg: c.mutedForeground, Icon: Clock };
         const books = t?.books?.length ? t.books : booksOf(group).map((x) => x.title);
         return (
           <Pressable key={group.id} onPress={() => router.push(`/group/${group.id}`)} style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}>
-            <Card style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, paddingLeft: 14, paddingRight: 10, overflow: "hidden" }}>
-              {/* Kitap sırtı */}
-              <View style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 5, backgroundColor: cover }} />
-              <BookCover name={group.name} color={cover} />
-              <View style={{ flex: 1, gap: 3 }}>
-                <Row gap={6}>
-                  <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: fonts.semibold, fontSize: 15, color: c.foreground }}>
-                    {group.name}
+            <Card style={{ gap: 8, paddingVertical: 11, paddingLeft: 14, paddingRight: 11, overflow: "hidden" }}>
+              <Spine id={group.id} />
+              <CardHead
+                id={group.id}
+                name={group.name}
+                admin={role === "ADMIN"}
+                right={<ChevronRight size={16} color={c.mutedForeground} style={{ marginTop: 2 }} />}
+                meta={[
+                  { Icon: Users, text: `${members} üye` },
+                  { Icon: group.visibility === "PUBLIC" ? Globe : Lock, text: group.visibility === "PUBLIC" ? "Herkese açık" : "Özel" },
+                  ...(t?.teamName ? [{ Icon: Shield, text: t.teamName }] : []),
+                ]}
+              />
+              <InfoRows
+                rows={[
+                  { Icon: BookOpen, label: "Eserler", value: books.join(", ") },
+                  ...(t ? [{ Icon: Target, label: "Günlük", value: `${t.myTarget} sayfa · alt sınır ${t.myMin}` }, { Icon: Coins, label: "Ceza", value: t.penalty }] : []),
+                ]}
+              />
+              {t && status ? (
+                // Bugün
+                <Row gap={7} style={{ backgroundColor: c.muted + "99", borderRadius: 9, paddingHorizontal: 8, paddingVertical: 6 }}>
+                  <Row gap={3} style={{ backgroundColor: status.bg, borderRadius: 99, paddingHorizontal: 8, paddingVertical: 2 }}>
+                    <status.Icon size={11} color={status.fg} strokeWidth={3} />
+                    <Text style={{ fontFamily: fonts.bold, fontSize: 11, color: status.fg }}>{status.text}</Text>
+                  </Row>
+                  <View style={{ flex: 1, height: 5, borderRadius: 3, backgroundColor: c.muted, overflow: "hidden" }}>
+                    <View style={{ width: `${members ? Math.round((t.reported / members) * 100) : 0}%`, height: "100%", borderRadius: 3, backgroundColor: STATE.read }} />
+                  </View>
+                  <Text style={{ fontFamily: fonts.regular, fontSize: 11, color: c.mutedForeground }}>
+                    <Text style={{ fontFamily: fonts.bold, color: c.foreground }}>{t.reported}</Text>/{members} okudu
                   </Text>
-                  {role === "ADMIN" && <Crown size={13} color="#f59e0b" />}
-                  <View style={{ flex: 1 }} />
-                  {status && (
-                    <Row gap={3} style={{ backgroundColor: status.bg, borderRadius: 99, paddingHorizontal: 8, paddingVertical: 2 }}>
-                      <status.Icon size={11} color={status.fg} strokeWidth={3} />
-                      <Text style={{ fontFamily: fonts.bold, fontSize: 11, color: status.fg }}>{status.text}</Text>
+                  {t.open ? (
+                    <Row gap={2}>
+                      <AlarmClock size={11} color={c.mutedForeground} />
+                      <Countdown to={t.deadline} suffix="" style={{ fontSize: 11 }} />
                     </Row>
+                  ) : (
+                    <Muted style={{ fontSize: 11 }}>yeni gün {minuteToTime(group.startMinute)}</Muted>
                   )}
                 </Row>
-                <Text numberOfLines={1} style={{ fontFamily: fonts.regular, fontSize: 11, color: c.mutedForeground }}>
-                  {books.join(" · ")}
-                  {t ? ` · günde ${t.myTarget} sf (alt ${t.myMin})` : ""}
-                  {t?.teamName ? ` · ${t.teamName}` : ""}
-                </Text>
-                {t ? (
-                  <Row gap={6}>
-                    <View style={{ flex: 1, height: 5, borderRadius: 3, backgroundColor: c.muted, overflow: "hidden" }}>
-                      <View style={{ width: `${members ? Math.round((t.reported / members) * 100) : 0}%`, height: "100%", borderRadius: 3, backgroundColor: c.success }} />
-                    </View>
-                    <Text style={{ fontFamily: fonts.bold, fontSize: 11, color: c.foreground }}>
-                      {t.reported}/{members}
-                    </Text>
-                    {t.open ? <Countdown to={t.deadline} style={{ fontSize: 11 }} /> : <Muted style={{ fontSize: 11 }}>yeni gün {minuteToTime(group.startMinute)}</Muted>}
-                  </Row>
-                ) : (
-                  <Muted style={{ fontSize: 11 }}>Son bildirim {minuteToTime(group.deadlineMinute)}</Muted>
-                )}
+              ) : (
+                <Muted style={{ fontSize: 11 }}>Son bildirim {minuteToTime(group.deadlineMinute)}</Muted>
+              )}
+              {!!t && t.debt > 0 && (
                 <Row gap={5} style={{ flexWrap: "wrap" }}>
-                  <Row gap={3}>
-                    {group.visibility === "PUBLIC" ? <Globe size={10} color={c.mutedForeground} /> : <Lock size={10} color={c.mutedForeground} />}
-                    <Muted style={{ fontSize: 10 }}>{members} üye</Muted>
-                  </Row>
-                  {t && (
-                    <Row gap={3}>
-                      <Coins size={10} color={c.mutedForeground} />
-                      <Muted numberOfLines={1} style={{ fontSize: 10 }}>
-                        {t.penalty}
-                      </Muted>
-                    </Row>
-                  )}
-                  {!!t && t.debt > 0 && <Chip icon={Wallet} text={`borcun ${t.debt} TL`} tone="danger" />}
-                  {!!t && t.debt > 0 && t.due && <DueBadge due={t.due} compact />}
+                  <Chip icon={Wallet} text={`Borcun ${t.debt} TL`} tone="danger" />
+                  {t.due && <DueBadge due={t.due} compact />}
                 </Row>
-              </View>
-              <ChevronRight size={16} color={c.mutedForeground} />
+              )}
             </Card>
           </Pressable>
         );
@@ -167,57 +201,37 @@ export default function GroupsScreen() {
         const hasTeams = teamsActive(g);
         const books = booksOf(g);
         return (
-          <Card key={g.id} style={{ gap: 10, padding: 12 }}>
-            <Pressable onPress={() => router.push(`/group/${g.id}`)}>
-              <Row gap={12} style={{ alignItems: "flex-start" }}>
-                <GroupIcon name={g.name} />
-                <View style={{ flex: 1 }}>
-                  <Text numberOfLines={1} style={{ fontFamily: fonts.semibold, fontSize: 15, color: c.foreground }}>
-                    {g.name}
-                  </Text>
-                  <Row gap={8}>
-                    <Row gap={3}>
-                      <Users size={11} color={c.mutedForeground} />
-                      <Muted>{g._count.members} üye</Muted>
-                    </Row>
-                    <Row gap={3}>
-                      <UserRound size={11} color={c.mutedForeground} />
-                      <Muted numberOfLines={1}>{g.owner.name}</Muted>
-                    </Row>
-                  </Row>
-                  {g.description && (
-                    <Body numberOfLines={2} style={{ fontSize: 13, color: c.mutedForeground, marginTop: 2 }}>
-                      {g.description}
-                    </Body>
-                  )}
-                </View>
-              </Row>
+          <Card key={g.id} style={{ gap: 9, paddingVertical: 11, paddingLeft: 14, paddingRight: 11, overflow: "hidden" }}>
+            <Spine id={g.id} />
+            <Pressable onPress={() => router.push(`/group/${g.id}`)} style={{ gap: 8 }}>
+              <CardHead
+                id={g.id}
+                name={g.name}
+                meta={[
+                  { Icon: Users, text: `${g._count.members} üye` },
+                  { Icon: UserRound, text: `Kurucu: ${g.owner.name}` },
+                ]}
+              />
+              {g.description ? (
+                <Text numberOfLines={2} style={{ fontFamily: fonts.regular, fontSize: 12, color: c.mutedForeground }}>
+                  {g.description}
+                </Text>
+              ) : null}
+              {!hasTeams && (
+                <InfoRows
+                  rows={[
+                    { Icon: BookOpen, label: "Eserler", value: books.map((b) => b.title).join(", ") },
+                    { Icon: Target, label: "Günlük", value: `${g.targetPages} sayfa · alt sınır ${g.minPages}` },
+                    { Icon: Coins, label: "Ceza", value: describePenalty(g) },
+                    { Icon: AlarmClock, label: "Son bildirim", value: minuteToTime(g.deadlineMinute) },
+                  ]}
+                />
+              )}
             </Pressable>
 
-            {hasTeams ? (
+            {hasTeams && !requested.has(g.id) && (
               // Ekip seçerken her ekibin günlük hedefi görünür
-              requested.has(g.id) ? null : (
-                <TeamPicker teams={g.teams} value={teams[g.id] ?? null} onChange={(t) => setTeams((s) => ({ ...s, [g.id]: t }))} label="Ekipler ve günlük hedefleri" />
-              )
-            ) : (
-              <>
-                <Row gap={6}>
-                  {[
-                    { Icon: BookOpen, big: `${g.targetPages} sf`, small: `günlük · alt ${g.minPages}` },
-                    { Icon: Coins, big: `${g.penaltyAmount} TL`, small: g.penaltyMode === "PER_PAGE" ? "eksik sayfa başı" : g.minDiscount ? `alt sınırda %${g.minDiscount}` : "günlük ceza" },
-                    { Icon: AlarmClock, big: minuteToTime(g.deadlineMinute), small: "son bildirim" },
-                  ].map(({ Icon, big, small }) => (
-                    <View key={small} style={{ flex: 1, alignItems: "center", backgroundColor: c.muted, borderRadius: 12, paddingVertical: 8 }}>
-                      <Icon size={15} color={c.primary} />
-                      <Text style={{ fontFamily: fonts.bold, fontSize: 14, color: c.foreground }}>{big}</Text>
-                      <Text style={{ fontFamily: fonts.regular, fontSize: 10, color: c.mutedForeground }}>{small}</Text>
-                    </View>
-                  ))}
-                </Row>
-                <Muted numberOfLines={1} style={{ fontSize: 11 }}>
-                  📖 {books.map((b) => b.title).join(" · ")}
-                </Muted>
-              </>
+              <TeamPicker teams={g.teams} value={teams[g.id] ?? null} onChange={(t) => setTeams((s) => ({ ...s, [g.id]: t }))} label="Ekipler ve günlük hedefleri" />
             )}
 
             {requested.has(g.id) ? (

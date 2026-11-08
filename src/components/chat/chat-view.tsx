@@ -177,7 +177,7 @@ export function ChatView({ initial }: { initial: Page }) {
       kind: "TEXT",
       text: body,
       createdAt: new Date().toISOString(),
-      user: { id: me.userId, name: "", imageUrl: null, badge: null },
+      user: { id: me.userId, name: "", imageUrl: null, initial: "", badge: null },
       mine: true,
       day: null,
       poll: null,
