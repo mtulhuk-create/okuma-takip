@@ -62,6 +62,9 @@ export function useColors(): Colors {
   return useColorScheme() === "dark" ? dark : light;
 }
 
+/** Kefaret okuması rengi (maviye çalan yeşil): buton, geçmiş tablosu ve simge */
+export const KEFARET = "#0d9488";
+
 export const fonts = {
   regular: "Poppins_400Regular",
   medium: "Poppins_500Medium",

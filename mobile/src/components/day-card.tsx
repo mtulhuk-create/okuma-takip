@@ -1,11 +1,11 @@
 import { router } from "expo-router";
-import { BookOpen, Check, CheckCheck, ChevronRight, Clock, CloudOff, Link2, Lock, X, type LucideIcon } from "lucide-react-native";
+import { BookHeart, BookOpen, Check, CheckCheck, ChevronRight, Clock, CloudOff, Link2, Lock, X, type LucideIcon } from "lucide-react-native";
 import { memo, useState } from "react";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import { useAction } from "@/lib/api";
 import { useOfflineQueue } from "@/lib/offline";
 import { formatDayLong, formatClock } from "@/lib/format";
-import { fonts, radius, useColors } from "@/lib/theme";
+import { fonts, KEFARET, radius, useColors } from "@/lib/theme";
 import type { DayCard as Card } from "@/lib/types";
 import { Countdown } from "./countdown";
 import { Avatar, Row } from "./ui";
@@ -70,9 +70,12 @@ export function ReportControls({ groupId, card, compact, onDone }: { groupId: st
     { key: "none", Icon: X, color: c.destructive },
   ];
   const total = me.pages ?? 0;
-  const active = wholeChoice(me.books);
+  const active = me.kefaret ? "kefaret" : wholeChoice(me.books);
+  const plan = me.plan ?? null;
   const status = me.pages == null ? null : total >= me.target ? "Hedef tamam" : total >= me.min ? "Alt sınır tamam" : "Alt sınırın altında";
-  const bottom: { key: string; label: string; Icon: LucideIcon; variant: "success" | "primary" | "ghost"; body: Record<string, unknown> }[] = [
+  const bottom: { key: string; label: string; Icon: LucideIcon; variant: "kefaret" | "success" | "primary" | "ghost"; body: Record<string, unknown> }[] = [
+    // Kefaret okuması (süren plan varsa en başta): hedef + ek sayfa, indirimin bir payını kazandırır
+    ...(plan ? [{ key: "kefaret", label: `Kefaret +${plan.dailyExtra}`, Icon: BookHeart, variant: "kefaret" as const, body: { choice: "kefaret" } }] : []),
     { key: "all", label: single ? "Okudum" : "Hepsini okudum", Icon: CheckCheck, variant: "success", body: { choice: "all" } },
     { key: "min", label: "Alt sınırı okudum", Icon: Check, variant: "primary", body: { choice: "min" } },
     { key: "none", label: "Okuyamadım", Icon: X, variant: "ghost", body: { choice: "none" } },
@@ -135,7 +138,7 @@ export function ReportControls({ groupId, card, compact, onDone }: { groupId: st
                 borderRadius: radius + 2,
                 borderWidth: 1,
                 borderColor: b.variant === "ghost" ? c.border : "transparent",
-                backgroundColor: b.variant === "success" ? c.success : b.variant === "primary" ? c.primary : c.card,
+                backgroundColor: b.variant === "kefaret" ? KEFARET : b.variant === "success" ? c.success : b.variant === "primary" ? c.primary : c.card,
                 flexDirection: "row",
                 alignItems: "center",
                 justifyContent: "center",
@@ -161,6 +164,14 @@ export function ReportControls({ groupId, card, compact, onDone }: { groupId: st
         ))}
       </Row>
       <OfflinePending groupId={groupId} dayKey={card.dayKey} />
+      {plan && (
+        <Row gap={4} style={{ justifyContent: "center" }}>
+          <BookHeart size={12} color={KEFARET} />
+          <Text style={{ fontFamily: fonts.semibold, fontSize: 11, color: KEFARET }}>
+            Kefaret {plan.doneDays}/{plan.days} gün · günde {me.target}+{plan.dailyExtra} sf · kazanılan {plan.earned}/{plan.discountTotal} TL
+          </Text>
+        </Row>
+      )}
       {status && (
         <Text style={{ textAlign: "center", fontFamily: fonts.regular, fontSize: 11, color: c.mutedForeground }}>
           Bugün <Text style={{ fontFamily: fonts.bold, color: c.foreground }}>{total}</Text>/{me.target} sayfa · {status} · tekrar basınca geri alınır
@@ -287,11 +298,10 @@ function CategoryChips({ card, interactive }: { card: Card; interactive?: boolea
       {sel && (
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 4, backgroundColor: sel.color(c) + "14", borderRadius: 10, padding: 6 }}>
           {card[sel.key].map((p) => (
-            <View key={p.id} style={{ backgroundColor: c.card, borderRadius: 99, paddingHorizontal: 8, paddingVertical: 2 }}>
-              <Text style={{ fontFamily: fonts.semibold, fontSize: 11, color: sel.color(c) }}>
-                {p.name}
-                {p.pages ? ` · ${p.pages}` : ""}
-              </Text>
+            <View key={p.id} style={{ flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: c.card, borderRadius: 99, paddingHorizontal: 8, paddingVertical: 2 }}>
+              <Text style={{ fontFamily: fonts.semibold, fontSize: 11, color: sel.color(c) }}>{p.name}</Text>
+              {p.kefaret ? <BookHeart size={11} color={KEFARET} /> : null}
+              {p.pages ? <Text style={{ fontFamily: fonts.semibold, fontSize: 11, color: sel.color(c) }}>· {p.pages}</Text> : null}
             </View>
           ))}
         </View>

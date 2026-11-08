@@ -27,6 +27,8 @@ const ACTIONS: Record<string, Fn> = {
   waivePenalty: wrap(actions.waivePenalty),
   extendDue: wrap(actions.extendDueAction),
   discount: wrap(actions.discountAction),
+  startKefaret: wrap(actions.startKefaretAction),
+  cancelKefaret: wrap(actions.cancelKefaretAction),
   kickOverdue: wrap(actions.kickOverdueAction),
   markAllRead: wrap(actions.markAllRead),
   markNotificationsSeen: async () => {

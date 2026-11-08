@@ -5,7 +5,9 @@ import { getDb } from "./db";
 import { categoryOf, parseBookLogs, penaltyFor, rulesFor, type BookLog } from "./rules";
 import { periodFor } from "./schedule";
 
-export type DayPerson = { id: string; name: string; imageUrl: string | null; pages: number | null; required: number };
+export type DayPerson = { id: string; name: string; imageUrl: string | null; pages: number | null; required: number; kefaret?: number };
+/** Kişinin süren kefaret okuması (gün kartında "Kefaret" butonu) */
+export type DayKefaret = { planId: string; dailyExtra: number; days: number; doneDays: number; discountTotal: number; earned: number; startDay: string };
 export type DayCard = {
   dayKey: string;
   start: string;
@@ -16,7 +18,18 @@ export type DayCard = {
   min: DayPerson[];
   none: DayPerson[];
   pending: DayPerson[];
-  me: { eligible: boolean; pages: number | null; target: number; min: number; teamName: string | null; books: (BookLog & { linked?: string[] })[] } | null;
+  me: {
+    eligible: boolean;
+    pages: number | null;
+    target: number;
+    min: number;
+    teamName: string | null;
+    books: (BookLog & { linked?: string[] })[];
+    /** Bu gün kefaret okuması bildirildi mi (ek sayfa) */
+    kefaret: number;
+    /** Süren kefaret planı (gün açık ve plan bu günü kapsıyorsa) */
+    plan: DayKefaret | null;
+  } | null;
   /** Günün hasılatı (TL): kasanın o gün alacağı ceza. Gün kapandıysa yazılan cezalar; açıksa bildirmeyenler okumadı sayılarak */
   penaltyTotal: number;
   /** Kesinleşmiş mi (gün kapandı ve cezalar yazıldı) */
@@ -37,6 +50,7 @@ export async function getDayCards(group: Group & { teams: Team[] }, members: Mem
   // Kullanıcının bu gruptaki eserleri başka gruplarla "aynı eser" olarak bağlı mı
   const linked = dayKeys.length && members.some((m) => m.userId === meId) ? await linkedGroupNames(meId, group.id) : new Map<string, string[]>();
   const byKey = new Map(logs.map((l) => [`${l.userId}:${l.dayKey}`, l]));
+  const plan = dayKeys.length ? await getDb().kefaretPlan.findFirst({ where: { groupId: group.id, userId: meId, status: "ACTIVE" }, orderBy: { createdAt: "desc" } }) : null;
   const now = new Date();
   const cards: Record<string, DayCard> = {};
   for (const dayKey of dayKeys) {
@@ -56,12 +70,24 @@ export async function getDayCards(group: Group & { teams: Team[] }, members: Mem
         const books = r.books.map((b) => ({ id: b.id, title: b.title, target: b.targetPages, min: b.minPages, pages: logged.get(b.id)?.pages ?? null, linked: linked.get(b.id) }));
         // Eser bazında kaydı olmayan eski bildirimler tek esere yazılır
         if (log && !logged.size && books.length === 1) books[0].pages = log.pages;
-        card.me = { eligible, pages: log?.pages ?? null, target, min, teamName: r.teamName, books };
+        card.me = {
+          eligible,
+          pages: log?.pages ?? null,
+          target,
+          min,
+          teamName: r.teamName,
+          books,
+          kefaret: log?.kefaret ?? 0,
+          plan:
+            plan && open && dayKey >= plan.startDay
+              ? { planId: plan.id, dailyExtra: plan.dailyExtra, days: plan.days, doneDays: plan.doneDays, discountTotal: plan.discountTotal, earned: plan.earned, startDay: plan.startDay }
+              : null,
+        };
       }
       // Günün hasılatı: bildirmeyen herkes "okumadı" sayılır (en kötü durum); okudukça düşer
       if (eligible) projected += penaltyFor({ ...r, targetPages: target, minPages: min }, log?.pages ?? 0);
       if (!eligible && !log) continue;
-      const person = { id: m.user.id, name: m.user.name, imageUrl: m.user.imageUrl, pages: log?.pages ?? null, required: target };
+      const person = { id: m.user.id, name: m.user.name, imageUrl: m.user.imageUrl, pages: log?.pages ?? null, required: target, ...(log?.kefaret ? { kefaret: log.kefaret } : {}) };
       if (!log) (open ? card.pending : card.none).push(person);
       else card[categoryOf(log.pages, { targetPages: target, minPages: min })].push(person);
     }

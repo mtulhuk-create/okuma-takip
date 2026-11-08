@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, Check, CheckCheck, ChevronRight, Clock, Link2, Lock, X } from "lucide-react";
+import { BookHeart, BookOpen, Check, CheckCheck, ChevronRight, Clock, Link2, Lock, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { reportReading } from "@/app/actions";
@@ -60,7 +60,8 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
 
   const total = me.pages ?? 0;
   const status = me.pages == null ? null : total >= me.target ? "Hedef tamam" : total >= me.min ? "Alt sınır tamam" : "Alt sınırın altında";
-  const active = wholeChoice(me.books);
+  const active = me.kefaret > 0 ? "kefaret" : wholeChoice(me.books);
+  const plan = me.plan;
   // Dar ekranda sığsın: ikon ve yazı yan yana, gerekirse yazı iki satıra iner
   const btn = "h-auto min-h-9 gap-1 whitespace-normal px-1.5 py-1 text-center text-[11px] leading-tight [&_svg]:size-3.5";
 
@@ -103,7 +104,18 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
           );
         })}
       </ul>
-      <div className="grid grid-cols-3 gap-1.5">
+      <div className={`grid gap-1.5 ${plan ? "grid-cols-4" : "grid-cols-3"}`}>
+        {plan && (
+          <button
+            className={`btn ${btn} bg-teal-600 text-white hover:bg-teal-700 ${ring(active === "kefaret")}`}
+            aria-pressed={active === "kefaret"}
+            title={active === "kefaret" ? "Tekrar bas: geri al" : `Hedefin üstüne ${plan.dailyExtra} sayfa: indirimin bir payını kazandırır`}
+            disabled={pending}
+            onClick={() => send({ choice: "kefaret" }, "kefaret")}
+          >
+            {busy === "kefaret" ? <Spinner /> : <BookHeart />} Kefaret +{plan.dailyExtra}
+          </button>
+        )}
         <button className={`btn-success ${btn} ${ring(active === "all")}`} aria-pressed={active === "all"} title={active === "all" ? "Tekrar bas: geri al" : undefined} disabled={pending} onClick={() => send({ choice: "all" }, "all")}>
           {busy === "all" ? <Spinner /> : <CheckCheck />} {single ? "Okudum" : "Hepsini okudum"}
         </button>
@@ -114,6 +126,12 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
           {busy === "none" ? <Spinner /> : <X />} Okuyamadım
         </button>
       </div>
+      {plan && (
+        <p className="flex items-center justify-center gap-1 text-center text-[11px] leading-tight text-teal-700 dark:text-teal-400">
+          <BookHeart className="size-3.5 shrink-0" />
+          Kefaret {plan.doneDays}/{plan.days} gün · günde {me.target}+{plan.dailyExtra} sf · kazanılan {plan.earned}/{plan.discountTotal} TL
+        </p>
+      )}
       {status && (
         <p className="text-center text-[11px] leading-tight text-muted-foreground">
           Bugün <b className="text-foreground">{total}</b>/{me.target} sayfa · {status} · <span className="opacity-80">seçili butona tekrar basarak geri alabilirsin</span>
@@ -239,6 +257,7 @@ function CategoryChips({ card, interactive }: { card: Card; interactive?: boolea
           {card[sel.key].map((p) => (
             <span key={p.id} className={`inline-flex items-center gap-1 rounded-full bg-card/70 px-2 py-0.5 text-[11px] font-semibold ${sel.tone}`}>
               {p.name}
+              {p.kefaret ? <BookHeart className="size-3 text-teal-600 dark:text-teal-400" aria-label="Kefaret okuması" /> : null}
               {p.pages != null && p.pages > 0 && <span className="opacity-70">· {p.pages}</span>}
             </span>
           ))}

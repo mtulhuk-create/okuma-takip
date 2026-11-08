@@ -50,7 +50,9 @@ export type Member = {
 
 export type ReadingLog = { userId: string; dayKey: string; pages: number; requiredPages: number; minPages: number };
 
-export type DayPerson = { id: string; name: string; imageUrl: string | null; pages: number | null; required: number };
+export type DayPerson = { id: string; name: string; imageUrl: string | null; pages: number | null; required: number; kefaret?: number };
+/** Süren kefaret okuması: hedefin üstüne ek sayfa, her gün indirimin bir payını kazandırır */
+export type DayKefaret = { planId: string; dailyExtra: number; days: number; doneDays: number; discountTotal: number; earned: number; startDay: string };
 export type DayCard = {
   dayKey: string;
   start: string;
@@ -60,7 +62,17 @@ export type DayCard = {
   min: DayPerson[];
   none: DayPerson[];
   pending: DayPerson[];
-  me: { eligible: boolean; pages: number | null; target: number; min: number; teamName: string | null; books: BookLog[] } | null;
+  me: {
+    eligible: boolean;
+    pages: number | null;
+    target: number;
+    min: number;
+    teamName: string | null;
+    books: BookLog[];
+    /** Bu gün kefaret okuması bildirildiyse ek sayfa (eski sunucuda yok) */
+    kefaret?: number;
+    plan?: DayKefaret | null;
+  } | null;
   /** O günün toplam cezası (eski sunucuda yok) */
   penaltyTotal?: number;
   penaltyFinal?: boolean;

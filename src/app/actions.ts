@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 import { actionUser, cleanName, getMembership, requireAdmin } from "@/lib/auth";
 import { chooseName, shownName } from "@/lib/names";
 import { activeBadges, cleanBadgeLabel, closeAllBadges } from "@/lib/badges";
+import { cancelKefaret, startKefaret } from "@/lib/kefaret";
 import { run, str, int, type ActionState } from "@/lib/action-state";
 import { getDb } from "@/lib/db";
 import { parseLinks, saveBookLinks } from "@/lib/book-links";
@@ -231,7 +232,7 @@ export async function reportReading(_: Prev, fd: FormData) {
   return run(async () => {
     const user = await actionUser();
     const choice = (str(fd, "choice") || "all") as ReportChoice;
-    if (!["all", "min", "none", "pages"].includes(choice)) throw new Error("Geçersiz seçim");
+    if (!["all", "min", "none", "pages", "kefaret"].includes(choice)) throw new Error("Geçersiz seçim");
     const groupId = str(fd, "groupId");
     const bookChoice = str(fd, "bookChoice") as "read" | "min" | "none";
     const { log, rules } = await submitReading(user.id, groupId, {
@@ -246,6 +247,7 @@ export async function reportReading(_: Prev, fd: FormData) {
     await publish(groupId, { type: "refresh", reason: "day" });
     refresh();
     if (!log) return "Bildirim geri alındı · beklemede. Gün sonuna kadar bildirmezsen okumadı sayılırsın.";
+    if (log.kefaret > 0) return `Kefaret okuması bildirildi: ${log.pages} sayfa (${rules.targetPages}+${log.kefaret}). Gün kapanınca indirimin bu güne düşen payı borcundan düşülür.`;
     if (log.pages >= rules.targetPages) return `Harika! ${log.pages} sayfa bildirildi`;
     return `${log.pages} sayfa bildirildi. Hedef ${rules.targetPages} sayfa — son saate kadar güncelleyebilirsin.`;
   });
@@ -567,6 +569,31 @@ export async function discountAction(_: Prev, fd: FormData) {
     const res = await discountPenalties({ groupId, mode, value, userId: str(fd, "userId") || undefined, penaltyId: str(fd, "penaltyId") || undefined });
     refresh();
     return `${res.saved} TL indirim yapıldı (${res.users} kişi)`;
+  });
+}
+
+/** Kefaret okuması başlat: indirim cezalardan okuma karşılığı kazanılır (bir üye ya da tüm grup) */
+export async function startKefaretAction(_: Prev, fd: FormData) {
+  return run(async () => {
+    const groupId = str(fd, "groupId");
+    const { user } = await requireAdmin(groupId);
+    const discount = int(fd, "discount", 1, 100, "İndirim oranı");
+    const raise = int(fd, "raise", 5, 300, "Zam oranı");
+    const n = await startKefaret(groupId, user.id, discount, raise, str(fd, "userId") || undefined);
+    await publish(groupId, { type: "refresh", reason: "money" });
+    refresh();
+    return `${n} kişi için kefaret okuması başlatıldı`;
+  });
+}
+
+export async function cancelKefaretAction(_: Prev, fd: FormData) {
+  return run(async () => {
+    const plan = await getDb().kefaretPlan.findUniqueOrThrow({ where: { id: str(fd, "planId") } });
+    await requireAdmin(plan.groupId);
+    await cancelKefaret(plan.id);
+    await publish(plan.groupId, { type: "refresh", reason: "money" });
+    refresh();
+    return `Kefaret okuması durduruldu (kazanılan ${plan.earned} TL indirim geçerli)`;
   });
 }
 
