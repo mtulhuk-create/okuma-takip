@@ -40,7 +40,6 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const me = card.me!;
-  const single = me.books.length === 1;
 
   function send(fields: Record<string, string>, key: string) {
     setBusy(key);
@@ -58,8 +57,6 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
     });
   }
 
-  const total = me.pages ?? 0;
-  const status = me.pages == null ? null : total >= me.target ? "Hedef tamam" : total >= me.min ? "Alt sınır tamam" : "Alt sınırın altında";
   const active = me.kefaret > 0 ? "kefaret" : wholeChoice(me.books);
   const plan = me.plan;
 
@@ -102,7 +99,9 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
           );
         })}
       </ul>
-      <div className={`grid gap-1.5 ${plan ? "grid-cols-4" : "grid-cols-3"}`}>
+      {plan && <KefaretOffer plan={plan} today={card.dayKey} dailyPages={me.target + plan.dailyExtra} />}
+      {/* Kısa etiketli seçim grubu; sayfa / ceza sağ üst çentiklerde */}
+      <div className="flex gap-1 pt-1" role="group" aria-label="Bugünkü okumanı bildir">
         {plan && (
           <ChoiceButton
             className="bg-teal-600 text-white hover:bg-teal-700"
@@ -110,10 +109,10 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
             busy={busy === "kefaret"}
             disabled={pending}
             Icon={BookHeart}
-            title="Kefaret okuması"
-            caption={`≈${Math.round(plan.discountTotal / plan.days)} TL indirim`}
+            label="Kefaret"
             corner={`${me.target + plan.dailyExtra} sf`}
-            hint={`Bugün toplam ${me.target + plan.dailyExtra} sayfa oku: cezandan indirim kazandırır (${plan.doneDays}/${plan.days} gün)`}
+            cornerTone="text-teal-700 ring-teal-600/70 dark:text-teal-300"
+            hint={`Kefaret okuması: bugün toplam ${me.target + plan.dailyExtra} sayfa, ≈${Math.round(plan.discountTotal / plan.days)} TL indirim`}
             onClick={() => send({ choice: "kefaret" }, "kefaret")}
           />
         )}
@@ -123,8 +122,9 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
           busy={busy === "all"}
           disabled={pending}
           Icon={CheckCheck}
-          title={single ? "Okudum" : "Hepsini okudum"}
-          caption={`${me.target} sf · cezasız`}
+          label="Okudum"
+          corner={`${me.target} sf`}
+          cornerTone="text-emerald-700 ring-emerald-600/70 dark:text-emerald-300"
           hint={`Hedefin tamamı: ${me.target} sayfa, ceza yok`}
           onClick={() => send({ choice: "all" }, "all")}
         />
@@ -134,9 +134,10 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
           busy={busy === "min"}
           disabled={pending}
           Icon={Check}
-          title="Alt sınırı okudum"
-          caption={`${me.min} sf · ${me.fine.min ? `${me.fine.min} TL ceza` : "cezasız"}`}
-          hint={`Alt sınır: ${me.min} sayfa${me.fine.min ? `, ${me.fine.min} TL ceza yazılır` : ""}`}
+          label="Alt sınır"
+          corner={me.fine.min ? `${me.min} sf · ${me.fine.min} TL` : `${me.min} sf`}
+          cornerTone="text-primary ring-primary/60"
+          hint={`Alt sınır: ${me.min} sayfa${me.fine.min ? `, ${me.fine.min} TL ceza` : ""}`}
           onClick={() => send({ choice: "min" }, "min")}
         />
         <ChoiceButton
@@ -145,38 +146,80 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
           busy={busy === "none"}
           disabled={pending}
           Icon={X}
-          title="Okuyamadım"
-          caption={`${me.fine.none} TL ceza`}
-          hint={`Bugün okumadım: ${me.fine.none} TL ceza yazılır`}
+          label="Okumadım"
+          corner={`${me.fine.none} TL`}
+          cornerTone="text-rose-700 ring-rose-500/60 dark:text-rose-300"
+          hint={`Okumadım: ${me.fine.none} TL ceza`}
           onClick={() => send({ choice: "none" }, "none")}
         />
       </div>
-      {plan && (
-        <p className="flex items-center justify-center gap-1 text-center text-[11px] leading-tight text-teal-700 dark:text-teal-400">
-          <BookHeart className="size-3.5 shrink-0" />
-          Kefaret {plan.doneDays}/{plan.days} gün · günde {me.target + plan.dailyExtra} sf · kazanılan {plan.earned}/{plan.discountTotal} TL
-        </p>
-      )}
-      {status && (
-        <p className="text-center text-[11px] leading-tight text-muted-foreground">
-          Bugün <b className="text-foreground">{total}</b>/{me.target} sayfa · {status} · <span className="opacity-80">seçili butona tekrar basarak geri alabilirsin</span>
-        </p>
-      )}
       {error && <p className="text-xs font-medium text-destructive">{error}</p>}
     </div>
   );
 }
 
-/** Gün kartı butonu: üstte ne yapıldığı, altta sayfa ve ceza; seçiliyse tekrar basınca geri alınır */
+const MONTHS_SHORT = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"];
+const shortDay = (k: string) => `${Number(k.slice(8))} ${MONTHS_SHORT[Number(k.slice(5, 7)) - 1]}`;
+const addDay = (k: string, n: number) => new Date(Date.parse(k) + n * 86_400_000).toISOString().slice(0, 10);
+
+/** Yöneticinin kefaret teklifi: kaç gün, ne kadar silinecek, ne kadarı silindi ve son günlerde kefaret yapılıp yapılmadığı */
+function KefaretOffer({ plan, today, dailyPages }: { plan: NonNullable<NonNullable<Card["me"]>["plan"]>; today: string; dailyPages: number }) {
+  const perDay = Math.round(plan.discountTotal / plan.days);
+  const used = new Set(plan.usedDays ?? []);
+  const pct = plan.discountTotal ? Math.min(100, Math.round((plan.earned / plan.discountTotal) * 100)) : 0;
+  // Son 7 gün (başlangıçtan önceki günler gösterilmez)
+  const recent: string[] = [];
+  for (let i = 6; i >= 0; i--) {
+    const k = addDay(today, -i);
+    if (k >= plan.startDay) recent.push(k);
+  }
+  return (
+    <div className="space-y-1 rounded-md bg-teal-500/[0.07] px-2 py-1.5 ring-1 ring-teal-600/20">
+      <div className="flex items-center gap-1 text-[10.5px] font-semibold text-teal-700 dark:text-teal-400">
+        <BookHeart className="size-3.5 shrink-0" />
+        <span className="flex-1 truncate">
+          Kefaret teklifi{plan.discountPercent ? ` · %${plan.discountPercent} indirim` : ""}
+        </span>
+        <span className="tabular-nums">
+          {plan.doneDays}/{plan.days} gün
+        </span>
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+          <span className="block h-full rounded-full bg-teal-600" style={{ width: `${pct}%` }} />
+        </span>
+        <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
+          <b className="text-foreground">{plan.earned}</b>/{plan.discountTotal} TL silindi
+        </span>
+      </div>
+      <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+        <span className="min-w-0 flex-1 truncate">
+          Günde <b className="text-foreground">{dailyPages} sf</b> · gün başı <b className="text-foreground">{perDay} TL</b> · kalan {Math.max(0, plan.discountTotal - plan.earned)} TL
+        </span>
+        <span className="flex shrink-0 gap-[3px]" aria-label="Son günlerde kefaret">
+          {recent.map((k) => (
+            <span
+              key={k}
+              title={`${shortDay(k)} · ${used.has(k) ? "kefaret okundu" : k === today ? "bugün" : "kefaret yok"}`}
+              className={`size-2 rounded-full ${used.has(k) ? "bg-teal-600" : "bg-muted-foreground/25"} ${k === today ? "ring-1 ring-teal-600 ring-offset-1 ring-offset-card" : ""}`}
+            />
+          ))}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/** Gün kartı butonu: kısa etiket; ayrıntı ipucunda ve yardım satırında. Seçiliyse tekrar basınca geri alınır */
 function ChoiceButton({
   className,
   on,
   busy,
   disabled,
   Icon,
-  title,
-  caption,
+  label,
   corner,
+  cornerTone,
   hint,
   onClick,
 }: {
@@ -185,28 +228,25 @@ function ChoiceButton({
   busy: boolean;
   disabled: boolean;
   Icon: typeof Check;
-  title: string;
-  caption: string;
+  label: string;
   corner?: string;
+  cornerTone?: string;
   hint: string;
   onClick: () => void;
 }) {
   return (
     <button
-      className={`btn relative h-auto min-h-11 flex-col gap-0 whitespace-normal px-1 py-1 text-center leading-tight ${className} ${ring(on)}`}
+      className={`btn relative h-7 min-w-0 flex-auto gap-0.5 whitespace-nowrap rounded-md px-1.5 text-[10px] font-semibold [&_svg]:size-3 ${className} ${ring(on)}`}
       aria-pressed={on}
+      aria-label={hint}
       title={on ? `${hint} · tekrar bas: geri al` : hint}
       disabled={disabled}
       onClick={onClick}
     >
-      {corner && (
-        <span className="absolute -right-1 -top-2 rounded-full bg-card px-1.5 text-[9px] font-bold leading-4 text-teal-700 shadow-sm ring-1 ring-teal-600 dark:text-teal-300">{corner}</span>
-      )}
-      <span className="flex items-center gap-1 text-[11px] font-semibold [&_svg]:size-3.5">
-        {busy ? <Spinner /> : <Icon />}
-        {title}
-      </span>
-      <span className="text-[9.5px] font-medium opacity-85">{caption}</span>
+      {/* Sağ üst çentik: sayfa / ceza; köşe yuvarlaklığı butonla aynı */}
+      {corner && <span className={`absolute -right-0.5 -top-1.5 rounded-md bg-card px-[3px] text-[7.5px] font-bold leading-[10px] ring-1 ${cornerTone ?? ""}`}>{corner}</span>}
+      {busy ? <Spinner /> : <Icon />}
+      <span className="truncate">{label}</span>
     </button>
   );
 }
