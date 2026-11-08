@@ -3,6 +3,7 @@ import { memo, useState } from "react";
 import { Alert, Pressable, Text, TextInput, View } from "react-native";
 import { useAction } from "@/lib/api";
 import { fonts, useColors } from "@/lib/theme";
+import { LITE } from "@/lib/variant";
 import type { BadgeView } from "@/lib/types";
 import { BadgeChip } from "../badge-chip";
 import { Countdown } from "../countdown";
@@ -47,7 +48,7 @@ function AnnounceCard({ b }: { b: BadgeView }) {
           {good ? "Sonraki günlerde 2 gün tam okunmazsa kalkar." : "Sonraki günlerde 2 gün tam okursa kalkar."}
         </Text>
       )}
-      {b.event === "AWARD" && b.canRemove && (
+      {b.event === "AWARD" && b.canRemove && !LITE && (
         <Pressable hitSlop={6} onPress={() => confirmThen("Bu rozet kaldırılsın mı?", () => action.mutate({ name: "removeBadge", body: { badgeId: b.id } }))}>
           <Text style={{ fontFamily: fonts.semibold, fontSize: 12, color: c.mutedForeground }}>Rozeti kaldır</Text>
         </Pressable>
@@ -144,7 +145,7 @@ function VoteCard({ b }: { b: BadgeView }) {
           </View>
         )}
         {b.canVote && b.proposed && <Text style={{ fontFamily: fonts.regular, fontSize: 11, color: c.mutedForeground }}>Şıkkını önerdin; istediğin şıkka oy verebilirsin.</Text>}
-        {b.canRemove && (
+        {b.canRemove && !LITE && (
           <Pressable
             hitSlop={6}
             onPress={() => confirmThen(b.status === "VOTING" ? "Oylama iptal edilsin mi?" : "Rozet kaldırılsın mı?", () => action.mutate({ name: "removeBadge", body: { badgeId: b.id } }))}

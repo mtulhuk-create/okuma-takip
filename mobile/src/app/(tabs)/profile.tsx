@@ -6,6 +6,7 @@ import { Alert, AppState, Linking, Switch, Text, View } from "react-native";
 import { NameSheet } from "@/components/name-sheet";
 import { Avatar, Body, Button, Card, ErrorView, H1, Loading, Muted, Row, Screen, Segmented, Stat, Title } from "@/components/ui";
 import { toast, useApi, useApiFetch } from "@/lib/api";
+import { LITE } from "@/lib/variant";
 import { exactAlarmsAllowed, getLastSync, getStickyPref, requestExactAlarms, scheduledSummary, sendTestNotification, setStickyPref, setupNotifications, syncSchedule } from "@/lib/notifications";
 import { useThemePref } from "@/lib/theme-pref";
 import { Bell, BookOpen, CalendarCheck, LogOut, Monitor, Moon, Palette, Pencil, Sun, Users, Wallet } from "lucide-react-native";
@@ -198,7 +199,10 @@ export default function ProfileScreen() {
           ])
         }
       />
-      <Muted style={{ textAlign: "center" }}>Okuma Takip v{Application.nativeApplicationVersion ?? "1.0.0"}</Muted>
+      <Muted style={{ textAlign: "center" }}>
+        Okuma Takip{LITE ? " Lite" : ""} v{Application.nativeApplicationVersion ?? "1.0.0"}
+        {LITE ? "\nLite sürüm · eski telefonlar için, yönetici özellikleri yok" : ""}
+      </Muted>
     </Screen>
   );
 }

@@ -1,3 +1,5 @@
+import { LiteBlocked } from "@/components/lite-blocked";
+import { LITE } from "@/lib/variant";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ban, Check, ChevronDown, Crown, Receipt, Trash2, UserMinus, X } from "lucide-react-native";
 import { useState } from "react";
@@ -30,7 +32,12 @@ const TABS = [
   { key: "settings", label: "Ayarlar" },
 ] as const;
 
-export default function AdminScreen() {
+/** Lite sürümde yönetici ekranı yok */
+export default function AdminScreenRoute() {
+  return LITE ? <LiteBlocked /> : <AdminScreen />;
+}
+
+function AdminScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const c = useColors();
   const { data, isLoading, error, refetch, isRefetching } = useApi<AdminResponse & { group: AdminResponse["group"] & { teams: { id: string; name: string }[] } }>(`/api/m/groups/${id}/admin`);

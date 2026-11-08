@@ -1,7 +1,30 @@
 // Mobil uygulamanın değişiklik istekleri: web'deki server action'ların aynısını çalıştırır.
 import * as actions from "@/app/actions";
 import type { ActionState } from "@/lib/action-state";
-import { withUser } from "@/lib/api";
+import { isLiteRequest, withUser } from "@/lib/api";
+
+/** Lite sürümde bulunmayan (yönetici) işlemler: sunucu da reddeder */
+const ADMIN_ACTIONS = new Set([
+  "createGroup",
+  "updateGroup",
+  "deleteGroup",
+  "respondJoinRequest",
+  "inviteUser",
+  "cancelInvite",
+  "removeMember",
+  "toggleAdmin",
+  "createDue",
+  "resolvePayment",
+  "waivePenalty",
+  "extendDue",
+  "discount",
+  "kickOverdue",
+  "respondTeamChange",
+  "setMemberTeam",
+  "startKefaret",
+  "cancelKefaret",
+  "removeBadge",
+]);
 
 type Fn = (fd: FormData) => Promise<ActionState>;
 const wrap = (a: (prev: ActionState, fd: FormData) => Promise<ActionState>): Fn => (fd) => a(null, fd);
@@ -52,6 +75,7 @@ export const POST = withUser(async (_user, req, ctx: { params: Promise<{ name: s
   const { name } = await ctx.params;
   const fn = Object.hasOwn(ACTIONS, name) ? ACTIONS[name] : undefined;
   if (!fn) return Response.json({ error: "Bilinmeyen işlem" }, { status: 404 });
+  if (isLiteRequest(req) && ADMIN_ACTIONS.has(name)) return Response.json({ error: "Lite sürümde yönetici işlemleri yapılamaz. Web sitesini ya da tam sürümü kullanın." }, { status: 403 });
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const fd = new FormData();
   for (const [k, v] of Object.entries(body)) if (v !== undefined && v !== null) fd.set(k, String(v));

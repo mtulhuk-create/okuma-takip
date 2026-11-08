@@ -8,6 +8,7 @@ import { DueBadge } from "@/components/due-badge";
 import { TeamPicker } from "@/components/team-picker";
 import { Badge, Body, Button, Card, ErrorView, H1, Input, Label, Loading, Muted, Row, Screen } from "@/components/ui";
 import { useAction, useApi } from "@/lib/api";
+import { LITE } from "@/lib/variant";
 import { minuteToTime } from "@/lib/format";
 import { fonts, useColors } from "@/lib/theme";
 import { booksOf, teamsActive, type GroupsResponse } from "@/lib/types";
@@ -72,11 +73,11 @@ export default function GroupsScreen() {
     <Screen refreshing={isRefetching} onRefresh={refetch}>
       <Row style={{ justifyContent: "space-between" }}>
         <H1>Gruplar</H1>
-        <Button title="Grup kur" icon={Plus} small onPress={() => router.push("/group/new")} />
+        {!LITE && <Button title="Grup kur" icon={Plus} small onPress={() => router.push("/group/new")} />}
       </Row>
 
       <Label>Gruplarım</Label>
-      {data.mine.length === 0 && <Muted>Henüz bir gruba üye değilsin. Bir grup kur ya da aşağıdan katıl.</Muted>}
+      {data.mine.length === 0 && <Muted>{LITE ? "Henüz bir gruba üye değilsin. Aşağıdan bir gruba katıl." : "Henüz bir gruba üye değilsin. Bir grup kur ya da aşağıdan katıl."}</Muted>}
       {data.mine.map(({ group, role }) => {
         const t = data.today?.find((x) => x.groupId === group.id);
         const members = group._count.members;

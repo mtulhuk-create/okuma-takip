@@ -93,6 +93,7 @@ model User {
   name      String // ad soyad (kullanıcının girdiği)
   accountName String? // hesaptan (Google/e-posta) gelen ad
   nameConfirmed Boolean @default(false) // kullanıcı ad soyadını onayladı mı
+  liteApp       Boolean  @default(false) // mobil uygulamanın Lite sürümünü kullanıyor (yönetici yapılamaz)
   email     String?
   imageUrl  String?
   createdAt DateTime @default(now())

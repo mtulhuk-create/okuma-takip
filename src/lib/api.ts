@@ -4,6 +4,11 @@ import { requireUser } from "./auth";
 
 type User = Awaited<ReturnType<typeof requireUser>>;
 
+/** Mobil uygulamanın Lite sürümünden mi geliyor (eski telefonlar için; yönetici özellikleri yok) */
+export function isLiteRequest(req: Request) {
+  return req.headers.get("x-app-variant") === "lite";
+}
+
 /** Mobil API için: Clerk oturum token'ı (Authorization: Bearer) ile kullanıcıyı çözer. */
 export function withUser<C>(handler: (user: User, req: Request, ctx: C) => Promise<unknown>) {
   return async (req: Request, ctx: C) => {
