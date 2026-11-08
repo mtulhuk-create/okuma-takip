@@ -452,9 +452,10 @@ export function DayShortcut({ card, groupId, onJump, onReported }: { card: Card;
   const total = card.read.length + card.min.length + card.none.length + card.pending.length;
   const done = card.read.length + card.min.length;
   const me = card.me;
-  const myState = me?.pages == null ? null : me.pages >= me.target ? "read" : me.pages >= me.min && me.pages > 0 ? "min" : "none";
+  const myState = me?.pages == null ? null : me.kefaret > 0 ? "kefaret" : me.pages >= me.target ? "read" : me.pages >= me.min && me.pages > 0 ? "min" : "none";
+  const plan = me?.plan ?? null;
 
-  function send(choice: Choice) {
+  function send(choice: Choice | "kefaret") {
     setBusy(choice);
     start(async () => {
       const fd = new FormData();
@@ -467,10 +468,14 @@ export function DayShortcut({ card, groupId, onJump, onReported }: { card: Card;
     });
   }
 
-  const btns: { key: Choice; state: string; label: string; Icon: typeof Check; on: string }[] = [
-    { key: "all", state: "read", label: "Okudum", Icon: CheckCheck, on: "bg-emerald-600 text-white border-emerald-600" },
-    { key: "min", state: "min", label: "Alt sınır", Icon: Check, on: "bg-amber-500 text-white border-amber-500" },
-    { key: "none", state: "none", label: "Okumadım", Icon: X, on: "bg-rose-600 text-white border-rose-600" },
+  // Gün kartındaki butonlarla aynı: kefaret (varsa) en başta, sağ üst çentikte sayfa / ceza
+  const btns: { key: Choice | "kefaret"; state: string; label: string; corner?: string; tone: string; Icon: typeof Check; on: string }[] = [
+    ...(plan && me
+      ? [{ key: "kefaret" as const, state: "kefaret", label: "Kefaret", corner: `${me.target + plan.dailyExtra} sf`, tone: "text-teal-700 ring-teal-600/70", Icon: BookHeart, on: "bg-teal-600 text-white border-teal-600" }]
+      : []),
+    { key: "all", state: "read", label: "Okudum", corner: me ? `${me.target} sf` : undefined, tone: "text-emerald-700 ring-emerald-600/70", Icon: CheckCheck, on: "bg-emerald-600 text-white border-emerald-600" },
+    { key: "min", state: "min", label: "Alt sınır", corner: me ? (me.fine?.min ? `${me.min} sf · ${me.fine.min} TL` : `${me.min} sf`) : undefined, tone: "text-primary ring-primary/60", Icon: Check, on: "bg-primary text-primary-foreground border-primary" },
+    { key: "none", state: "none", label: "Okumadım", corner: me?.fine ? `${me.fine.none} TL` : undefined, tone: "text-rose-700 ring-rose-500/60", Icon: X, on: "bg-rose-600 text-white border-rose-600" },
   ];
 
   return (
@@ -491,17 +496,18 @@ export function DayShortcut({ card, groupId, onJump, onReported }: { card: Card;
         </span>
       </button>
       {card.open && me ? (
-        <div className="flex shrink-0 gap-1">
-          {btns.map(({ key, state, label, Icon, on }) => (
+        <div className="flex shrink-0 gap-1 pt-1">
+          {btns.map(({ key, state, label, corner, tone, Icon, on }) => (
             <button
               key={key}
               disabled={pending}
               onClick={() => send(key)}
               aria-pressed={myState === state}
               title={label}
-              className={`flex h-8 items-center gap-1 rounded-lg border px-2 text-[11px] font-semibold transition-colors disabled:opacity-60 ${myState === state ? on : "border-border bg-card hover:bg-muted"}`}
+              className={`relative flex h-7 items-center gap-1 rounded-md border px-1.5 text-[10px] font-semibold transition-colors disabled:opacity-60 ${myState === state ? on : "border-border bg-card hover:bg-muted"}`}
             >
-              {busy === key ? <Spinner /> : <Icon className="size-3.5" strokeWidth={2.5} />}
+              {corner && <span className={`absolute -right-0.5 -top-1.5 rounded-md bg-card px-[3px] text-[7px] font-bold leading-[9px] ring-1 ${tone}`}>{corner}</span>}
+              {busy === key ? <Spinner /> : <Icon className="size-3" strokeWidth={2.5} />}
               <span className="hidden min-[400px]:inline">{label}</span>
             </button>
           ))}

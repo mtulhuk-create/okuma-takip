@@ -445,11 +445,15 @@ export function DayShortcut({ card, groupId, onJump, onReported }: { card: Card;
   const total = card.read.length + card.min.length + card.none.length + card.pending.length;
   const done = card.read.length + card.min.length;
   const me = card.me;
-  const myState = me?.pages == null ? null : me.pages >= me.target ? "read" : me.pages >= me.min && me.pages > 0 ? "min" : "none";
-  const btns: { choice: string; state: string; label: string; Icon: LucideIcon; color: string }[] = [
-    { choice: "all", state: "read", label: "Okudum", Icon: CheckCheck, color: c.success },
-    { choice: "min", state: "min", label: "Alt sınır", Icon: Check, color: c.warning },
-    { choice: "none", state: "none", label: "Okumadım", Icon: X, color: c.destructive },
+  const myState = me?.pages == null ? null : me.kefaret ? "kefaret" : me.pages >= me.target ? "read" : me.pages >= me.min && me.pages > 0 ? "min" : "none";
+  const plan = me?.plan ?? null;
+  const fine = me?.fine;
+  // Gün kartındaki butonlarla aynı: kefaret (varsa) en başta, sağ üst çentikte sayfa / ceza
+  const btns: { choice: string; state: string; label: string; corner?: string; Icon: LucideIcon; color: string }[] = [
+    ...(plan && me ? [{ choice: "kefaret", state: "kefaret", label: "Kefaret okuması", corner: `${me.target + plan.dailyExtra} sf`, Icon: BookHeart, color: KEFARET }] : []),
+    { choice: "all", state: "read", label: "Okudum", corner: me ? `${me.target} sf` : undefined, Icon: CheckCheck, color: c.success },
+    { choice: "min", state: "min", label: "Alt sınır", corner: me ? (fine?.min ? `${me.min} sf · ${fine.min} TL` : `${me.min} sf`) : undefined, Icon: Check, color: c.primary },
+    { choice: "none", state: "none", label: "Okumadım", corner: fine ? `${fine.none} TL` : undefined, Icon: X, color: c.destructive },
   ];
   const busy = (k: string) => action.isPending && action.variables?.body?.key === `sc-${k}`;
   return (
@@ -471,7 +475,7 @@ export function DayShortcut({ card, groupId, onJump, onReported }: { card: Card;
         </View>
       </Pressable>
       {card.open && me ? (
-        <Row gap={4}>
+        <Row gap={4} style={{ paddingTop: 4 }}>
           {btns.map((b) => {
             const on = myState === b.state;
             return (
@@ -482,6 +486,11 @@ export function DayShortcut({ card, groupId, onJump, onReported }: { card: Card;
                 onPress={() => action.mutate({ name: "reportReading", body: { groupId, dayKey: card.dayKey, choice: b.choice, key: `sc-${b.choice}`, toggle: "1" } }, { onSuccess: () => onReported?.() })}
                 style={{ height: 32, minWidth: 34, paddingHorizontal: 7, borderRadius: 8, borderWidth: 1, borderColor: on ? b.color : c.border, backgroundColor: on ? b.color : c.card, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 3 }}
               >
+                {b.corner && (
+                  <View style={{ position: "absolute", top: -6, right: -3, backgroundColor: c.card, borderRadius: radius, borderWidth: 0.8, borderColor: b.color, paddingHorizontal: 2 }}>
+                    <Text style={{ fontFamily: fonts.bold, fontSize: 7, lineHeight: 9, color: b.color }}>{b.corner}</Text>
+                  </View>
+                )}
                 {busy(b.choice) ? <ActivityIndicator size="small" color={on ? "#fff" : b.color} /> : <b.Icon size={14} color={on ? "#fff" : b.color} strokeWidth={2.6} />}
               </Pressable>
             );
