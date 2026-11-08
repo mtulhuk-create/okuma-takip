@@ -29,6 +29,8 @@ export type DayCard = {
     kefaret: number;
     /** Süren kefaret planı (gün açık ve plan bu günü kapsıyorsa) */
     plan: DayKefaret | null;
+    /** Butonlarda gösterilen ceza: alt sınırı okursa / okumazsa (TL) */
+    fine: { min: number; none: number };
   } | null;
   /** Günün hasılatı (TL): kasanın o gün alacağı ceza. Gün kapandıysa yazılan cezalar; açıksa bildirmeyenler okumadı sayılarak */
   penaltyTotal: number;
@@ -78,6 +80,7 @@ export async function getDayCards(group: Group & { teams: Team[] }, members: Mem
           teamName: r.teamName,
           books,
           kefaret: log?.kefaret ?? 0,
+          fine: { min: penaltyFor({ ...r, targetPages: target, minPages: min }, min), none: penaltyFor({ ...r, targetPages: target, minPages: min }, 0) },
           plan:
             plan && open && dayKey >= plan.startDay
               ? { planId: plan.id, dailyExtra: plan.dailyExtra, days: plan.days, doneDays: plan.doneDays, discountTotal: plan.discountTotal, earned: plan.earned, startDay: plan.startDay }

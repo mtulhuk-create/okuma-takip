@@ -247,7 +247,7 @@ export async function reportReading(_: Prev, fd: FormData) {
     await publish(groupId, { type: "refresh", reason: "day" });
     refresh();
     if (!log) return "Bildirim geri alındı · beklemede. Gün sonuna kadar bildirmezsen okumadı sayılırsın.";
-    if (log.kefaret > 0) return `Kefaret okuması bildirildi: ${log.pages} sayfa (${rules.targetPages}+${log.kefaret}). Gün kapanınca indirimin bu güne düşen payı borcundan düşülür.`;
+    if (log.kefaret > 0) return `Kefaret okuması bildirildi: ${log.pages} sayfa. Gün kapanınca indirimin bu güne düşen payı borcundan düşülür.`;
     if (log.pages >= rules.targetPages) return `Harika! ${log.pages} sayfa bildirildi`;
     return `${log.pages} sayfa bildirildi. Hedef ${rules.targetPages} sayfa — son saate kadar güncelleyebilirsin.`;
   });

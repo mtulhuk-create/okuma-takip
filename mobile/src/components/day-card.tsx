@@ -73,12 +73,15 @@ export function ReportControls({ groupId, card, compact, onDone }: { groupId: st
   const active = me.kefaret ? "kefaret" : wholeChoice(me.books);
   const plan = me.plan ?? null;
   const status = me.pages == null ? null : total >= me.target ? "Hedef tamam" : total >= me.min ? "Alt sınır tamam" : "Alt sınırın altında";
-  const bottom: { key: string; label: string; Icon: LucideIcon; variant: "kefaret" | "success" | "primary" | "ghost"; body: Record<string, unknown> }[] = [
-    // Kefaret okuması (süren plan varsa en başta): hedef + ek sayfa, indirimin bir payını kazandırır
-    ...(plan ? [{ key: "kefaret", label: `Kefaret +${plan.dailyExtra}`, Icon: BookHeart, variant: "kefaret" as const, body: { choice: "kefaret" } }] : []),
-    { key: "all", label: single ? "Okudum" : "Hepsini okudum", Icon: CheckCheck, variant: "success", body: { choice: "all" } },
-    { key: "min", label: "Alt sınırı okudum", Icon: Check, variant: "primary", body: { choice: "min" } },
-    { key: "none", label: "Okuyamadım", Icon: X, variant: "ghost", body: { choice: "none" } },
+  const fine = me.fine;
+  const bottom: { key: string; label: string; caption: string; corner?: string; Icon: LucideIcon; variant: "kefaret" | "success" | "primary" | "ghost"; body: Record<string, unknown> }[] = [
+    // Kefaret okuması (süren plan varsa en başta): sağ üstte o gün okunacak toplam sayfa
+    ...(plan
+      ? [{ key: "kefaret", label: "Kefaret okuması", caption: `≈${Math.round(plan.discountTotal / plan.days)} TL indirim`, corner: `${me.target + plan.dailyExtra} sf`, Icon: BookHeart, variant: "kefaret" as const, body: { choice: "kefaret" } }]
+      : []),
+    { key: "all", label: single ? "Okudum" : "Hepsini okudum", caption: `${me.target} sf · cezasız`, Icon: CheckCheck, variant: "success", body: { choice: "all" } },
+    { key: "min", label: "Alt sınırı okudum", caption: `${me.min} sf${fine ? ` · ${fine.min ? `${fine.min} TL ceza` : "cezasız"}` : ""}`, Icon: Check, variant: "primary", body: { choice: "min" } },
+    { key: "none", label: "Okuyamadım", caption: fine ? `${fine.none} TL ceza` : "ceza yazılır", Icon: X, variant: "ghost", body: { choice: "none" } },
   ];
   return (
     <View style={{ gap: compact ? 6 : 8 }}>
@@ -124,7 +127,7 @@ export function ReportControls({ groupId, card, compact, onDone }: { groupId: st
           );
         })}
       </View>
-      <Row gap={6}>
+      <Row gap={6} style={{ alignItems: "stretch", paddingTop: plan ? 6 : 0 }}>
         {bottom.map((b) => (
           <Pressable
             key={b.key}
@@ -134,29 +137,38 @@ export function ReportControls({ groupId, card, compact, onDone }: { groupId: st
             style={({ pressed }) => [
               {
                 flex: 1,
-                minHeight: 38,
+                minHeight: 44,
                 borderRadius: radius + 2,
                 borderWidth: 1,
                 borderColor: b.variant === "ghost" ? c.border : "transparent",
                 backgroundColor: b.variant === "kefaret" ? KEFARET : b.variant === "success" ? c.success : b.variant === "primary" ? c.primary : c.card,
-                flexDirection: "row",
                 alignItems: "center",
                 justifyContent: "center",
-                gap: 4,
-                paddingHorizontal: 4,
-                paddingVertical: 4,
+                gap: 1,
+                paddingHorizontal: 3,
+                paddingVertical: 5,
                 opacity: pressed ? 0.85 : 1,
               },
               active === b.key && { borderWidth: 2, borderColor: c.foreground + "80" },
             ]}
           >
+            {b.corner && (
+              <View style={{ position: "absolute", top: -8, right: -4, backgroundColor: c.card, borderRadius: 99, borderWidth: 1, borderColor: KEFARET, paddingHorizontal: 5, elevation: 2 }}>
+                <Text style={{ fontFamily: fonts.bold, fontSize: 9, lineHeight: 14, color: KEFARET }}>{b.corner}</Text>
+              </View>
+            )}
             {busy(b.key) ? (
               <ActivityIndicator size="small" color={b.variant === "ghost" ? c.foreground : "#fff"} />
             ) : (
               <>
-                <b.Icon size={14} color={b.variant === "ghost" ? c.foreground : "#fff"} />
-                <Text numberOfLines={2} style={{ flexShrink: 1, fontFamily: fonts.semibold, fontSize: 11, lineHeight: 13, textAlign: "center", color: b.variant === "ghost" ? c.foreground : "#fff" }}>
-                  {b.label}
+                <Row gap={3} style={{ justifyContent: "center" }}>
+                  <b.Icon size={13} color={b.variant === "ghost" ? c.foreground : "#fff"} />
+                  <Text numberOfLines={2} style={{ flexShrink: 1, fontFamily: fonts.semibold, fontSize: 11, lineHeight: 13, textAlign: "center", color: b.variant === "ghost" ? c.foreground : "#fff" }}>
+                    {b.label}
+                  </Text>
+                </Row>
+                <Text numberOfLines={1} style={{ fontFamily: fonts.medium, fontSize: 9.5, lineHeight: 12, textAlign: "center", color: b.variant === "ghost" ? c.mutedForeground : "#ffffffd9" }}>
+                  {b.caption}
                 </Text>
               </>
             )}
@@ -168,7 +180,7 @@ export function ReportControls({ groupId, card, compact, onDone }: { groupId: st
         <Row gap={4} style={{ justifyContent: "center" }}>
           <BookHeart size={12} color={KEFARET} />
           <Text style={{ fontFamily: fonts.semibold, fontSize: 11, color: KEFARET }}>
-            Kefaret {plan.doneDays}/{plan.days} gün · günde {me.target}+{plan.dailyExtra} sf · kazanılan {plan.earned}/{plan.discountTotal} TL
+            Kefaret {plan.doneDays}/{plan.days} gün · günde {me.target + plan.dailyExtra} sf · kazanılan {plan.earned}/{plan.discountTotal} TL
           </Text>
         </Row>
       )}

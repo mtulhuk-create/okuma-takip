@@ -72,6 +72,8 @@ export type DayCard = {
     /** Bu gün kefaret okuması bildirildiyse ek sayfa (eski sunucuda yok) */
     kefaret?: number;
     plan?: DayKefaret | null;
+    /** Butonlarda gösterilen ceza: alt sınır / okumadı (eski sunucuda yok) */
+    fine?: { min: number; none: number };
   } | null;
   /** O günün toplam cezası (eski sunucuda yok) */
   penaltyTotal?: number;

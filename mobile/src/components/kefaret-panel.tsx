@@ -91,7 +91,7 @@ export function KefaretPanel({ groupId }: { groupId: string }) {
               <Text style={{ ...cell, flex: 1, textAlign: "right" }}>{r.penaltyTotal} TL</Text>
               <Text style={{ ...cell, flex: 1, textAlign: "right", fontFamily: fonts.bold, color: KEFARET }}>{r.discountTotal} TL</Text>
               <Text style={{ ...cell, flex: 1, textAlign: "right" }}>
-                {r.target}+{r.dailyExtra}
+                {r.target + r.dailyExtra} sf
               </Text>
               <Text style={{ ...cell, flex: 1, textAlign: "right", fontFamily: fonts.bold, color: r.days > data.maxDays ? c.destructive : c.foreground }}>{r.days}</Text>
             </Row>
