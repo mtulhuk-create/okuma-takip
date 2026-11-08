@@ -68,19 +68,17 @@ export function ReportControls({ groupId, card, compact, onDone }: { groupId: st
     { key: "min", Icon: Check, color: c.warning },
     { key: "none", Icon: X, color: c.destructive },
   ];
-  const total = me.pages ?? 0;
   const active = me.kefaret ? "kefaret" : wholeChoice(me.books);
   const plan = me.plan ?? null;
-  const status = me.pages == null ? null : me.kefaret ? "Kefaret okuması" : total >= me.target ? "Hedef tamam" : total >= me.min ? "Alt sınır tamam" : "Alt sınırın altında";
   const fine = me.fine;
   // Kısa etiketler; ayrıntılar butonların altındaki yardım satırında
   const bottom: { key: string; label: string; hint: string; corner?: string; Icon: LucideIcon; variant: "kefaret" | "success" | "primary" | "ghost"; body: Record<string, unknown> }[] = [
     ...(plan
       ? [{ key: "kefaret", label: "Kefaret", hint: `Kefaret okuması: bugün ${me.target + plan.dailyExtra} sayfa`, corner: `${me.target + plan.dailyExtra} sf`, Icon: BookHeart, variant: "kefaret" as const, body: { choice: "kefaret" } }]
       : []),
-    { key: "all", label: "Okudum", hint: `Okudum: ${me.target} sayfa`, Icon: CheckCheck, variant: "success", body: { choice: "all" } },
-    { key: "min", label: "Alt sınır", hint: `Alt sınırı okudum: ${me.min} sayfa`, Icon: Check, variant: "primary", body: { choice: "min" } },
-    { key: "none", label: "Okumadım", hint: "Okumadım", Icon: X, variant: "ghost", body: { choice: "none" } },
+    { key: "all", label: "Okudum", hint: `Okudum: ${me.target} sayfa`, corner: `${me.target} sf`, Icon: CheckCheck, variant: "success", body: { choice: "all" } },
+    { key: "min", label: "Alt sınır", hint: `Alt sınırı okudum: ${me.min} sayfa`, corner: `${me.min} sf`, Icon: Check, variant: "primary", body: { choice: "min" } },
+    { key: "none", label: "Okumadım", hint: fine ? `Okumadım: ${fine.none} TL ceza` : "Okumadım", corner: fine ? `${fine.none} TL` : undefined, Icon: X, variant: "ghost", body: { choice: "none" } },
   ];
   return (
     <View style={{ gap: compact ? 6 : 8 }}>
@@ -126,9 +124,10 @@ export function ReportControls({ groupId, card, compact, onDone }: { groupId: st
           );
         })}
       </View>
-      <Row gap={5} style={{ paddingTop: plan ? 4 : 0 }}>
+      <Row gap={5} style={{ paddingTop: 4 }}>
         {bottom.map((b) => {
           const fg = b.variant === "ghost" ? c.foreground : "#fff";
+          const tone = b.variant === "kefaret" ? KEFARET : b.variant === "success" ? c.success : b.variant === "primary" ? c.primary : c.destructive;
           return (
             <Pressable
               key={b.key}
@@ -156,8 +155,9 @@ export function ReportControls({ groupId, card, compact, onDone }: { groupId: st
               ]}
             >
               {b.corner && (
-                <View style={{ position: "absolute", top: -6, right: -2, backgroundColor: c.card, borderRadius: 99, borderWidth: 0.8, borderColor: KEFARET, paddingHorizontal: 3 }}>
-                  <Text style={{ fontFamily: fonts.bold, fontSize: 7.5, lineHeight: 10, color: KEFARET }}>{b.corner}</Text>
+                // Sağ üst çentik: sayfa / ceza; köşe yuvarlaklığı butonla aynı
+                <View style={{ position: "absolute", top: -6, right: -2, backgroundColor: c.card, borderRadius: radius, borderWidth: 0.8, borderColor: tone, paddingHorizontal: 3 }}>
+                  <Text style={{ fontFamily: fonts.bold, fontSize: 7.5, lineHeight: 10, color: tone }}>{b.corner}</Text>
                 </View>
               )}
               {busy(b.key) ? <ActivityIndicator size="small" color={fg} /> : <b.Icon size={11} color={fg} />}
@@ -169,29 +169,6 @@ export function ReportControls({ groupId, card, compact, onDone }: { groupId: st
         })}
       </Row>
       <OfflinePending groupId={groupId} dayKey={card.dayKey} />
-      {/* Yardım satırı: bildirmeden önce seçeneklerin sonucu, bildirdikten sonra bugünkü durum */}
-      <Text style={{ textAlign: "center", fontFamily: fonts.regular, fontSize: 11, lineHeight: 15, color: c.mutedForeground }}>
-        {status ? (
-          <>
-            Bugün <Text style={{ fontFamily: fonts.bold, color: c.foreground }}>{total}</Text>/{me.target} sf · {status} · tekrar basınca geri alınır
-          </>
-        ) : (
-          <>
-            {plan ? (
-              <Text style={{ color: KEFARET }}>
-                Kefaret <Text style={{ fontFamily: fonts.bold }}>{me.target + plan.dailyExtra} sf</Text> ·{" "}
-              </Text>
-            ) : null}
-            Okudum <Text style={{ fontFamily: fonts.bold, color: c.foreground }}>{me.target} sf</Text> · Alt sınır <Text style={{ fontFamily: fonts.bold, color: c.foreground }}>{me.min} sf</Text>
-            {fine?.min ? ` (${fine.min} TL)` : ""}
-            {fine ? (
-              <>
-                {" "}· Okumadım <Text style={{ fontFamily: fonts.bold, color: c.foreground }}>{fine.none} TL</Text> ceza
-              </>
-            ) : null}
-          </>
-        )}
-      </Text>
       {plan && (
         <Row gap={4} style={{ justifyContent: "center" }}>
           <BookHeart size={12} color={KEFARET} />

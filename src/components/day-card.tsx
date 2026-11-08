@@ -57,8 +57,6 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
     });
   }
 
-  const total = me.pages ?? 0;
-  const status = me.pages == null ? null : me.kefaret > 0 ? "Kefaret okuması" : total >= me.target ? "Hedef tamam" : total >= me.min ? "Alt sınır tamam" : "Alt sınırın altında";
   const active = me.kefaret > 0 ? "kefaret" : wholeChoice(me.books);
   const plan = me.plan;
 
@@ -102,7 +100,7 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
         })}
       </ul>
       {/* Kısa etiketli seçim grubu; ayrıntılar altındaki yardım satırında */}
-      <div className={`flex gap-1 ${plan ? "pt-1" : ""}`} role="group" aria-label="Bugünkü okumanı bildir">
+      <div className="flex gap-1 pt-1" role="group" aria-label="Bugünkü okumanı bildir">
         {plan && (
           <ChoiceButton
             className="bg-teal-600 text-white hover:bg-teal-700"
@@ -112,11 +110,23 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
             Icon={BookHeart}
             label="Kefaret"
             corner={`${me.target + plan.dailyExtra} sf`}
+            cornerTone="text-teal-700 ring-teal-600/70 dark:text-teal-300"
             hint={`Kefaret okuması: bugün toplam ${me.target + plan.dailyExtra} sayfa, ≈${Math.round(plan.discountTotal / plan.days)} TL indirim`}
             onClick={() => send({ choice: "kefaret" }, "kefaret")}
           />
         )}
-        <ChoiceButton className="btn-success" on={active === "all"} busy={busy === "all"} disabled={pending} Icon={CheckCheck} label="Okudum" hint={`Hedefin tamamı: ${me.target} sayfa, ceza yok`} onClick={() => send({ choice: "all" }, "all")} />
+        <ChoiceButton
+          className="btn-success"
+          on={active === "all"}
+          busy={busy === "all"}
+          disabled={pending}
+          Icon={CheckCheck}
+          label="Okudum"
+          corner={`${me.target} sf`}
+          cornerTone="text-emerald-700 ring-emerald-600/70 dark:text-emerald-300"
+          hint={`Hedefin tamamı: ${me.target} sayfa, ceza yok`}
+          onClick={() => send({ choice: "all" }, "all")}
+        />
         <ChoiceButton
           className="btn-primary"
           on={active === "min"}
@@ -124,6 +134,8 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
           disabled={pending}
           Icon={Check}
           label="Alt sınır"
+          corner={`${me.min} sf`}
+          cornerTone="text-primary ring-primary/60"
           hint={`Alt sınır: ${me.min} sayfa${me.fine.min ? `, ${me.fine.min} TL ceza` : ""}`}
           onClick={() => send({ choice: "min" }, "min")}
         />
@@ -134,31 +146,12 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
           disabled={pending}
           Icon={X}
           label="Okumadım"
+          corner={`${me.fine.none} TL`}
+          cornerTone="text-rose-700 ring-rose-500/60 dark:text-rose-300"
           hint={`Okumadım: ${me.fine.none} TL ceza`}
           onClick={() => send({ choice: "none" }, "none")}
         />
       </div>
-      {/* Yardım satırı: bildirmeden önce seçeneklerin sonucu, bildirdikten sonra bugünkü durum */}
-      <p className="text-center text-[11px] leading-snug text-muted-foreground">
-        {status ? (
-          <>
-            Bugün <b className="text-foreground">{total}</b>/{me.target} sf · {status} · seçili butona tekrar basınca geri alınır
-          </>
-        ) : (
-          <>
-            {plan && (
-              <>
-                <span className="text-teal-700 dark:text-teal-400">
-                  Kefaret <b>{me.target + plan.dailyExtra} sf</b>
-                </span>
-                {" · "}
-              </>
-            )}
-            Okudum <b className="text-foreground">{me.target} sf</b> · Alt sınır <b className="text-foreground">{me.min} sf</b>
-            {me.fine.min ? ` (${me.fine.min} TL)` : ""} · Okumadım <b className="text-foreground">{me.fine.none} TL</b> ceza
-          </>
-        )}
-      </p>
       {plan && (
         <p className="flex items-center justify-center gap-1 text-center text-[11px] leading-tight text-teal-700 dark:text-teal-400">
           <BookHeart className="size-3.5 shrink-0" />
@@ -171,7 +164,29 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
 }
 
 /** Gün kartı butonu: kısa etiket; ayrıntı ipucunda ve yardım satırında. Seçiliyse tekrar basınca geri alınır */
-function ChoiceButton({ className, on, busy, disabled, Icon, label, corner, hint, onClick }: { className: string; on: boolean; busy: boolean; disabled: boolean; Icon: typeof Check; label: string; corner?: string; hint: string; onClick: () => void }) {
+function ChoiceButton({
+  className,
+  on,
+  busy,
+  disabled,
+  Icon,
+  label,
+  corner,
+  cornerTone,
+  hint,
+  onClick,
+}: {
+  className: string;
+  on: boolean;
+  busy: boolean;
+  disabled: boolean;
+  Icon: typeof Check;
+  label: string;
+  corner?: string;
+  cornerTone?: string;
+  hint: string;
+  onClick: () => void;
+}) {
   return (
     <button
       className={`btn relative h-7 min-w-0 flex-auto gap-0.5 whitespace-nowrap rounded-md px-1.5 text-[10px] font-semibold [&_svg]:size-3 ${className} ${ring(on)}`}
@@ -181,7 +196,8 @@ function ChoiceButton({ className, on, busy, disabled, Icon, label, corner, hint
       disabled={disabled}
       onClick={onClick}
     >
-      {corner && <span className="absolute -right-0.5 -top-1.5 rounded-full bg-card px-[3px] text-[7.5px] font-bold leading-[10px] text-teal-700 ring-1 ring-teal-600/70 dark:text-teal-300">{corner}</span>}
+      {/* Sağ üst çentik: sayfa / ceza; köşe yuvarlaklığı butonla aynı */}
+      {corner && <span className={`absolute -right-0.5 -top-1.5 rounded-md bg-card px-[3px] text-[7.5px] font-bold leading-[10px] ring-1 ${cornerTone ?? ""}`}>{corner}</span>}
       {busy ? <Spinner /> : <Icon />}
       <span className="truncate">{label}</span>
     </button>
