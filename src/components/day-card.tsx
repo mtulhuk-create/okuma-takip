@@ -99,7 +99,8 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
           );
         })}
       </ul>
-      {/* Kısa etiketli seçim grubu; ayrıntılar altındaki yardım satırında */}
+      {plan && <KefaretOffer plan={plan} today={card.dayKey} dailyPages={me.target + plan.dailyExtra} />}
+      {/* Kısa etiketli seçim grubu; sayfa / ceza sağ üst çentiklerde */}
       <div className="flex gap-1 pt-1" role="group" aria-label="Bugünkü okumanı bildir">
         {plan && (
           <ChoiceButton
@@ -152,7 +153,6 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
           onClick={() => send({ choice: "none" }, "none")}
         />
       </div>
-      {plan && <KefaretOffer plan={plan} today={card.dayKey} dailyPages={me.target + plan.dailyExtra} />}
       {error && <p className="text-xs font-medium text-destructive">{error}</p>}
     </div>
   );

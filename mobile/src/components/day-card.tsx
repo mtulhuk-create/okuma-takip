@@ -124,6 +124,7 @@ export function ReportControls({ groupId, card, compact, onDone }: { groupId: st
           );
         })}
       </View>
+      {plan && <KefaretOffer plan={plan} today={card.dayKey} dailyPages={me.target + plan.dailyExtra} />}
       <Row gap={5} style={{ paddingTop: 4 }}>
         {bottom.map((b) => {
           const fg = b.variant === "ghost" ? c.foreground : "#fff";
@@ -169,7 +170,6 @@ export function ReportControls({ groupId, card, compact, onDone }: { groupId: st
         })}
       </Row>
       <OfflinePending groupId={groupId} dayKey={card.dayKey} />
-      {plan && <KefaretOffer plan={plan} today={card.dayKey} dailyPages={me.target + plan.dailyExtra} />}
     </View>
   );
 }
