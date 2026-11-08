@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { Alert, Platform, ToastAndroid } from "react-native";
 import { API_URL } from "./config";
+import { APP_VARIANT } from "./variant";
 import { enqueue, isNetworkError } from "./offline";
 import type { ActionResult } from "./types";
 
@@ -24,7 +25,7 @@ export function useApiFetch() {
       try {
         res = await fetch(API_URL + path, {
           ...init,
-          headers: { "content-type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}), ...init?.headers },
+          headers: { "content-type": "application/json", "x-app-variant": APP_VARIANT, ...(token ? { Authorization: `Bearer ${token}` } : {}), ...init?.headers },
         });
       } catch {
         // Sunucuya ulaşılamadı: anlaşılır mesaj (çevrimdışı sıra bu hatayı ağ hatası sayar)

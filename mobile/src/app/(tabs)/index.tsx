@@ -7,6 +7,7 @@ import { DebtButton } from "@/components/pay-sheet";
 import { DueBadge } from "@/components/due-badge";
 import { Avatar, Button, Card, ErrorView, H1, Loading, Muted, Row, Screen, Title } from "@/components/ui";
 import { useApi } from "@/lib/api";
+import { LITE } from "@/lib/variant";
 import { fonts, useColors } from "@/lib/theme";
 import type { MeResponse } from "@/lib/types";
 
@@ -65,9 +66,9 @@ export default function TodayScreen() {
         <Card style={{ alignItems: "center", paddingVertical: 28 }}>
           <CalendarDays size={40} color={c.primary} />
           <Title>Henüz bir okuma grubunda değilsin</Title>
-          <Muted style={{ textAlign: "center" }}>Bir grup kur ya da herkese açık gruplara katıl.</Muted>
+          <Muted style={{ textAlign: "center" }}>{LITE ? "Herkese açık gruplara katıl ya da davet bekle." : "Bir grup kur ya da herkese açık gruplara katıl."}</Muted>
           <Row>
-            <Button title="Grup kur" icon={Plus} onPress={() => router.push("/group/new")} />
+            {!LITE && <Button title="Grup kur" icon={Plus} onPress={() => router.push("/group/new")} />}
             <Button title="Keşfet" icon={Search} variant="ghost" onPress={() => router.push("/groups")} />
           </Row>
         </Card>

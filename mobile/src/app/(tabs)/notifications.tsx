@@ -4,6 +4,7 @@ import { router, useFocusEffect } from "expo-router";
 import { Pressable, View } from "react-native";
 import { Body, Button, Card, ErrorView, H1, Label, Loading, Muted, Row, Screen, Title } from "@/components/ui";
 import { useAction, useApi, useApiFetch } from "@/lib/api";
+import { LITE } from "@/lib/variant";
 import { formatDateTime } from "@/lib/format";
 import { useColors } from "@/lib/theme";
 import { describePenalty, teamsActive, type MeResponse, type NotificationsResponse } from "@/lib/types";
@@ -14,7 +15,7 @@ import { useCallback, useState } from "react";
 function toAppRoute(url: string | null) {
   if (!url) return null;
   const m = /^\/gruplar\/([^/]+)(\/yonetim)?/.exec(url);
-  if (m) return m[2] ? `/group/${m[1]}/admin` : url.includes("/bilgi") ? `/group/${m[1]}/info` : `/group/${m[1]}`;
+  if (m) return m[2] && !LITE ? `/group/${m[1]}/admin` : url.includes("/bilgi") ? `/group/${m[1]}/info` : `/group/${m[1]}`;
   if (url.startsWith("/gruplar")) return "/groups";
   if (url.startsWith("/bildirimler")) return null;
   return "/";

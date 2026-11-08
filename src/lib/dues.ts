@@ -17,9 +17,11 @@ export async function ensureAdmin(groupId: string) {
   const db = getDb();
   const admins = await db.groupMember.count({ where: { groupId, status: "ACTIVE", role: "ADMIN" } });
   if (admins > 0) return null;
-  const members = await db.groupMember.findMany({ where: { groupId, status: "ACTIVE" }, include: { user: { select: { name: true } } } });
+  const members = await db.groupMember.findMany({ where: { groupId, status: "ACTIVE" }, include: { user: { select: { name: true, liteApp: true } } } });
   if (!members.length) return null;
-  const pick = members[Math.floor(Math.random() * members.length)];
+  // Lite sürüm kullananlar yönetici yapılmaz (başka üye kalmadıysa mecburen)
+  const pool = members.some((m) => !m.user.liteApp) ? members.filter((m) => !m.user.liteApp) : members;
+  const pick = pool[Math.floor(Math.random() * pool.length)];
   await db.groupMember.update({ where: { id: pick.id }, data: { role: "ADMIN" } });
   const g = await db.group.findUniqueOrThrow({ where: { id: groupId }, select: { name: true, ownerId: true } });
   const ownerActive = members.some((m) => m.userId === g.ownerId);

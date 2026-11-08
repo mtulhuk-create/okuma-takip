@@ -428,10 +428,11 @@ export async function removeMember(_: Prev, fd: FormData) {
 export async function toggleAdmin(_: Prev, fd: FormData) {
   return run(async () => {
     const db = getDb();
-    const m = await db.groupMember.findUniqueOrThrow({ where: { id: str(fd, "memberId") }, include: { group: true } });
+    const m = await db.groupMember.findUniqueOrThrow({ where: { id: str(fd, "memberId") }, include: { group: true, user: { select: { liteApp: true } } } });
     await requireAdmin(m.groupId);
     if (m.userId === m.group.ownerId) throw new Error("Kurucunun yetkisi değiştirilemez");
     const role = m.role === "ADMIN" ? "MEMBER" : "ADMIN";
+    if (role === "ADMIN" && m.user.liteApp) throw new Error("Bu üye uygulamanın Lite sürümünü kullanıyor; Lite kullananlar yönetici yapılamaz");
     await db.groupMember.update({ where: { id: m.id }, data: { role } });
     refresh();
     return role === "ADMIN" ? "Yönetici yapıldı" : "Yöneticilik alındı";

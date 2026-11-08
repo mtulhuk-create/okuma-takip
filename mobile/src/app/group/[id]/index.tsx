@@ -19,6 +19,7 @@ import { ErrorView, Loading, Row } from "@/components/ui";
 import { ApiError, useAction, useApiFetch } from "@/lib/api";
 import { formatDayLong } from "@/lib/format";
 import { fonts, useColors } from "@/lib/theme";
+import { LITE } from "@/lib/variant";
 import type { ChatMessage, ChatResponse } from "@/lib/types";
 
 const trDay = (iso: string) => new Date(new Date(iso).getTime() + 3 * 3_600_000).toISOString().slice(0, 10);
@@ -144,7 +145,7 @@ export default function ChatScreen() {
           }
         } catch {}
       };
-      const t = setInterval(tick, 3000);
+      const t = setInterval(tick, LITE ? 5000 : 3000);
       return () => {
         active = false;
         clearInterval(t);
@@ -210,7 +211,7 @@ export default function ChatScreen() {
   }
 
   const meId = chat.data?.me.userId;
-  const canDeleteAll = chat.data?.me.role === "ADMIN";
+  const canDeleteAll = chat.data?.me.role === "ADMIN" && !LITE;
   const refetchRef = useRef(chat.refetch);
   refetchRef.current = chat.refetch;
   const onReported = useCallback(() => {
@@ -251,7 +252,8 @@ export default function ChatScreen() {
     return <ErrorView message={chat.error.message} onRetry={chat.refetch} />;
   }
   const data = chat.data!;
-  const isAdmin = data.me.role === "ADMIN";
+  // Lite sürümde yönetici özellikleri yok
+  const isAdmin = data.me.role === "ADMIN" && !LITE;
   const kasa = data.kasa ?? null;
   const todayCard = data.todayCard ?? (lastDayCard?.dayKey === todayKey ? lastDayCard : null);
 
@@ -329,7 +331,7 @@ export default function ChatScreen() {
       {todayCard && !cardVisible && <DayShortcut card={todayCard} groupId={id} onJump={jumpToToday} onReported={() => chat.refetch()} />}
       <View style={{ flex: 1, backgroundColor: c.chatBg }}>
         {/* Hafif desenli sohbet duvar kağıdı */}
-        <ChatWallpaper />
+        {!LITE && <ChatWallpaper />}
       <FlatList
         ref={list}
         inverted

@@ -8,17 +8,20 @@ import { clearInbox } from "@/lib/inbox";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
 import { QueryClient } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from "expo-router";
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider, type ErrorBoundaryProps } from "expo-router";
+import * as Clipboard from "expo-clipboard";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
-import { useColorScheme } from "react-native";
+import { Alert, Pressable, ScrollView, Text, useColorScheme, View } from "react-native";
+import { installCrashLogger, takeLastCrash } from "@/lib/crash";
 import { NotificationBridge } from "@/components/notification-bridge";
 import { OfflineSync } from "@/components/offline-sync";
 import { CLERK_PUBLISHABLE_KEY } from "@/lib/config";
 import { fonts, useColors } from "@/lib/theme";
 import { loadThemePref } from "@/lib/theme-pref";
 
+installCrashLogger();
 SplashScreen.preventAutoHideAsync();
 loadThemePref();
 
@@ -28,6 +31,28 @@ const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 15_000, retry: 1, gcTime: WEEK } },
 });
 const persister = createAsyncStoragePersister({ storage: AsyncStorage, key: "okuma-takip-cache", throttleTime: 3000 });
+
+/** Ekran çizilirken hata olursa uygulama kapanmaz: hata mesajı ve "Tekrar dene" gösterilir */
+export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
+  const text = `${error.message}\n\n${(error.stack ?? "").slice(0, 800)}`;
+  return (
+    <View style={{ flex: 1, backgroundColor: "#faf7f5", padding: 24, paddingTop: 64, gap: 12 }}>
+      <Text style={{ fontSize: 20, fontWeight: "700", color: "#1c1917" }}>Bir hata oluştu</Text>
+      <Text style={{ fontSize: 14, color: "#57534e" }}>Bu ekranın görüntüsünü paylaşırsan sorunu hızlıca çözebiliriz.</Text>
+      <ScrollView style={{ maxHeight: 280, backgroundColor: "#fff", borderRadius: 10, padding: 10 }}>
+        <Text selectable style={{ fontSize: 12, color: "#9b2c2c" }}>
+          {text}
+        </Text>
+      </ScrollView>
+      <Pressable onPress={retry} style={{ backgroundColor: "#9b2c2c", borderRadius: 10, padding: 12, alignItems: "center" }}>
+        <Text style={{ color: "#fff", fontWeight: "600" }}>Tekrar dene</Text>
+      </Pressable>
+      <Pressable onPress={() => Clipboard.setStringAsync(text)} style={{ borderRadius: 10, padding: 12, alignItems: "center", borderWidth: 1, borderColor: "#d6d3d1" }}>
+        <Text style={{ color: "#1c1917", fontWeight: "600" }}>Hatayı kopyala</Text>
+      </Pressable>
+    </View>
+  );
+}
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({ Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700Bold, LibreBaskerville_700Bold });
@@ -48,6 +73,17 @@ function Navigation() {
   useEffect(() => {
     if (isLoaded) SplashScreen.hideAsync();
   }, [isLoaded]);
+  // Uygulama önceki açılışta bir hatayla kapandıysa sebebini göster
+  useEffect(() => {
+    takeLastCrash().then((crash) => {
+      if (!crash) return;
+      const text = `${crash.msg}\n\n${crash.stack.slice(0, 1500)}`;
+      Alert.alert("Uygulama son kullanımda hata verdi", `${text}\n\nBu mesajın ekran görüntüsünü paylaşırsan sorunu çözebiliriz.`, [
+        { text: "Kopyala", onPress: () => Clipboard.setStringAsync(text) },
+        { text: "Tamam" },
+      ]);
+    });
+  }, []);
   // Yalnızca gerçekten çıkış yapıldığında önbelleği temizle (Clerk yüklenmeden önce değil; internetsiz açılışta veriler kalsın)
   useEffect(() => {
     if (isLoaded && isSignedIn === false) {
