@@ -2,7 +2,6 @@
 import * as Notifications from "expo-notifications";
 import * as BackgroundTask from "expo-background-task";
 import * as TaskManager from "expo-task-manager";
-import { checkInbox } from "./inbox";
 import { handleReportAction, type ReportData } from "./notifications";
 
 const TASK = "okuma-takip-notification-action";
@@ -40,14 +39,11 @@ TaskManager.defineTask<Notifications.NotificationTaskPayload>(TASK, async ({ dat
 
 Notifications.registerTaskAsync(TASK).catch(() => {});
 
-// Gruplara yazılan yeni mesajlar (uygulama kapalıyken; Android en az ~15 dakikada bir çalıştırır)
+// Arka planda mesaj kontrolü (expo-background-task) kapatıldı: eski Android'lerde (One UI 2) uygulamanın
+// arka planda tekrar tekrar çökmesine yol açıyordu. Önceki sürümlerden kalan kayıt bir kez temizlenir;
+// temizlenene kadar tetiklenirse hiçbir şey yapmadan biter.
 const INBOX_TASK = "okuma-takip-inbox";
-TaskManager.defineTask(INBOX_TASK, async () => {
-  try {
-    await checkInbox();
-    return BackgroundTask.BackgroundTaskResult.Success;
-  } catch {
-    return BackgroundTask.BackgroundTaskResult.Failed;
-  }
-});
-BackgroundTask.registerTaskAsync(INBOX_TASK, { minimumInterval: 15 }).catch(() => {});
+TaskManager.defineTask(INBOX_TASK, async () => BackgroundTask.BackgroundTaskResult.Success);
+TaskManager.isTaskRegisteredAsync(INBOX_TASK)
+  .then((registered) => (registered ? BackgroundTask.unregisterTaskAsync(INBOX_TASK) : undefined))
+  .catch(() => {});
