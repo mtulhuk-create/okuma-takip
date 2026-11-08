@@ -162,56 +162,50 @@ const MONTHS_SHORT = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", 
 const shortDay = (k: string) => `${Number(k.slice(8))} ${MONTHS_SHORT[Number(k.slice(5, 7)) - 1]}`;
 const addDay = (k: string, n: number) => new Date(Date.parse(k) + n * 86_400_000).toISOString().slice(0, 10);
 
-/** Yöneticinin kefaret teklifi: süre, silinecek tutar, gün başı indirim ve hangi günler kefaret yapıldığı */
+/** Yöneticinin kefaret teklifi: kaç gün, ne kadar silinecek, ne kadarı silindi ve son günlerde kefaret yapılıp yapılmadığı */
 function KefaretOffer({ plan, today, dailyPages }: { plan: NonNullable<NonNullable<Card["me"]>["plan"]>; today: string; dailyPages: number }) {
   const perDay = Math.round(plan.discountTotal / plan.days);
   const used = new Set(plan.usedDays ?? []);
-  // Başlangıçtan bugüne günler (en fazla son 14)
-  const all: string[] = [];
-  for (let k = plan.startDay; k <= today && all.length < 400; k = addDay(k, 1)) all.push(k);
-  const shown = all.slice(-14);
-  const hidden = all.length - shown.length;
-  const stats = [
-    { v: `${plan.days} gün`, l: "süre" },
-    { v: `${plan.discountTotal} TL`, l: "silinecek" },
-    { v: `${perDay} TL`, l: "gün başı" },
-    { v: `${dailyPages} sf`, l: "günlük" },
-  ];
+  const pct = plan.discountTotal ? Math.min(100, Math.round((plan.earned / plan.discountTotal) * 100)) : 0;
+  // Son 7 gün (başlangıçtan önceki günler gösterilmez)
+  const recent: string[] = [];
+  for (let i = 6; i >= 0; i--) {
+    const k = addDay(today, -i);
+    if (k >= plan.startDay) recent.push(k);
+  }
   return (
-    <div className="space-y-1.5 rounded-md border border-teal-600/25 bg-teal-500/5 p-2">
+    <div className="space-y-1 rounded-md bg-teal-500/[0.07] px-2 py-1.5 ring-1 ring-teal-600/20">
       <div className="flex items-center gap-1 text-[10.5px] font-semibold text-teal-700 dark:text-teal-400">
         <BookHeart className="size-3.5 shrink-0" />
-        <span className="flex-1">Kefaret teklifi · cezana %{plan.discountPercent} indirim</span>
+        <span className="flex-1 truncate">
+          Kefaret teklifi{plan.discountPercent ? ` · %${plan.discountPercent} indirim` : ""}
+        </span>
         <span className="tabular-nums">
           {plan.doneDays}/{plan.days} gün
         </span>
       </div>
-      <div className="grid grid-cols-4 gap-1 text-center">
-        {stats.map((x) => (
-          <div key={x.l} className="rounded bg-card px-1 py-0.5">
-            <p className="text-[11px] font-bold leading-tight">{x.v}</p>
-            <p className="text-[9px] leading-tight text-muted-foreground">{x.l}</p>
-          </div>
-        ))}
+      <div className="flex items-center gap-2">
+        <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+          <span className="block h-full rounded-full bg-teal-600" style={{ width: `${pct}%` }} />
+        </span>
+        <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
+          <b className="text-foreground">{plan.earned}</b>/{plan.discountTotal} TL silindi
+        </span>
       </div>
-      <div className="flex items-center gap-1.5">
-        <div className="flex min-w-0 flex-1 gap-[3px]" aria-label="Kefaret yapılan günler">
-          {hidden > 0 && <span className="text-[9px] leading-3 text-muted-foreground">+{hidden}</span>}
-          {shown.map((k) => (
+      <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+        <span className="min-w-0 flex-1 truncate">
+          Günde <b className="text-foreground">{dailyPages} sf</b> · gün başı <b className="text-foreground">{perDay} TL</b> · kalan {Math.max(0, plan.discountTotal - plan.earned)} TL
+        </span>
+        <span className="flex shrink-0 gap-[3px]" aria-label="Son günlerde kefaret">
+          {recent.map((k) => (
             <span
               key={k}
               title={`${shortDay(k)} · ${used.has(k) ? "kefaret okundu" : k === today ? "bugün" : "kefaret yok"}`}
-              className={`h-3 flex-1 rounded-[3px] ${used.has(k) ? "bg-teal-600" : "bg-muted"} ${k === today ? "ring-1 ring-teal-600" : ""}`}
+              className={`size-2 rounded-full ${used.has(k) ? "bg-teal-600" : "bg-muted-foreground/25"} ${k === today ? "ring-1 ring-teal-600 ring-offset-1 ring-offset-card" : ""}`}
             />
           ))}
-        </div>
-        <span className="shrink-0 text-[10px] text-muted-foreground">
-          silinen <b className="text-teal-700 dark:text-teal-400">{plan.earned} TL</b>
         </span>
       </div>
-      <p className="text-[9.5px] leading-tight text-muted-foreground">
-        {shortDay(plan.startDay)}&apos;den beri {used.size} gün kefaret · kalan {Math.max(0, plan.discountTotal - plan.earned)} TL · gün kapanınca borçtan düşer
-      </p>
     </div>
   );
 }

@@ -174,57 +174,50 @@ export function ReportControls({ groupId, card, compact, onDone }: { groupId: st
   );
 }
 
-const MONTHS_SHORT = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"];
-const shortDay = (k: string) => `${Number(k.slice(8))} ${MONTHS_SHORT[Number(k.slice(5, 7)) - 1]}`;
 const addDay = (k: string, n: number) => new Date(Date.parse(k) + n * 86_400_000).toISOString().slice(0, 10);
 
-/** Yöneticinin kefaret teklifi: süre, silinecek tutar, gün başı indirim ve hangi günler kefaret yapıldığı */
+/** Yöneticinin kefaret teklifi: kaç gün, ne kadar silinecek, ne kadarı silindi ve son günlerde kefaret yapılıp yapılmadığı */
 function KefaretOffer({ plan, today, dailyPages }: { plan: NonNullable<NonNullable<Card["me"]>["plan"]>; today: string; dailyPages: number }) {
   const c = useColors();
   const perDay = Math.round(plan.discountTotal / plan.days);
   const used = new Set(plan.usedDays ?? []);
-  const all: string[] = [];
-  for (let k = plan.startDay; k <= today && all.length < 400; k = addDay(k, 1)) all.push(k);
-  const shown = all.slice(-14);
-  const hidden = all.length - shown.length;
-  const stats = [
-    { v: `${plan.days} gün`, l: "süre" },
-    { v: `${plan.discountTotal} TL`, l: "silinecek" },
-    { v: `${perDay} TL`, l: "gün başı" },
-    { v: `${dailyPages} sf`, l: "günlük" },
-  ];
-  const small = { fontFamily: fonts.regular, fontSize: 9.5, color: c.mutedForeground } as const;
+  const pct = plan.discountTotal ? Math.min(100, Math.round((plan.earned / plan.discountTotal) * 100)) : 0;
+  const recent: string[] = [];
+  for (let i = 6; i >= 0; i--) {
+    const k = addDay(today, -i);
+    if (k >= plan.startDay) recent.push(k);
+  }
+  const small = { fontFamily: fonts.regular, fontSize: 10, color: c.mutedForeground } as const;
+  const strong = { fontFamily: fonts.bold, color: c.foreground } as const;
   return (
-    <View style={{ gap: 6, borderWidth: 1, borderColor: KEFARET + "40", backgroundColor: KEFARET + "0d", borderRadius: radius, padding: 8 }}>
+    <View style={{ gap: 4, backgroundColor: KEFARET + "12", borderWidth: 1, borderColor: KEFARET + "33", borderRadius: radius, paddingHorizontal: 8, paddingVertical: 6 }}>
       <Row gap={4}>
         <BookHeart size={13} color={KEFARET} />
-        <Text style={{ flex: 1, fontFamily: fonts.semibold, fontSize: 10.5, color: KEFARET }}>Kefaret teklifi{plan.discountPercent ? ` · cezana %${plan.discountPercent} indirim` : ""}</Text>
+        <Text numberOfLines={1} style={{ flex: 1, fontFamily: fonts.semibold, fontSize: 10.5, color: KEFARET }}>
+          Kefaret teklifi{plan.discountPercent ? ` · %${plan.discountPercent} indirim` : ""}
+        </Text>
         <Text style={{ fontFamily: fonts.semibold, fontSize: 10.5, color: KEFARET }}>
           {plan.doneDays}/{plan.days} gün
         </Text>
       </Row>
-      <Row gap={4}>
-        {stats.map((x) => (
-          <View key={x.l} style={{ flex: 1, alignItems: "center", backgroundColor: c.card, borderRadius: 4, paddingVertical: 3 }}>
-            <Text style={{ fontFamily: fonts.bold, fontSize: 11, color: c.foreground }}>{x.v}</Text>
-            <Text style={small}>{x.l}</Text>
-          </View>
-        ))}
-      </Row>
-      <Row gap={6}>
-        <Row gap={3} style={{ flex: 1 }}>
-          {hidden > 0 && <Text style={small}>+{hidden}</Text>}
-          {shown.map((k) => (
-            <View key={k} style={{ flex: 1, height: 12, borderRadius: 3, backgroundColor: used.has(k) ? KEFARET : c.muted, borderWidth: k === today ? 1 : 0, borderColor: KEFARET }} />
-          ))}
-        </Row>
-        <Text style={{ ...small, fontSize: 10 }}>
-          silinen <Text style={{ fontFamily: fonts.bold, color: KEFARET }}>{plan.earned} TL</Text>
+      <Row gap={8}>
+        <View style={{ flex: 1, height: 5, borderRadius: 3, backgroundColor: c.muted, overflow: "hidden" }}>
+          <View style={{ width: `${pct}%`, height: "100%", borderRadius: 3, backgroundColor: KEFARET }} />
+        </View>
+        <Text style={small}>
+          <Text style={strong}>{plan.earned}</Text>/{plan.discountTotal} TL silindi
         </Text>
       </Row>
-      <Text style={small}>
-        {shortDay(plan.startDay)}&apos;den beri {used.size} gün kefaret · kalan {Math.max(0, plan.discountTotal - plan.earned)} TL · gün kapanınca borçtan düşer
-      </Text>
+      <Row gap={8}>
+        <Text numberOfLines={1} style={{ ...small, flex: 1 }}>
+          Günde <Text style={strong}>{dailyPages} sf</Text> · gün başı <Text style={strong}>{perDay} TL</Text> · kalan {Math.max(0, plan.discountTotal - plan.earned)} TL
+        </Text>
+        <Row gap={3}>
+          {recent.map((k) => (
+            <View key={k} style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: used.has(k) ? KEFARET : c.mutedForeground + "40", borderWidth: k === today ? 1 : 0, borderColor: KEFARET }} />
+          ))}
+        </Row>
+      </Row>
     </View>
   );
 }
