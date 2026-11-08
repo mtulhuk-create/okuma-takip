@@ -7,7 +7,18 @@ import { periodFor } from "./schedule";
 
 export type DayPerson = { id: string; name: string; imageUrl: string | null; pages: number | null; required: number; kefaret?: number };
 /** Kişinin süren kefaret okuması (gün kartında "Kefaret" butonu) */
-export type DayKefaret = { planId: string; dailyExtra: number; days: number; doneDays: number; discountTotal: number; earned: number; startDay: string };
+export type DayKefaret = {
+  planId: string;
+  dailyExtra: number;
+  days: number;
+  doneDays: number;
+  discountTotal: number;
+  earned: number;
+  startDay: string;
+  discountPercent: number;
+  /** Kefaret okuması bildirilen günler (bugün dahil) */
+  usedDays: string[];
+};
 export type DayCard = {
   dayKey: string;
   start: string;
@@ -53,6 +64,7 @@ export async function getDayCards(group: Group & { teams: Team[] }, members: Mem
   const linked = dayKeys.length && members.some((m) => m.userId === meId) ? await linkedGroupNames(meId, group.id) : new Map<string, string[]>();
   const byKey = new Map(logs.map((l) => [`${l.userId}:${l.dayKey}`, l]));
   const plan = dayKeys.length ? await getDb().kefaretPlan.findFirst({ where: { groupId: group.id, userId: meId, status: "ACTIVE" }, orderBy: { createdAt: "desc" } }) : null;
+  const usedDays = plan ? (await getDb().readingLog.findMany({ where: { kefaretPlanId: plan.id, kefaret: { gt: 0 } }, select: { dayKey: true }, orderBy: { dayKey: "asc" } })).map((l) => l.dayKey) : [];
   const now = new Date();
   const cards: Record<string, DayCard> = {};
   for (const dayKey of dayKeys) {
@@ -83,7 +95,17 @@ export async function getDayCards(group: Group & { teams: Team[] }, members: Mem
           fine: { min: penaltyFor({ ...r, targetPages: target, minPages: min }, min), none: penaltyFor({ ...r, targetPages: target, minPages: min }, 0) },
           plan:
             plan && open && dayKey >= plan.startDay
-              ? { planId: plan.id, dailyExtra: plan.dailyExtra, days: plan.days, doneDays: plan.doneDays, discountTotal: plan.discountTotal, earned: plan.earned, startDay: plan.startDay }
+              ? {
+                  planId: plan.id,
+                  dailyExtra: plan.dailyExtra,
+                  days: plan.days,
+                  doneDays: plan.doneDays,
+                  discountTotal: plan.discountTotal,
+                  earned: plan.earned,
+                  startDay: plan.startDay,
+                  discountPercent: plan.discountPercent,
+                  usedDays,
+                }
               : null,
         };
       }

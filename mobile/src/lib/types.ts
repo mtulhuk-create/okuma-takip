@@ -52,7 +52,18 @@ export type ReadingLog = { userId: string; dayKey: string; pages: number; requir
 
 export type DayPerson = { id: string; name: string; imageUrl: string | null; pages: number | null; required: number; kefaret?: number };
 /** Süren kefaret okuması: hedefin üstüne ek sayfa, her gün indirimin bir payını kazandırır */
-export type DayKefaret = { planId: string; dailyExtra: number; days: number; doneDays: number; discountTotal: number; earned: number; startDay: string };
+export type DayKefaret = {
+  planId: string;
+  dailyExtra: number;
+  days: number;
+  doneDays: number;
+  discountTotal: number;
+  earned: number;
+  startDay: string;
+  /** Eski sunucuda yok */
+  discountPercent?: number;
+  usedDays?: string[];
+};
 export type DayCard = {
   dayKey: string;
   start: string;

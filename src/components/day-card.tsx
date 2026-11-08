@@ -134,7 +134,7 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
           disabled={pending}
           Icon={Check}
           label="Alt sınır"
-          corner={`${me.min} sf`}
+          corner={me.fine.min ? `${me.min} sf · ${me.fine.min} TL` : `${me.min} sf`}
           cornerTone="text-primary ring-primary/60"
           hint={`Alt sınır: ${me.min} sayfa${me.fine.min ? `, ${me.fine.min} TL ceza` : ""}`}
           onClick={() => send({ choice: "min" }, "min")}
@@ -152,13 +152,66 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
           onClick={() => send({ choice: "none" }, "none")}
         />
       </div>
-      {plan && (
-        <p className="flex items-center justify-center gap-1 text-center text-[11px] leading-tight text-teal-700 dark:text-teal-400">
-          <BookHeart className="size-3.5 shrink-0" />
-          Kefaret {plan.doneDays}/{plan.days} gün · kazanılan {plan.earned}/{plan.discountTotal} TL · günlük ≈{Math.round(plan.discountTotal / plan.days)} TL indirim
-        </p>
-      )}
+      {plan && <KefaretOffer plan={plan} today={card.dayKey} dailyPages={me.target + plan.dailyExtra} />}
       {error && <p className="text-xs font-medium text-destructive">{error}</p>}
+    </div>
+  );
+}
+
+const MONTHS_SHORT = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"];
+const shortDay = (k: string) => `${Number(k.slice(8))} ${MONTHS_SHORT[Number(k.slice(5, 7)) - 1]}`;
+const addDay = (k: string, n: number) => new Date(Date.parse(k) + n * 86_400_000).toISOString().slice(0, 10);
+
+/** Yöneticinin kefaret teklifi: süre, silinecek tutar, gün başı indirim ve hangi günler kefaret yapıldığı */
+function KefaretOffer({ plan, today, dailyPages }: { plan: NonNullable<NonNullable<Card["me"]>["plan"]>; today: string; dailyPages: number }) {
+  const perDay = Math.round(plan.discountTotal / plan.days);
+  const used = new Set(plan.usedDays ?? []);
+  // Başlangıçtan bugüne günler (en fazla son 14)
+  const all: string[] = [];
+  for (let k = plan.startDay; k <= today && all.length < 400; k = addDay(k, 1)) all.push(k);
+  const shown = all.slice(-14);
+  const hidden = all.length - shown.length;
+  const stats = [
+    { v: `${plan.days} gün`, l: "süre" },
+    { v: `${plan.discountTotal} TL`, l: "silinecek" },
+    { v: `${perDay} TL`, l: "gün başı" },
+    { v: `${dailyPages} sf`, l: "günlük" },
+  ];
+  return (
+    <div className="space-y-1.5 rounded-md border border-teal-600/25 bg-teal-500/5 p-2">
+      <div className="flex items-center gap-1 text-[10.5px] font-semibold text-teal-700 dark:text-teal-400">
+        <BookHeart className="size-3.5 shrink-0" />
+        <span className="flex-1">Kefaret teklifi · cezana %{plan.discountPercent} indirim</span>
+        <span className="tabular-nums">
+          {plan.doneDays}/{plan.days} gün
+        </span>
+      </div>
+      <div className="grid grid-cols-4 gap-1 text-center">
+        {stats.map((x) => (
+          <div key={x.l} className="rounded bg-card px-1 py-0.5">
+            <p className="text-[11px] font-bold leading-tight">{x.v}</p>
+            <p className="text-[9px] leading-tight text-muted-foreground">{x.l}</p>
+          </div>
+        ))}
+      </div>
+      <div className="flex items-center gap-1.5">
+        <div className="flex min-w-0 flex-1 gap-[3px]" aria-label="Kefaret yapılan günler">
+          {hidden > 0 && <span className="text-[9px] leading-3 text-muted-foreground">+{hidden}</span>}
+          {shown.map((k) => (
+            <span
+              key={k}
+              title={`${shortDay(k)} · ${used.has(k) ? "kefaret okundu" : k === today ? "bugün" : "kefaret yok"}`}
+              className={`h-3 flex-1 rounded-[3px] ${used.has(k) ? "bg-teal-600" : "bg-muted"} ${k === today ? "ring-1 ring-teal-600" : ""}`}
+            />
+          ))}
+        </div>
+        <span className="shrink-0 text-[10px] text-muted-foreground">
+          silinen <b className="text-teal-700 dark:text-teal-400">{plan.earned} TL</b>
+        </span>
+      </div>
+      <p className="text-[9.5px] leading-tight text-muted-foreground">
+        {shortDay(plan.startDay)}&apos;den beri {used.size} gün kefaret · kalan {Math.max(0, plan.discountTotal - plan.earned)} TL · gün kapanınca borçtan düşer
+      </p>
     </div>
   );
 }

@@ -77,7 +77,7 @@ export function ReportControls({ groupId, card, compact, onDone }: { groupId: st
       ? [{ key: "kefaret", label: "Kefaret", hint: `Kefaret okuması: bugün ${me.target + plan.dailyExtra} sayfa`, corner: `${me.target + plan.dailyExtra} sf`, Icon: BookHeart, variant: "kefaret" as const, body: { choice: "kefaret" } }]
       : []),
     { key: "all", label: "Okudum", hint: `Okudum: ${me.target} sayfa`, corner: `${me.target} sf`, Icon: CheckCheck, variant: "success", body: { choice: "all" } },
-    { key: "min", label: "Alt sınır", hint: `Alt sınırı okudum: ${me.min} sayfa`, corner: `${me.min} sf`, Icon: Check, variant: "primary", body: { choice: "min" } },
+    { key: "min", label: "Alt sınır", hint: `Alt sınırı okudum: ${me.min} sayfa`, corner: fine?.min ? `${me.min} sf · ${fine.min} TL` : `${me.min} sf`, Icon: Check, variant: "primary", body: { choice: "min" } },
     { key: "none", label: "Okumadım", hint: fine ? `Okumadım: ${fine.none} TL ceza` : "Okumadım", corner: fine ? `${fine.none} TL` : undefined, Icon: X, variant: "ghost", body: { choice: "none" } },
   ];
   return (
@@ -169,14 +169,62 @@ export function ReportControls({ groupId, card, compact, onDone }: { groupId: st
         })}
       </Row>
       <OfflinePending groupId={groupId} dayKey={card.dayKey} />
-      {plan && (
-        <Row gap={4} style={{ justifyContent: "center" }}>
-          <BookHeart size={12} color={KEFARET} />
-          <Text style={{ flexShrink: 1, fontFamily: fonts.semibold, fontSize: 11, color: KEFARET }}>
-            Kefaret {plan.doneDays}/{plan.days} gün · kazanılan {plan.earned}/{plan.discountTotal} TL · günlük ≈{Math.round(plan.discountTotal / plan.days)} TL
-          </Text>
+      {plan && <KefaretOffer plan={plan} today={card.dayKey} dailyPages={me.target + plan.dailyExtra} />}
+    </View>
+  );
+}
+
+const MONTHS_SHORT = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"];
+const shortDay = (k: string) => `${Number(k.slice(8))} ${MONTHS_SHORT[Number(k.slice(5, 7)) - 1]}`;
+const addDay = (k: string, n: number) => new Date(Date.parse(k) + n * 86_400_000).toISOString().slice(0, 10);
+
+/** Yöneticinin kefaret teklifi: süre, silinecek tutar, gün başı indirim ve hangi günler kefaret yapıldığı */
+function KefaretOffer({ plan, today, dailyPages }: { plan: NonNullable<NonNullable<Card["me"]>["plan"]>; today: string; dailyPages: number }) {
+  const c = useColors();
+  const perDay = Math.round(plan.discountTotal / plan.days);
+  const used = new Set(plan.usedDays ?? []);
+  const all: string[] = [];
+  for (let k = plan.startDay; k <= today && all.length < 400; k = addDay(k, 1)) all.push(k);
+  const shown = all.slice(-14);
+  const hidden = all.length - shown.length;
+  const stats = [
+    { v: `${plan.days} gün`, l: "süre" },
+    { v: `${plan.discountTotal} TL`, l: "silinecek" },
+    { v: `${perDay} TL`, l: "gün başı" },
+    { v: `${dailyPages} sf`, l: "günlük" },
+  ];
+  const small = { fontFamily: fonts.regular, fontSize: 9.5, color: c.mutedForeground } as const;
+  return (
+    <View style={{ gap: 6, borderWidth: 1, borderColor: KEFARET + "40", backgroundColor: KEFARET + "0d", borderRadius: radius, padding: 8 }}>
+      <Row gap={4}>
+        <BookHeart size={13} color={KEFARET} />
+        <Text style={{ flex: 1, fontFamily: fonts.semibold, fontSize: 10.5, color: KEFARET }}>Kefaret teklifi{plan.discountPercent ? ` · cezana %${plan.discountPercent} indirim` : ""}</Text>
+        <Text style={{ fontFamily: fonts.semibold, fontSize: 10.5, color: KEFARET }}>
+          {plan.doneDays}/{plan.days} gün
+        </Text>
+      </Row>
+      <Row gap={4}>
+        {stats.map((x) => (
+          <View key={x.l} style={{ flex: 1, alignItems: "center", backgroundColor: c.card, borderRadius: 4, paddingVertical: 3 }}>
+            <Text style={{ fontFamily: fonts.bold, fontSize: 11, color: c.foreground }}>{x.v}</Text>
+            <Text style={small}>{x.l}</Text>
+          </View>
+        ))}
+      </Row>
+      <Row gap={6}>
+        <Row gap={3} style={{ flex: 1 }}>
+          {hidden > 0 && <Text style={small}>+{hidden}</Text>}
+          {shown.map((k) => (
+            <View key={k} style={{ flex: 1, height: 12, borderRadius: 3, backgroundColor: used.has(k) ? KEFARET : c.muted, borderWidth: k === today ? 1 : 0, borderColor: KEFARET }} />
+          ))}
         </Row>
-      )}
+        <Text style={{ ...small, fontSize: 10 }}>
+          silinen <Text style={{ fontFamily: fonts.bold, color: KEFARET }}>{plan.earned} TL</Text>
+        </Text>
+      </Row>
+      <Text style={small}>
+        {shortDay(plan.startDay)}&apos;den beri {used.size} gün kefaret · kalan {Math.max(0, plan.discountTotal - plan.earned)} TL · gün kapanınca borçtan düşer
+      </Text>
     </View>
   );
 }
