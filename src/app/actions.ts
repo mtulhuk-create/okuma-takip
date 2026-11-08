@@ -1,6 +1,7 @@
 "use server";
 
 import { clerkClient } from "@clerk/nextjs/server";
+import { after } from "next/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { actionUser, cleanName, getMembership, requireAdmin } from "@/lib/auth";
@@ -642,6 +643,7 @@ export async function sendMessage(_: Prev, fd: FormData) {
         badge: null,
       },
     });
+    notifyChat(member.group, user.id, `💬 ${member.group.name}`, `${shownName(user, member.group.nameDisplay)}: ${text}`);
     return { id: m.id };
   });
 }
@@ -657,7 +659,7 @@ export async function createPoll(_: Prev, fd: FormData) {
     options = [...new Set(options)];
     if (question.length < 2) throw new Error("Anket sorusunu yazın");
     if (options.length < 2 || options.length > 10) throw new Error("2 ile 10 arasında seçenek girin");
-    const { user } = await chatMember(groupId);
+    const { user, member } = await chatMember(groupId);
     const db = getDb();
     const polls = await db.message.count({ where: { groupId, userId: user.id, kind: "POLL", createdAt: { gt: new Date(Date.now() - 10 * 60_000) } } });
     if (polls >= 5) throw new Error("Kısa sürede çok fazla anket açtın, biraz bekle");
@@ -665,6 +667,7 @@ export async function createPoll(_: Prev, fd: FormData) {
     const poll = await db.poll.create({ data: { messageId: m.id, question, multiple: str(fd, "multiple") === "1" } });
     await db.pollOption.createMany({ data: options.map((text, position) => ({ pollId: poll.id, text, position })) });
     await publish(groupId, { type: "refresh", reason: "poll" });
+    notifyChat(member.group, user.id, `📊 ${member.group.name}`, `${shownName(user, member.group.nameDisplay)} anket açtı: ${question}`);
     return { id: m.id, message: "Anket gönderildi" };
   });
 }
@@ -696,6 +699,17 @@ export async function deleteMessage(_: Prev, fd: FormData) {
     await db.message.delete({ where: { id: msg.id } });
     await publish(msg.groupId, { type: "refresh", reason: "delete" });
     return "Mesaj silindi";
+  });
+}
+
+/** Gruba yazılan mesaj diğer üyelere bildirim olarak gider (yanıttan sonra, arka planda) */
+function notifyChat(group: { id: string; name: string }, authorId: string, title: string, body: string) {
+  after(async () => {
+    const others = await getDb().groupMember.findMany({ where: { groupId: group.id, status: "ACTIVE", userId: { not: authorId } }, select: { userId: true } });
+    await notifyUsers(
+      others.map((o) => o.userId),
+      { title, body: body.length > 140 ? `${body.slice(0, 137)}…` : body, url: `/gruplar/${group.id}`, tag: `msg-${group.id}`, renotify: true },
+    ).catch((e) => console.error("mesaj bildirimi", e));
   });
 }
 

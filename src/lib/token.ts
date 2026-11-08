@@ -36,3 +36,13 @@ export async function verifyQuickToken(token: string, graceMs = 0) {
   if (!p || (p.t && p.t !== "q")) return null;
   return { userId: p.u, groupId: p.g, dayKey: p.d };
 }
+
+/** Mobil uygulamanın arka plan görevi için: yalnızca kişinin gruplarındaki yeni mesaj özetlerini okur (30 gün) */
+export function signInboxToken(userId: string) {
+  return signPayload({ t: "i", u: userId, e: Date.now() + 30 * 86_400_000 });
+}
+
+export async function verifyInboxToken(token: string) {
+  const p = await verifyPayload<{ t?: string; u: string; e: number }>(token);
+  return p?.t === "i" ? p.u : null;
+}

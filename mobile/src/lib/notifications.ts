@@ -52,6 +52,12 @@ export async function setupNotifications() {
       vibrationPattern: [0, 250, 150, 250],
       showBadge: true,
     });
+    await Notifications.setNotificationChannelAsync("messages", {
+      name: "Grup mesajları",
+      description: "Gruplara yazılan yeni mesajlar ve anketler",
+      // eslint-disable-next-line import/namespace -- enum `export *` ile geliyor, eklenti göremiyor
+      importance: Notifications.AndroidImportance.DEFAULT,
+    });
     await Notifications.setNotificationChannelAsync("countdown", {
       name: "Son 10 dakika geri sayımı",
       // eslint-disable-next-line import/namespace -- enum `export *` ile geliyor, eklenti göremiyor

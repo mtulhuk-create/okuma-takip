@@ -40,11 +40,12 @@ export function DiscountControls({ groupId, userId, penaltyId, title = "İndirim
   const key = `disc-${penaltyId ?? userId ?? groupId}`;
   const n = Number(value);
   const ok = Number.isInteger(n) && n > 0 && (mode === "amount" || n <= 100);
+  // Satır kartın genişliğine sığar: seçici ve buton sabit, değer kutusu kalan alanı doldurur
   const body = (
-    <Row gap={6}>
-      <View style={{ flexDirection: "row", borderWidth: 1, borderColor: c.border, borderRadius: 8, overflow: "hidden" }}>
+    <Row gap={6} style={{ flex: 1, minWidth: 0 }}>
+      <View style={{ flexDirection: "row", height: 34, borderWidth: 1, borderColor: c.border, borderRadius: 8, overflow: "hidden" }}>
         {(["percent", "amount"] as const).map((m) => (
-          <Pressable key={m} onPress={() => setMode(m)} style={{ paddingHorizontal: 10, paddingVertical: 7, backgroundColor: mode === m ? c.primary : c.card }}>
+          <Pressable key={m} onPress={() => setMode(m)} style={{ width: 36, alignItems: "center", justifyContent: "center", backgroundColor: mode === m ? c.primary : c.card }}>
             <Text style={{ fontFamily: fonts.semibold, fontSize: 12, color: mode === m ? c.primaryForeground : c.foreground }}>{m === "percent" ? "%" : "TL"}</Text>
           </Pressable>
         ))}
@@ -55,7 +56,7 @@ export function DiscountControls({ groupId, userId, penaltyId, title = "İndirim
         keyboardType="number-pad"
         placeholder={mode === "percent" ? "50" : "20"}
         placeholderTextColor={c.mutedForeground}
-        style={{ width: 64, height: 34, borderWidth: 1, borderColor: c.border, borderRadius: 8, paddingHorizontal: 8, fontFamily: fonts.regular, color: c.foreground, backgroundColor: c.card }}
+        style={{ flex: 1, minWidth: 44, maxWidth: 120, height: 34, paddingVertical: 0, borderWidth: 1, borderColor: c.border, borderRadius: 8, paddingHorizontal: 8, fontFamily: fonts.regular, fontSize: 14, color: c.foreground, backgroundColor: c.card }}
       />
       <Button
         title={compact ? "İndir" : "Uygula"}

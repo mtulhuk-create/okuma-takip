@@ -1,6 +1,6 @@
 import { useBookCheck } from "@/components/book-match";
 import { router } from "expo-router";
-import { AlarmClock, BookOpen, Check, ChevronRight, Clock, Coins, Crown, Globe, Lock, Plus, Search, Shield, UserRound, Users, Wallet } from "lucide-react-native";
+import { AlarmClock, BookOpen, Check, ChevronRight, Clock, Coins, Crown, Globe, Lock, Plus, Search, UserRound, Users, Wallet } from "lucide-react-native";
 import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { Countdown } from "@/components/countdown";
@@ -17,6 +17,25 @@ function GroupIcon({ name }: { name: string }) {
   return (
     <View style={{ width: 46, height: 46, borderRadius: 16, backgroundColor: c.primary, alignItems: "center", justifyContent: "center" }}>
       <Text style={{ fontFamily: fonts.serif, fontSize: 18, color: c.primaryForeground }}>{name[0]?.toUpperCase()}</Text>
+    </View>
+  );
+}
+
+const COVERS = ["#9b2c2c", "#2f6f4f", "#1e4e79", "#8a5a1f", "#5b3a8a", "#0f766e", "#7c2d4a"];
+function coverColor(id: string) {
+  let h = 0;
+  for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return COVERS[h % COVERS.length];
+}
+
+/** Okuma grubunu temsil eden küçük kitap kapağı */
+function BookCover({ name, color }: { name: string; color: string }) {
+  return (
+    <View style={{ width: 36, height: 48, borderTopLeftRadius: 3, borderBottomLeftRadius: 3, borderTopRightRadius: 7, borderBottomRightRadius: 7, backgroundColor: color, alignItems: "center", justifyContent: "center", overflow: "hidden", elevation: 2 }}>
+      <View style={{ position: "absolute", left: 4, top: 0, bottom: 0, width: 1, backgroundColor: "#ffffff59" }} />
+      <View style={{ position: "absolute", left: 8, right: 6, top: 6, height: 1, backgroundColor: "#ffffff66" }} />
+      <View style={{ position: "absolute", left: 8, right: 6, bottom: 6, height: 1, backgroundColor: "#ffffff66" }} />
+      <Text style={{ fontFamily: fonts.serif, fontSize: 17, color: "#fff" }}>{name[0]?.toUpperCase()}</Text>
     </View>
   );
 }
@@ -63,71 +82,73 @@ export default function GroupsScreen() {
         const members = group._count.members;
         const done = !!t && t.myPages != null && t.myPages >= t.myTarget;
         const partial = !!t && t.myPages != null && !done;
-        const statusBg = done ? c.success + "1a" : partial ? c.warning + "1a" : c.muted;
+        const cover = coverColor(group.id);
+        const status = !t
+          ? null
+          : done
+            ? { text: "Tamam", bg: c.success, fg: "#fff", Icon: Check }
+            : partial
+              ? { text: `${t.myPages}/${t.myTarget} sf`, bg: "#f59e0b", fg: "#fff", Icon: BookOpen }
+              : t.open
+                ? { text: "Bekliyor", bg: c.primary + "1a", fg: c.primary, Icon: Clock }
+                : { text: "Kapandı", bg: c.muted, fg: c.mutedForeground, Icon: Clock };
+        const books = t?.books?.length ? t.books : booksOf(group).map((x) => x.title);
         return (
           <Pressable key={group.id} onPress={() => router.push(`/group/${group.id}`)} style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}>
-            <Card style={{ gap: 10, padding: 12 }}>
-              <Row gap={12}>
-                <GroupIcon name={group.name} />
-                <View style={{ flex: 1 }}>
-                  <Row gap={6}>
-                    <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: fonts.semibold, fontSize: 15, color: c.foreground }}>
-                      {group.name}
-                    </Text>
-                    {role === "ADMIN" && <Crown size={14} color="#f59e0b" />}
-                  </Row>
-                  <Row gap={8}>
-                    <Row gap={3}>
-                      {group.visibility === "PUBLIC" ? <Globe size={11} color={c.mutedForeground} /> : <Lock size={11} color={c.mutedForeground} />}
-                      <Muted>{members} üye</Muted>
+            <Card style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, paddingLeft: 14, paddingRight: 10, overflow: "hidden" }}>
+              {/* Kitap sırtı */}
+              <View style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 5, backgroundColor: cover }} />
+              <BookCover name={group.name} color={cover} />
+              <View style={{ flex: 1, gap: 3 }}>
+                <Row gap={6}>
+                  <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: fonts.semibold, fontSize: 15, color: c.foreground }}>
+                    {group.name}
+                  </Text>
+                  {role === "ADMIN" && <Crown size={13} color="#f59e0b" />}
+                  <View style={{ flex: 1 }} />
+                  {status && (
+                    <Row gap={3} style={{ backgroundColor: status.bg, borderRadius: 99, paddingHorizontal: 8, paddingVertical: 2 }}>
+                      <status.Icon size={11} color={status.fg} strokeWidth={3} />
+                      <Text style={{ fontFamily: fonts.bold, fontSize: 11, color: status.fg }}>{status.text}</Text>
                     </Row>
-                    {t?.teamName && (
-                      <Row gap={3}>
-                        <Shield size={11} color={c.mutedForeground} />
-                        <Muted>{t.teamName}</Muted>
-                      </Row>
-                    )}
-                  </Row>
-                </View>
-                <ChevronRight size={18} color={c.mutedForeground} />
-              </Row>
-
-              {t ? (
-                <>
-                  <Row gap={8} style={{ backgroundColor: statusBg, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8 }}>
-                    <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: done ? c.success : partial ? "#f59e0b" : c.card, alignItems: "center", justifyContent: "center" }}>
-                      {done ? <Check size={15} color="#fff" strokeWidth={3} /> : partial ? <BookOpen size={14} color="#fff" /> : <Clock size={14} color={c.mutedForeground} />}
+                  )}
+                </Row>
+                <Text numberOfLines={1} style={{ fontFamily: fonts.regular, fontSize: 11, color: c.mutedForeground }}>
+                  {books.join(" · ")}
+                  {t ? ` · günde ${t.myTarget} sf (alt ${t.myMin})` : ""}
+                  {t?.teamName ? ` · ${t.teamName}` : ""}
+                </Text>
+                {t ? (
+                  <Row gap={6}>
+                    <View style={{ flex: 1, height: 5, borderRadius: 3, backgroundColor: c.muted, overflow: "hidden" }}>
+                      <View style={{ width: `${members ? Math.round((t.reported / members) * 100) : 0}%`, height: "100%", borderRadius: 3, backgroundColor: c.success }} />
                     </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontFamily: fonts.semibold, fontSize: 13, color: c.foreground }}>
-                        {done ? "Bugünkü okuman tamam" : partial ? `Bugün ${t.myPages}/${t.myTarget} sayfa` : t.open ? "Bugün henüz bildirmedin" : "Okuma günü kapandı"}
-                      </Text>
-                      {t.open ? (
-                        <Row gap={4}>
-                          <Countdown to={t.deadline} style={{ fontSize: 11 }} />
-                          <Muted style={{ fontSize: 11 }}>· {minuteToTime(group.deadlineMinute)}&apos;e kadar</Muted>
-                        </Row>
-                      ) : (
-                        <Muted style={{ fontSize: 11 }}>Yeni gün {minuteToTime(group.startMinute)}&apos;de başlar</Muted>
-                      )}
-                    </View>
-                    <View style={{ alignItems: "flex-end" }}>
-                      <Text style={{ fontFamily: fonts.bold, fontSize: 14, color: c.foreground }}>
-                        {t.reported}/{members}
-                      </Text>
-                      <Muted style={{ fontSize: 10 }}>okudu</Muted>
-                    </View>
+                    <Text style={{ fontFamily: fonts.bold, fontSize: 11, color: c.foreground }}>
+                      {t.reported}/{members}
+                    </Text>
+                    {t.open ? <Countdown to={t.deadline} style={{ fontSize: 11 }} /> : <Muted style={{ fontSize: 11 }}>yeni gün {minuteToTime(group.startMinute)}</Muted>}
                   </Row>
-                  <Row gap={6} style={{ flexWrap: "wrap" }}>
-                    <Chip icon={BookOpen} text={`günde ${t.myTarget} sf · alt ${t.myMin}`} />
-                    <Chip icon={Coins} text={t.penalty} />
-                    {t.debt > 0 && <Chip icon={Wallet} text={`borcun ${t.debt} TL`} tone="danger" />}
-                    {t.debt > 0 && t.due && <DueBadge due={t.due} compact />}
+                ) : (
+                  <Muted style={{ fontSize: 11 }}>Son bildirim {minuteToTime(group.deadlineMinute)}</Muted>
+                )}
+                <Row gap={5} style={{ flexWrap: "wrap" }}>
+                  <Row gap={3}>
+                    {group.visibility === "PUBLIC" ? <Globe size={10} color={c.mutedForeground} /> : <Lock size={10} color={c.mutedForeground} />}
+                    <Muted style={{ fontSize: 10 }}>{members} üye</Muted>
                   </Row>
-                </>
-              ) : (
-                <Muted>Son bildirim {minuteToTime(group.deadlineMinute)}</Muted>
-              )}
+                  {t && (
+                    <Row gap={3}>
+                      <Coins size={10} color={c.mutedForeground} />
+                      <Muted numberOfLines={1} style={{ fontSize: 10 }}>
+                        {t.penalty}
+                      </Muted>
+                    </Row>
+                  )}
+                  {!!t && t.debt > 0 && <Chip icon={Wallet} text={`borcun ${t.debt} TL`} tone="danger" />}
+                  {!!t && t.debt > 0 && t.due && <DueBadge due={t.due} compact />}
+                </Row>
+              </View>
+              <ChevronRight size={16} color={c.mutedForeground} />
             </Card>
           </Pressable>
         );
