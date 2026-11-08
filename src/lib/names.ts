@@ -63,10 +63,16 @@ export function shownName(u: U, mode: NameMode | null | undefined) {
   return u.name;
 }
 
-/** Nesnedeki kullanıcının adını grup ayarına göre değiştirir (accountName dışarı verilmez) */
-export function withShownName<T extends { name: string; accountName?: string | null }>(u: T, mode: NameMode | null | undefined): Omit<T, "accountName"> {
+/** Avatar harfi: hesap (mail) adının baş harfi; yoksa girilen adın */
+export function avatarInitial(u: U) {
+  const src = (u.accountName?.trim() || u.name).trim();
+  return (src.match(/\p{L}|\d/u)?.[0] ?? "?").toLocaleUpperCase("tr-TR");
+}
+
+/** Nesnedeki kullanıcının adını grup ayarına göre değiştirir (accountName dışarı verilmez, yalnızca baş harfi) */
+export function withShownName<T extends { name: string; accountName?: string | null }>(u: T, mode: NameMode | null | undefined): Omit<T, "accountName"> & { initial: string } {
   const { accountName, ...rest } = u;
-  return { ...rest, name: shownName({ name: u.name, accountName }, mode) };
+  return { ...rest, name: shownName({ name: u.name, accountName }, mode), initial: avatarInitial({ name: u.name, accountName }) };
 }
 
 /**

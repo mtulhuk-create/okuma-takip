@@ -10,7 +10,7 @@ export type Stats = { read: number; min: number; none: number; pages: number };
 const COLOR: Record<string, string> = {
   r: "bg-emerald-500",
   k: "bg-teal-600", // kefaret okuması (maviye çalan yeşil)
-  m: "bg-amber-400",
+  m: "bg-amber-500",
   n: "bg-rose-500",
   p: "bg-transparent ring-1 ring-inset ring-muted-foreground/40",
   "-": "bg-muted",

@@ -9,7 +9,11 @@ import { enqueue } from "./offline";
 import { LITE } from "./variant";
 
 export const REPORT_CATEGORY = "REPORT";
-const COUNTDOWN_MINUTES = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
+// Tam sürüm: son 10 dakikada her dakika. Lite: telefonu yormasın, yalnızca 10 ve 1 dakika kala
+const COUNTDOWN_MINUTES = LITE ? [10, 1] : [10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
+/** Kaç okuma günü ileriye planlanır (uygulama uzun süre açılmasa da bildirimler gelsin) */
+export const PLAN_DAYS = LITE ? 4 : 7;
+export const SCHEDULE_PATH = `/api/me/schedule?days=${PLAN_DAYS}`;
 
 type Schedule = {
   groups: {
@@ -160,7 +164,7 @@ export async function sendTestNotification(fetchSchedule: () => Promise<Schedule
 type Planned = { identifier: string; key: string; request: Notifications.NotificationRequestInput };
 const PLAN_KEY = "notif-plan-v2";
 /** Geri sayım yalnızca en yakın iki okuma günü için planlanır (cihazda gereksiz alarm birikmesin) */
-const COUNTDOWN_PERIODS = 2;
+const COUNTDOWN_PERIODS = LITE ? 1 : 2;
 
 /** Planlanması gereken bildirimler (her biri sabit kimlikli; aynı plan tekrar kurulmaz) */
 function buildPlan(data: Schedule, sticky: boolean, now: number): Planned[] {

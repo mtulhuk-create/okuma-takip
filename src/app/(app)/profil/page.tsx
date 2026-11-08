@@ -1,4 +1,7 @@
-import { SignOutButton, UserButton } from "@clerk/nextjs";
+import { SignOutButton } from "@clerk/nextjs";
+import { AccountButton } from "@/components/account-button";
+import { Avatar } from "@/components/avatar";
+import { avatarInitial } from "@/lib/names";
 import { Bell, BookOpen, CalendarCheck, LogOut, Palette, Pencil, Users, Wallet } from "lucide-react";
 import Link from "next/link";
 import { PushToggle } from "@/components/push-toggle";
@@ -20,14 +23,17 @@ export default async function ProfilePage() {
   return (
     <main className="space-y-5 pt-4">
       <header className="flex items-center gap-3">
-        <UserButton appearance={{ elements: { avatarBox: { width: 52, height: 52 } } }} />
+        <Avatar name={user.name} src={user.imageUrl} initial={avatarInitial(user)} seed={user.id} size={52} />
         <div className="min-w-0 flex-1">
           <h1 className="truncate font-serif text-2xl font-bold">{user.name}</h1>
           {user.username && <p className="text-sm text-muted-foreground">@{user.username}</p>}
         </div>
-        <Link href="/ad-soyad?duzenle=1" className="btn-ghost btn-sm" aria-label="Adını düzenle">
-          <Pencil /> Düzenle
-        </Link>
+        <div className="flex shrink-0 flex-col gap-1">
+          <Link href="/ad-soyad?duzenle=1" className="btn-ghost btn-sm" aria-label="Adını düzenle">
+            <Pencil /> Düzenle
+          </Link>
+          <AccountButton />
+        </div>
       </header>
 
       <div className="grid grid-cols-2 gap-3">

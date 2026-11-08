@@ -83,7 +83,7 @@ function AdminScreen() {
               <View key={m.id} style={{ padding: 12, gap: 10, borderTopWidth: i ? 1 : 0, borderTopColor: c.border }}>
                 <Pressable onPress={() => setOpenMember(open ? null : m.id)}>
                   <Row>
-                    <Avatar name={m.user.name} uri={m.user.imageUrl} size={40} />
+                    <Avatar name={m.user.name} uri={m.user.imageUrl} initial={m.user.initial} seed={m.user.id} size={40} />
                     <View style={{ flex: 1 }}>
                       <Row gap={4}>
                         <Body numberOfLines={1} style={{ fontFamily: fonts.semibold, flexShrink: 1 }}>

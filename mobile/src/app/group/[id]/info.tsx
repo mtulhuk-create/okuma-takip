@@ -125,7 +125,7 @@ export default function GroupInfoScreen() {
         <Title>{group.members.length} üye</Title>
         {group.members.map((m) => (
           <Row key={m.id}>
-            <Avatar name={m.user.name} uri={m.user.imageUrl} size={34} />
+            <Avatar name={m.user.name} uri={m.user.imageUrl} initial={m.user.initial} seed={m.user.id} size={34} />
             <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 6 }}>
               <Body numberOfLines={1} style={{ flexShrink: 1 }}>
                 {m.user.name}

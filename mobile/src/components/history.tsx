@@ -4,7 +4,7 @@ import { useState } from "react";
 import { ActivityIndicator, Modal, Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApiFetch } from "@/lib/api";
-import { fonts, KEFARET, useColors } from "@/lib/theme";
+import { fonts, STATE, useColors } from "@/lib/theme";
 import type { GroupHistory, HistoryRange, MyHistory, Stats } from "@/lib/types";
 import { Avatar, Card, Muted, Row } from "./ui";
 
@@ -18,7 +18,7 @@ const DOW_MON = ["Pt", "Sa", "Ça", "Pe", "Cu", "Ct", "Pz"];
 
 function useCellColor() {
   const c = useColors();
-  return (ch: string) => ({ r: c.success, k: KEFARET, m: "#f59e0b", n: c.destructive, p: "transparent", "-": c.muted, x: c.muted + "66" })[ch] ?? c.muted;
+  return (ch: string) => ({ r: STATE.read, k: STATE.kefaret, m: STATE.min, n: STATE.none, p: "transparent", "-": c.muted, x: c.muted + "66" })[ch] ?? c.muted;
 }
 
 /** Pazartesi başlayan tam haftalara tamamlanmış gün listesi (x: aralık dışı) */
@@ -312,7 +312,7 @@ export function GroupHistoryModal({ groupId, visible, onClose }: { groupId: stri
             {data?.rows.map((r) => (
               <View key={r.user.id} style={{ gap: 8 }}>
                 <Row>
-                  <Avatar name={r.user.name} uri={r.user.imageUrl} size={28} />
+                  <Avatar name={r.user.name} uri={r.user.imageUrl} initial={r.user.initial} seed={r.user.id} size={28} />
                   <Text numberOfLines={1} style={{ flex: 1, fontFamily: fonts.semibold, fontSize: 14, color: c.foreground }}>
                     {r.user.name}
                     {r.me ? " (sen)" : ""}

@@ -5,7 +5,10 @@ import { rulesFor } from "@/lib/rules";
 import { currentPeriod, periodFor, shiftDayKey } from "@/lib/schedule";
 import { signQuickToken } from "@/lib/token";
 
-export async function GET() {
+/** ?days=N: kaç okuma günü ileriye planlanacak (tam sürüm 7, Lite 4; varsayılan 4) */
+export async function GET(req: Request) {
+  const daysParam = Number(new URL(req.url).searchParams.get("days"));
+  const days = Number.isFinite(daysParam) && daysParam >= 1 ? Math.min(7, Math.floor(daysParam)) : 4;
   const { userId } = await auth();
   if (!userId) return new Response("Unauthorized", { status: 401 });
   const db = getDb();
@@ -19,11 +22,11 @@ export async function GET() {
     const g = m.group;
     const cur = currentPeriod(now, g);
     const logs = await db.readingLog.findMany({
-      where: { groupId: g.id, userId, dayKey: { in: [cur.dayKey, shiftDayKey(cur.dayKey, 1)] } },
+      where: { groupId: g.id, userId, dayKey: { in: Array.from({ length: days }, (_, i) => shiftDayKey(cur.dayKey, i)) } },
     });
     const reported = new Set(logs.map((l) => l.dayKey));
     const periods = [];
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < days; i++) {
       const p = periodFor(shiftDayKey(cur.dayKey, i), g);
       if (p.deadline <= now) continue;
       periods.push({

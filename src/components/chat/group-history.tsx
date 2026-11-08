@@ -37,7 +37,7 @@ export function GroupHistory({ groupId, onClose }: { groupId: string; onClose: (
           {data?.rows.map((r) => (
             <div key={r.user.id} className="space-y-2">
               <div className="flex items-center gap-2">
-                <Avatar name={r.user.name} src={r.user.imageUrl} size={28} />
+                <Avatar name={r.user.name} src={r.user.imageUrl} initial={(r.user as { initial?: string }).initial} seed={r.user.id} size={28} />
                 <span className="truncate text-sm font-semibold">
                   {r.user.name}
                   {r.me && <span className="font-normal text-muted-foreground"> (sen)</span>}

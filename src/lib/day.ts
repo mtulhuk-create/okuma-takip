@@ -5,7 +5,7 @@ import { getDb } from "./db";
 import { categoryOf, parseBookLogs, penaltyFor, rulesFor, type BookLog } from "./rules";
 import { periodFor } from "./schedule";
 
-export type DayPerson = { id: string; name: string; imageUrl: string | null; pages: number | null; required: number; kefaret?: number };
+export type DayPerson = { id: string; name: string; imageUrl: string | null; initial?: string; pages: number | null; required: number; kefaret?: number };
 /** Kişinin süren kefaret okuması (gün kartında "Kefaret" butonu) */
 export type DayKefaret = {
   planId: string;
@@ -49,7 +49,7 @@ export type DayCard = {
   penaltyFinal: boolean;
 };
 
-type Member = { userId: string; teamId: string | null; joinedAt: Date; user: { id: string; name: string; imageUrl: string | null } };
+type Member = { userId: string; teamId: string | null; joinedAt: Date; user: { id: string; name: string; imageUrl: string | null; initial?: string } };
 
 /** Belirtilen günler için grubun okuma durumunu kategorilere ayırır (tek sorgu). */
 export async function getDayCards(group: Group & { teams: Team[] }, members: Member[], dayKeys: string[], meId: string) {
@@ -112,7 +112,7 @@ export async function getDayCards(group: Group & { teams: Team[] }, members: Mem
       // Günün hasılatı: bildirmeyen herkes "okumadı" sayılır (en kötü durum); okudukça düşer
       if (eligible) projected += penaltyFor({ ...r, targetPages: target, minPages: min }, log?.pages ?? 0);
       if (!eligible && !log) continue;
-      const person = { id: m.user.id, name: m.user.name, imageUrl: m.user.imageUrl, pages: log?.pages ?? null, required: target, ...(log?.kefaret ? { kefaret: log.kefaret } : {}) };
+      const person = { id: m.user.id, name: m.user.name, imageUrl: m.user.imageUrl, initial: m.user.initial, pages: log?.pages ?? null, required: target, ...(log?.kefaret ? { kefaret: log.kefaret } : {}) };
       if (!log) (open ? card.pending : card.none).push(person);
       else card[categoryOf(log.pages, { targetPages: target, minPages: min })].push(person);
     }

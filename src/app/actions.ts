@@ -5,7 +5,7 @@ import { after } from "next/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { actionUser, cleanName, getMembership, requireAdmin } from "@/lib/auth";
-import { chooseName, shownName } from "@/lib/names";
+import { avatarInitial, chooseName, shownName } from "@/lib/names";
 import { activeBadges, cleanBadgeLabel, closeAllBadges } from "@/lib/badges";
 import { cancelKefaret, startKefaret } from "@/lib/kefaret";
 import { run, str, int, type ActionState } from "@/lib/action-state";
@@ -665,7 +665,7 @@ export async function sendMessage(_: Prev, fd: FormData) {
         kind: "TEXT",
         text,
         createdAt: m.createdAt.toISOString(),
-        user: { id: user.id, name: shownName(user, member.group.nameDisplay), imageUrl: user.imageUrl, badge: (await activeBadges(member.group)).get(user.id) ?? null },
+        user: { id: user.id, name: shownName(user, member.group.nameDisplay), imageUrl: user.imageUrl, initial: avatarInitial(user), badge: (await activeBadges(member.group)).get(user.id) ?? null },
         day: null,
         poll: null,
         badge: null,

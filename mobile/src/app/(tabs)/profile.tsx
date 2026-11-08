@@ -2,12 +2,12 @@ import { useClerk } from "@clerk/expo";
 import * as Application from "expo-application";
 import * as Notifications from "expo-notifications";
 import { useEffect, useState } from "react";
-import { Alert, AppState, Linking, Switch, Text, View } from "react-native";
+import { Alert, AppState, Linking, Platform, Switch, Text, View } from "react-native";
 import { NameSheet } from "@/components/name-sheet";
 import { Avatar, Body, Button, Card, ErrorView, H1, Loading, Muted, Row, Screen, Segmented, Stat, Title } from "@/components/ui";
 import { toast, useApi, useApiFetch } from "@/lib/api";
 import { LITE } from "@/lib/variant";
-import { exactAlarmsAllowed, getLastSync, getStickyPref, requestExactAlarms, scheduledSummary, sendTestNotification, setStickyPref, setupNotifications, syncSchedule } from "@/lib/notifications";
+import { exactAlarmsAllowed, getLastSync, getStickyPref, requestExactAlarms, scheduledSummary, sendTestNotification, setStickyPref, setupNotifications, syncSchedule, SCHEDULE_PATH } from "@/lib/notifications";
 import { useThemePref } from "@/lib/theme-pref";
 import { Bell, BookOpen, CalendarCheck, LogOut, Monitor, Moon, Palette, Pencil, Sun, Users, Wallet } from "lucide-react-native";
 import { fonts, useColors } from "@/lib/theme";
@@ -48,7 +48,7 @@ export default function ProfileScreen() {
 
   /** Planı sunucudan alıp cihaza yeniden işler ve durumu gösterir */
   async function refreshStatus(resync = false) {
-    if (resync) await syncSchedule(() => fetcher("/api/me/schedule")).catch(() => {});
+    if (resync) await syncSchedule(() => fetcher(SCHEDULE_PATH)).catch(() => {});
     const sum = await scheduledSummary();
     setStatus({ ...sum, error: getLastSync()?.error ?? null });
   }
@@ -67,7 +67,7 @@ export default function ProfileScreen() {
     }
     await checkPerms();
     // Planı hemen cihaza işle
-    syncSchedule(() => fetcher("/api/me/schedule")).catch(() => {});
+    syncSchedule(() => fetcher(SCHEDULE_PATH)).catch(() => {});
   }
 
   if (isLoading) return <Loading />;
@@ -77,7 +77,7 @@ export default function ProfileScreen() {
   return (
     <Screen refreshing={isRefetching} onRefresh={refetch}>
       <Row gap={12}>
-        <Avatar name={data.user.name} uri={data.user.imageUrl} size={56} />
+        <Avatar name={data.user.name} uri={data.user.imageUrl} initial={data.user.initial} seed={data.user.id} size={56} />
         <View style={{ flex: 1 }}>
           <H1>{data.user.name}</H1>
           {data.user.username && <Muted>@{data.user.username}</Muted>}
@@ -149,6 +149,19 @@ export default function ProfileScreen() {
             />
           </Row>
         )}
+        {perm?.notif && Platform.OS === "android" && (
+          // Samsung vb. pil tasarrufu uygulamayı uyutursa hatırlatmalar gecikir ya da hiç gelmez
+          <View style={{ gap: 6, borderTopWidth: 1, borderTopColor: c.border, paddingTop: 10 }}>
+            <Text style={{ fontFamily: fonts.semibold, fontSize: 14, color: c.foreground }}>Pil tasarrufu</Text>
+            <Muted>Bildirimler gecikiyor ya da gelmiyorsa pil ayarlarında Okuma Takip&apos;i &quot;Asla uyutma&quot; / &quot;Kısıtlama yok&quot; olarak ayarla.</Muted>
+            <Button
+              title="Pil ayarlarını aç"
+              small
+              variant="ghost"
+              onPress={() => Linking.sendIntent("android.settings.IGNORE_BATTERY_OPTIMIZATION_SETTINGS").catch(() => Linking.openSettings())}
+            />
+          </View>
+        )}
         {perm?.notif && status && (
           <View style={{ backgroundColor: c.muted, borderRadius: 10, padding: 10, gap: 2 }}>
             <Text style={{ fontFamily: fonts.semibold, fontSize: 12, color: c.foreground }}>
@@ -169,7 +182,7 @@ export default function ProfileScreen() {
             icon={Bell}
             onPress={async () => {
               await setupNotifications().catch(() => {});
-              const day = await sendTestNotification(() => fetcher("/api/me/schedule"));
+              const day = await sendTestNotification(() => fetcher(SCHEDULE_PATH));
               toast(day ? "Gün kartı bildirimi gönderildi" : "Deneme bildirimi gönderildi");
             }}
           />

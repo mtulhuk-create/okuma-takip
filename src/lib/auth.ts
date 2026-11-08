@@ -31,7 +31,8 @@ export const requireUser = cache(async () => {
       nameConfirmed: entered && !!(first && last),
       username: cu.username ?? null,
       email: cu.primaryEmailAddress?.emailAddress ?? null,
-      imageUrl: cu.imageUrl,
+      // Fotoğraf yoksa Clerk'in varsayılan resmi değil, uygulamanın renkli harf avatarı kullanılır
+      imageUrl: cu.hasImage ? cu.imageUrl : null,
     },
     update: {},
   });

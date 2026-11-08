@@ -1,4 +1,5 @@
-import { UserButton } from "@clerk/nextjs";
+import { Avatar } from "@/components/avatar";
+import { avatarInitial } from "@/lib/names";
 import { CalendarDays, Plus, Receipt, Search, Wallet } from "lucide-react";
 import Link from "next/link";
 import { Countdown } from "@/components/countdown";
@@ -27,7 +28,9 @@ export default async function PanelPage() {
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <DebtButton total={money.unpaidTotal} items={money.debts} />
-          <UserButton />
+          <Link href="/profil" aria-label="Profil">
+            <Avatar name={user.name} src={user.imageUrl} initial={avatarInitial(user)} seed={user.id} size={36} />
+          </Link>
         </div>
       </header>
 
@@ -50,16 +53,6 @@ export default async function PanelPage() {
           </div>
         </Link>
       ))}
-
-      {money.unpaidTotal > 0 && (
-        <div className="card flex items-center gap-3">
-          <span className="flex size-10 items-center justify-center rounded-full bg-muted">
-            <Wallet className="size-5 text-muted-foreground" />
-          </span>
-          <p className="flex-1 text-sm">Ödenmemiş cezan</p>
-          <p className="text-lg font-bold text-destructive">{money.unpaidTotal} TL</p>
-        </div>
-      )}
 
       {groups.length === 0 ? (
         <div className="card flex flex-col items-center gap-3 py-8 text-center">
