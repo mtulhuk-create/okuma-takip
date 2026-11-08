@@ -10,6 +10,7 @@ import { AvatarStack } from "./avatar";
 import { Countdown } from "./countdown";
 
 const CATS = [
+  { key: "kefaret", label: "Kefaret", Icon: BookHeart, tone: "text-teal-700 dark:text-teal-400", bg: "bg-teal-500/10" },
   { key: "read", label: "Okudu", Icon: CheckCheck, tone: "text-emerald-700 dark:text-emerald-400", bg: "bg-emerald-500/10" },
   { key: "min", label: "Alt sınır", Icon: Check, tone: "text-amber-700 dark:text-amber-400", bg: "bg-amber-500/10" },
   { key: "none", label: "Okumadı", Icon: X, tone: "text-rose-700 dark:text-rose-400", bg: "bg-rose-500/10" },
@@ -276,7 +277,7 @@ function ChoiceButton({
 }) {
   return (
     <button
-      className={`btn relative min-w-0 flex-auto gap-0.5 whitespace-nowrap rounded-md font-semibold ${press} ${dense ? "h-6 px-1 text-[9px] [&_svg]:size-2.5" : "h-7 px-1.5 text-[10px] [&_svg]:size-3"} ${className} ${ring(on)}`}
+      className={`relative inline-flex min-w-0 flex-auto select-none items-center justify-center gap-0.5 whitespace-nowrap rounded-md border-2 font-semibold disabled:pointer-events-none disabled:opacity-50 [&_svg]:shrink-0 ${press} ${dense ? "h-6 px-1 text-[9px] [&_svg]:size-2.5" : "h-7 px-1.5 text-[10px] [&_svg]:size-3"} ${className} ${ring(on)}`}
       aria-pressed={on}
       aria-label={hint}
       title={on ? `${hint} · tekrar bas: geri al` : hint}
@@ -301,8 +302,11 @@ function wholeChoice(books: { pages: number | null; target: number; min: number 
   return null;
 }
 // Seçili buton belirgin çerçeveli; basınca küçülüp kararır (dokunma geri bildirimi)
-const ring = (on: boolean) => (on ? "ring-2 ring-offset-2 ring-offset-card ring-foreground/70 shadow-md" : "");
-const press = "transition-[transform,filter] duration-75 active:scale-90 active:brightness-75";
+// Seçili: dış çerçeve yok; butonun kendi kenar rengi koyulaşır ve içe basık görünür
+const ring = (on: boolean) => (on ? "border-black/35 dark:border-white/85 shadow-[inset_0_2px_5px_rgba(0,0,0,0.35)]" : "border-transparent");
+// Basınca: yumuşak, tok küçülme + kararma + içe basık gölge
+const press =
+  "transition-[transform,filter,box-shadow,border-color] duration-150 ease-out active:scale-[0.93] active:brightness-90 active:shadow-[inset_0_2px_6px_rgba(0,0,0,0.35)]";
 
 function Spinner() {
   return <span className="size-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />;
@@ -373,14 +377,22 @@ function DeadlinePill({ card, withClock }: { card: Card; withClock?: boolean }) 
 /** Kategori çipleri: üst üste profil resimleri + sayı; dokununca isimler açılır */
 function CategoryChips({ card, interactive }: { card: Card; interactive?: boolean }) {
   const [open, setOpen] = useState<(typeof CATS)[number]["key"] | null>(null);
-  const cats = CATS.filter((c) => card[c.key].length);
+  // Kefaret okuyanlar "Okudu"dan ayrı, kendi renginde gösterilir
+  const lists = {
+    kefaret: card.read.filter((p) => p.kefaret),
+    read: card.read.filter((p) => !p.kefaret),
+    min: card.min,
+    none: card.none,
+    pending: card.pending,
+  };
+  const cats = CATS.filter((c) => lists[c.key].length);
   if (!cats.length) return null;
-  const sel = CATS.find((c) => c.key === open && card[c.key].length);
+  const sel = CATS.find((c) => c.key === open && lists[c.key].length);
   return (
     <div className="space-y-1.5">
       <div className="flex flex-wrap gap-1.5">
         {cats.map(({ key, label, Icon, tone, bg }) => {
-          const people = card[key];
+          const people = lists[key];
           const body = (
             <>
               <AvatarStack people={people} size={20} max={3} />
@@ -409,7 +421,7 @@ function CategoryChips({ card, interactive }: { card: Card; interactive?: boolea
       </div>
       {sel && (
         <div className={`flex flex-wrap gap-1 rounded-lg p-1.5 ${sel.bg}`}>
-          {card[sel.key].map((p) => (
+          {lists[sel.key].map((p) => (
             <span key={p.id} className={`inline-flex items-center gap-1 rounded-full bg-card/70 px-2 py-0.5 text-[11px] font-semibold ${sel.tone}`}>
               {p.name}
               {p.kefaret ? <BookHeart className="size-3 text-teal-600 dark:text-teal-400" aria-label="Kefaret okuması" /> : null}

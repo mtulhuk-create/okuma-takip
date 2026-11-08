@@ -21,11 +21,14 @@ export function JoinForm({
   groupId,
   className,
   children,
+  onDone,
 }: {
   action: (prev: ActionState, fd: FormData) => Promise<ActionState>;
   groupId: string;
   className?: string;
   children: React.ReactNode;
+  /** Başarıyla gönderilince (örn. pencereyi kapatmak için) */
+  onDone?: () => void;
 }) {
   const [state, formAction] = useActionState(action, null);
   const ref = useRef<HTMLFormElement>(null);
@@ -37,7 +40,8 @@ export function JoinForm({
 
   useEffect(() => {
     if (state) checked.current = false;
-  }, [state]);
+    if (state?.ok) onDone?.();
+  }, [state, onDone]);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     const sub = (e.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;

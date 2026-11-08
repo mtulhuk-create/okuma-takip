@@ -1,17 +1,23 @@
 import { useBookCheck } from "@/components/book-match";
 import { router } from "expo-router";
-import { AlarmClock, BookOpen, Check, ChevronRight, Clock, Coins, Crown, Globe, Lock, Plus, Search, Shield, Target, UserRound, Users, Wallet } from "lucide-react-native";
+import { AlarmClock, BookOpen, CalendarDays, Check, ChevronRight, Clock, Coins, Crown, Globe, Lock, Plus, Search, Shield, Target, UserPlus, Users, Wallet } from "lucide-react-native";
 import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { Countdown } from "@/components/countdown";
 import { DueBadge } from "@/components/due-badge";
-import { TeamPicker } from "@/components/team-picker";
+import { JoinSheet } from "@/components/join-sheet";
 import { Badge, Button, Card, ErrorView, H1, Input, Label, Loading, Muted, Row, Screen } from "@/components/ui";
 import { useAction, useApi } from "@/lib/api";
 import { LITE } from "@/lib/variant";
 import { minuteToTime } from "@/lib/format";
 import { fonts, STATE, useColors } from "@/lib/theme";
 import { booksOf, describePenalty, teamsActive, type GroupsResponse } from "@/lib/types";
+
+const MONTHS = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"];
+const shortDate = (iso: string) => {
+  const d = new Date(iso);
+  return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+};
 
 const COVERS = ["#9b2c2c", "#2f6f4f", "#1e4e79", "#8a5a1f", "#5b3a8a", "#0f766e", "#7c2d4a"];
 function coverColor(id: string) {
@@ -98,8 +104,7 @@ export default function GroupsScreen() {
   const { data, isLoading, error, refetch, isRefetching } = useApi<GroupsResponse>(`/api/m/groups?q=${encodeURIComponent(query)}`);
   const action = useAction();
   const bookCheck = useBookCheck();
-  const [notes, setNotes] = useState<Record<string, string>>({});
-  const [teams, setTeams] = useState<Record<string, string>>({});
+  const [joining, setJoining] = useState<{ id: string; name: string; teams: GroupsResponse["publicGroups"][number]["teams"] } | null>(null);
 
   if (isLoading && !data) return <Loading />;
   if (!data) return <ErrorView message={error?.message ?? "Yüklenemedi"} onRetry={refetch} />;
@@ -209,7 +214,8 @@ export default function GroupsScreen() {
                 name={g.name}
                 meta={[
                   { Icon: Users, text: `${g._count.members} üye` },
-                  { Icon: UserRound, text: `Kurucu: ${g.owner.name}` },
+                  ...(g.createdAt ? [{ Icon: CalendarDays, text: `Kuruluş: ${shortDate(g.createdAt)}` }] : []),
+                  ...(hasTeams ? [{ Icon: Shield, text: `${g.teams.length} ekip` }] : []),
                 ]}
               />
               {g.description ? (
@@ -217,22 +223,33 @@ export default function GroupsScreen() {
                   {g.description}
                 </Text>
               ) : null}
-              {!hasTeams && (
-                <InfoRows
-                  rows={[
-                    { Icon: BookOpen, label: "Eserler", value: books.map((b) => b.title).join(", ") },
-                    { Icon: Target, label: "Günlük", value: `${g.targetPages} sayfa · alt sınır ${g.minPages}` },
-                    { Icon: Coins, label: "Ceza", value: describePenalty(g) },
-                    { Icon: AlarmClock, label: "Son bildirim", value: minuteToTime(g.deadlineMinute) },
-                  ]}
-                />
+              <InfoRows
+                rows={[
+                  { Icon: BookOpen, label: "Eserler", value: [...new Set((hasTeams ? g.teams.flatMap((t) => booksOf(t as never)) : books).map((b) => b.title))].join(", ") },
+                  ...(hasTeams
+                    ? []
+                    : [
+                        { Icon: Target, label: "Günlük", value: `${g.targetPages} sayfa · alt sınır ${g.minPages}` },
+                        { Icon: Coins, label: "Ceza", value: describePenalty(g) },
+                      ]),
+                  { Icon: AlarmClock, label: "Son bildirim", value: minuteToTime(g.deadlineMinute) },
+                ]}
+              />
+              {hasTeams && (
+                // Ekipli gruplarda her ekibin hedefi ve cezası
+                <View style={{ gap: 3, backgroundColor: c.muted + "99", borderRadius: 9, paddingHorizontal: 9, paddingVertical: 7 }}>
+                  {g.teams.map((t) => (
+                    <Row key={t.id} gap={6} style={{ alignItems: "flex-start" }}>
+                      <Shield size={12} color={c.primary} style={{ marginTop: 2 }} />
+                      <Text style={{ flex: 1, fontFamily: fonts.regular, fontSize: 11.5, color: c.foreground }}>
+                        <Text style={{ fontFamily: fonts.semibold }}>{t.name}: </Text>
+                        günde {t.targetPages} sayfa · alt sınır {t.minPages} · {describePenalty(t)}
+                      </Text>
+                    </Row>
+                  ))}
+                </View>
               )}
             </Pressable>
-
-            {hasTeams && !requested.has(g.id) && (
-              // Ekip seçerken her ekibin günlük hedefi görünür
-              <TeamPicker teams={g.teams} value={teams[g.id] ?? null} onChange={(t) => setTeams((s) => ({ ...s, [g.id]: t }))} label="Ekipler ve günlük hedefleri" />
-            )}
 
             {requested.has(g.id) ? (
               <Row style={{ justifyContent: "space-between", backgroundColor: c.muted, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6 }}>
@@ -240,20 +257,21 @@ export default function GroupsScreen() {
                 <Button title="Geri çek" small variant="ghost" loading={busy("cancelJoinRequest", g.id)} onPress={() => action.mutate({ name: "cancelJoinRequest", body: { groupId: g.id } })} />
               </Row>
             ) : (
-              <View style={{ gap: 8 }}>
-                <Input placeholder="Yöneticiye not (isteğe bağlı)" value={notes[g.id] ?? ""} onChangeText={(t) => setNotes((n) => ({ ...n, [g.id]: t }))} maxLength={300} />
-                <Button
-                  title={hasTeams && !teams[g.id] ? "Önce ekibini seç" : "Katılma isteği gönder"}
-                  disabled={hasTeams && !teams[g.id]}
-                  loading={busy("requestJoin", g.id)}
-                  onPress={() => bookCheck.check(g.id, teams[g.id], (bookLinks) => action.mutate({ name: "requestJoin", body: { groupId: g.id, message: notes[g.id], teamId: teams[g.id], bookLinks } }))}
-                />
-              </View>
+              <Button title="Katılma isteği gönder" icon={UserPlus} loading={busy("requestJoin", g.id)} onPress={() => setJoining({ id: g.id, name: g.name, teams: hasTeams ? g.teams : [] })} />
             )}
           </Card>
         );
       })}
       {bookCheck.modal}
+      <JoinSheet
+        group={joining}
+        sending={action.isPending && action.variables?.name === "requestJoin"}
+        onClose={() => setJoining(null)}
+        onSubmit={(teamId, note) => {
+          const g = joining!;
+          bookCheck.check(g.id, teamId, (bookLinks) => action.mutate({ name: "requestJoin", body: { groupId: g.id, message: note, teamId, bookLinks } }, { onSuccess: () => setJoining(null) }));
+        }}
+      />
     </Screen>
   );
 }

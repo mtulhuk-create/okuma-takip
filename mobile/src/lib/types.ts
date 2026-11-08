@@ -18,6 +18,7 @@ export type Team = Rules & { id: string; name: string; position: number };
 export type Group = Rules & {
   id: string;
   name: string;
+  createdAt?: string;
   description: string | null;
   visibility: "PUBLIC" | "PRIVATE";
   chatPolicy: "ALL" | "ADMINS";
