@@ -1,7 +1,7 @@
 import { router } from "expo-router";
 import { BookHeart, BookOpen, Check, CheckCheck, ChevronRight, Clock, CloudOff, Link2, Lock, X, type LucideIcon } from "lucide-react-native";
 import { memo, useState } from "react";
-import { ActivityIndicator, Pressable, Text, View, Platform, Vibration } from "react-native";
+import { ActivityIndicator, Pressable, Text, View, Platform, Vibration, Animated, useColorScheme, type StyleProp, type ViewStyle } from "react-native";
 import { useAction } from "@/lib/api";
 import { useOfflineQueue } from "@/lib/offline";
 import { formatDayLong, formatClock } from "@/lib/format";
@@ -10,8 +10,9 @@ import type { DayCard as Card } from "@/lib/types";
 import { Countdown } from "./countdown";
 import { Avatar, Row } from "./ui";
 
-type Cat = { key: "read" | "min" | "none" | "pending"; label: string; Icon: LucideIcon; color: (c: ReturnType<typeof useColors>) => string };
+type Cat = { key: "kefaret" | "read" | "min" | "none" | "pending"; label: string; Icon: LucideIcon; color: (c: ReturnType<typeof useColors>) => string };
 const CATS: Cat[] = [
+  { key: "kefaret", label: "Kefaret", Icon: BookHeart, color: () => STATE.kefaret },
   { key: "read", label: "Okudu", Icon: CheckCheck, color: () => STATE.read },
   { key: "min", label: "Alt sınır", Icon: Check, color: () => STATE.min },
   { key: "none", label: "Okumadı", Icon: X, color: () => STATE.none },
@@ -83,6 +84,7 @@ export function ReportControls({ groupId, card, compact, onDone }: { groupId: st
     });
   }
   const dense = !!plan; // 4 buton varken bir tık küçük
+  const selectedBorder = useColorScheme() === "dark" ? "rgba(255,255,255,0.85)" : "rgba(0,0,0,0.35)";
   // Kısa etiketler; ayrıntılar butonların altındaki yardım satırında
   // Renkler okuma takip tablosuyla aynı; sağ üst çentik sayfa, sağ alt çentik ceza ("-10 TL")
   const bottom: { key: string; label: string; hint: string; corner?: string; fine?: string; Icon: LucideIcon; color: string; body: Record<string, unknown> }[] = [
@@ -153,30 +155,26 @@ export function ReportControls({ groupId, card, compact, onDone }: { groupId: st
         {bottom.map((b) => {
           const fg = "#fff";
           return (
-            <Pressable
+            <Tappable
               key={b.key}
               disabled={action.isPending}
               onPress={() => send(b.body, b.key)}
               accessibilityLabel={b.hint}
-              accessibilityState={{ selected: active === b.key }}
-              style={({ pressed }) => [
-                {
-                  flexGrow: 1,
-                  flexShrink: 1,
-                  height: dense ? 26 : 30,
-                  borderRadius: radius,
-                  borderWidth: 1,
-                  borderColor: "transparent",
-                  backgroundColor: b.color,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: dense ? 2 : 3,
-                  paddingHorizontal: dense ? 3 : 5,
-                },
-                pressFx(pressed),
-                active === b.key && { borderWidth: 2, borderColor: c.foreground, elevation: 3 },
-              ]}
+              selected={active === b.key}
+              outerStyle={{ flexGrow: 1, flexShrink: 1 }}
+              style={{
+                height: dense ? 26 : 30,
+                borderRadius: radius,
+                // Seçili: dış çerçeve yok, butonun kendi kenar rengi değişir
+                borderWidth: 2,
+                borderColor: active === b.key ? selectedBorder : "transparent",
+                backgroundColor: b.color,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: dense ? 2 : 3,
+                paddingHorizontal: dense ? 3 : 5,
+              }}
             >
               {b.corner && (
                 // Sağ üst çentik: sayfa; köşe yuvarlaklığı butonla aynı
@@ -194,7 +192,7 @@ export function ReportControls({ groupId, card, compact, onDone }: { groupId: st
               <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: fonts.semibold, fontSize: dense ? 9 : 10, color: fg }}>
                 {b.label}
               </Text>
-            </Pressable>
+            </Tappable>
           );
         })}
       </Row>
@@ -264,7 +262,34 @@ function tap(): false {
   if (Platform.OS === "android") Vibration.vibrate(12);
   return false;
 }
-/** Basılıyken küçülüp kararır; seçiliyse belirgin çerçeve */
+/** Yaylı (spring) basma efekti: basınca tok biçimde küçülür ve kararır, bırakınca yumuşakça geri gelir */
+function Tappable({
+  children,
+  style,
+  outerStyle,
+  onPress,
+  disabled,
+  selected,
+  accessibilityLabel,
+}: {
+  children: React.ReactNode;
+  style: StyleProp<ViewStyle>;
+  outerStyle?: StyleProp<ViewStyle>;
+  onPress: () => void;
+  disabled?: boolean;
+  selected?: boolean;
+  accessibilityLabel?: string;
+}) {
+  const [v] = useState(() => new Animated.Value(0));
+  const to = (x: number) => Animated.spring(v, { toValue: x, useNativeDriver: true, speed: 40, bounciness: 7 }).start();
+  return (
+    <Pressable onPress={onPress} onPressIn={() => to(1)} onPressOut={() => to(0)} disabled={disabled} accessibilityRole="button" accessibilityLabel={accessibilityLabel} accessibilityState={{ selected, disabled }} style={outerStyle}>
+      <Animated.View style={[style, { transform: [{ scale: v.interpolate({ inputRange: [0, 1], outputRange: [1, 0.92] }) }], opacity: v.interpolate({ inputRange: [0, 1], outputRange: [1, 0.78] }) }]}>{children}</Animated.View>
+    </Pressable>
+  );
+}
+
+/** Basılıyken küçülüp kararır (kısayol ve eser düğmeleri) */
 const pressFx = (pressed: boolean) => (pressed ? { transform: [{ scale: 0.9 }], opacity: 0.7 } : null);
 
 /** Çevrimdışı kaydedilip henüz gönderilmemiş işlemler */
@@ -354,7 +379,15 @@ function DeadlinePill({ card, withClock }: { card: Card; withClock?: boolean }) 
 function CategoryChips({ card, interactive }: { card: Card; interactive?: boolean }) {
   const c = useColors();
   const [open, setOpen] = useState<Cat["key"] | null>(null);
-  const cats = CATS.filter((cat) => card[cat.key].length);
+  // Kefaret okuyanlar "Okudu"dan ayrı, kendi renginde
+  const lists = {
+    kefaret: card.read.filter((p) => p.kefaret),
+    read: card.read.filter((p) => !p.kefaret),
+    min: card.min,
+    none: card.none,
+    pending: card.pending,
+  };
+  const cats = CATS.filter((cat) => lists[cat.key].length);
   if (!cats.length) return null;
   const sel = cats.find((cat) => cat.key === open);
   return (
@@ -362,7 +395,7 @@ function CategoryChips({ card, interactive }: { card: Card; interactive?: boolea
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
         {cats.map((cat) => {
           const color = cat.color(c);
-          const people = card[cat.key];
+          const people = lists[cat.key];
           const on = open === cat.key;
           const body = (
             <>
@@ -386,7 +419,7 @@ function CategoryChips({ card, interactive }: { card: Card; interactive?: boolea
       </View>
       {sel && (
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 4, backgroundColor: sel.color(c) + "14", borderRadius: 10, padding: 6 }}>
-          {card[sel.key].map((p) => (
+          {lists[sel.key].map((p) => (
             <View key={p.id} style={{ flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: c.card, borderRadius: 99, paddingHorizontal: 8, paddingVertical: 2 }}>
               <Text style={{ fontFamily: fonts.semibold, fontSize: 11, color: sel.color(c) }}>{p.name}</Text>
               {p.kefaret ? <BookHeart size={11} color={KEFARET} /> : null}

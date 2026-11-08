@@ -1,17 +1,19 @@
-import { AlarmClock, BookOpen, Check, ChevronRight, Clock, Coins, Crown, Globe, Lock, Plus, Search, Shield, Target, UserRound, Users, Wallet } from "lucide-react";
+import { AlarmClock, BookOpen, CalendarDays, Check, ChevronRight, Clock, Coins, Crown, Globe, Lock, Plus, Search, Shield, Target, Users, Wallet } from "lucide-react";
 import Link from "next/link";
-import { cancelJoinRequest, requestJoin } from "@/app/actions";
+import { cancelJoinRequest } from "@/app/actions";
 import { ActionForm, SubmitButton } from "@/components/action-form";
-import { JoinForm } from "@/components/join-form";
+import { JoinDialog } from "@/components/join-dialog";
 import { Countdown } from "@/components/countdown";
 import { DueBadge } from "@/components/due-badge";
-import { TeamSelect } from "@/components/team-select";
 import { requireUser } from "@/lib/auth";
 import { getGroupsOverview } from "@/lib/queries";
 import { booksOf, describePenalty, teamsActive } from "@/lib/rules";
 import { minuteToTime } from "@/lib/schedule";
 
 export const metadata = { title: "Gruplar" };
+
+const MONTHS = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"];
+const formatDateShort = (d: Date) => `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
 
 const COVERS = ["#9b2c2c", "#2f6f4f", "#1e4e79", "#8a5a1f", "#5b3a8a", "#0f766e", "#7c2d4a"];
 function coverColor(id: string) {
@@ -68,40 +70,6 @@ function CardHead({ id, name, admin, meta, right }: { id: string; name: string; 
 
 const cardCls = "card relative block space-y-2.5 overflow-hidden py-3 pl-4 pr-3";
 const Spine = ({ id }: { id: string }) => <span className="absolute inset-y-0 left-0 w-1.5" style={{ background: coverColor(id) }} aria-hidden />;
-
-type Rulesish = Parameters<typeof booksOf>[0] & Parameters<typeof describePenalty>[0];
-
-/** Ekiplerin günlük hedefleri: katılmadan önce kim ne kadar okuyacak görünsün */
-function TeamTargets({ teams }: { teams: (Rulesish & { id: string; name: string })[] }) {
-  return (
-    <div className="rounded-xl border border-border">
-      <p className="flex items-center gap-1.5 border-b border-border px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
-        <Shield className="size-3.5 text-primary" /> Ekipler ve günlük hedefleri
-      </p>
-      <ul className="divide-y divide-border">
-        {teams.map((t) => {
-          const books = booksOf(t);
-          return (
-            <li key={t.id} className="flex items-start justify-between gap-3 px-3 py-2">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold">{t.name}</p>
-                <p className="truncate text-[11px] text-muted-foreground">{books.map((b) => b.title).join(" · ")}</p>
-              </div>
-              <div className="shrink-0 text-right">
-                <p className="text-sm font-bold">
-                  {t.targetPages} <span className="text-[11px] font-normal text-muted-foreground">sf/gün</span>
-                </p>
-                <p className="text-[10px] text-muted-foreground">
-                  alt sınır {t.minPages} · {describePenalty(t)}
-                </p>
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-    </div>
-  );
-}
 
 export default async function GroupsPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const user = await requireUser();
@@ -227,38 +195,51 @@ export default async function GroupsPage({ searchParams }: { searchParams: Promi
                       <Users className="size-3" /> {g._count.members} üye
                     </span>
                     <span className="inline-flex items-center gap-1">
-                      <UserRound className="size-3" /> Kurucu: {g.owner.name}
+                      <CalendarDays className="size-3" /> Kuruluş: {formatDateShort(g.createdAt)}
                     </span>
+                    {teams.length > 0 && (
+                      <span className="inline-flex items-center gap-1">
+                        <Shield className="size-3" /> {teams.length} ekip
+                      </span>
+                    )}
                   </>
                 }
               />
               {g.description && <p className="line-clamp-2 text-xs text-muted-foreground">{g.description}</p>}
-              {teams.length ? (
-                <TeamTargets teams={teams} />
-              ) : (
-                <InfoRows
-                  rows={[
-                    { Icon: BookOpen, label: "Eserler", value: books.map((b) => b.title).join(", ") },
-                    { Icon: Target, label: "Günlük", value: `${g.targetPages} sayfa · alt sınır ${g.minPages}` },
-                    { Icon: Coins, label: "Ceza", value: describePenalty(g) },
-                    { Icon: AlarmClock, label: "Son bildirim", value: minuteToTime(g.deadlineMinute) },
-                  ]}
-                />
+              <InfoRows
+                rows={[
+                  { Icon: BookOpen, label: "Eserler", value: [...new Set((teams.length ? teams.flatMap((t) => booksOf(t)) : books).map((b) => b.title))].join(", ") },
+                  ...(teams.length
+                    ? []
+                    : [
+                        { Icon: Target, label: "Günlük", value: `${g.targetPages} sayfa · alt sınır ${g.minPages}` },
+                        { Icon: Coins, label: "Ceza", value: describePenalty(g) },
+                      ]),
+                  { Icon: AlarmClock, label: "Son bildirim", value: minuteToTime(g.deadlineMinute) },
+                ]}
+              />
+              {/* Ekipli gruplarda her ekibin hedefi ve cezası */}
+              {teams.length > 0 && (
+                <ul className="space-y-1 rounded-lg bg-muted/50 px-2.5 py-2 text-xs">
+                  {teams.map((t) => (
+                    <li key={t.id} className="flex items-start gap-1.5">
+                      <Shield className="mt-0.5 size-3.5 shrink-0 text-primary" />
+                      <span className="min-w-0">
+                        <b className="font-semibold">{t.name}:</b> günde {t.targetPages} sayfa · alt sınır {t.minPages} · {describePenalty(t)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
               )}
 
               {requested.has(g.id) ? (
-                <ActionForm action={cancelJoinRequest} className="flex items-center justify-between gap-2 rounded-xl bg-muted/60 px-3 py-2">
+                <ActionForm action={cancelJoinRequest} className="flex items-center justify-between gap-2 rounded-lg bg-muted/60 px-3 py-2">
                   <input type="hidden" name="groupId" value={g.id} />
                   <span className="text-sm text-muted-foreground">İsteğin yönetici onayı bekliyor</span>
                   <SubmitButton className="btn-quiet btn-sm">Geri çek</SubmitButton>
                 </ActionForm>
               ) : (
-                <JoinForm action={requestJoin} groupId={g.id} className="flex flex-col gap-2 sm:flex-row">
-                  <input type="hidden" name="groupId" value={g.id} />
-                  {teams.length > 0 && <TeamSelect teams={teams} />}
-                  <input name="message" maxLength={300} placeholder="Not (isteğe bağlı)" className="input" />
-                  <SubmitButton className="btn-primary shrink-0">Katılma isteği</SubmitButton>
-                </JoinForm>
+                <JoinDialog groupId={g.id} groupName={g.name} teams={teams.map((t) => ({ id: t.id, name: t.name, targetPages: t.targetPages, minPages: t.minPages, penalty: describePenalty(t) }))} />
               )}
             </div>
           );
