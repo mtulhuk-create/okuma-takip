@@ -145,7 +145,7 @@ export default function ChatScreen() {
           }
         } catch {}
       };
-      const t = setInterval(tick, LITE ? 5000 : 3000);
+      const t = setInterval(tick, LITE ? 10_000 : 3000);
       return () => {
         active = false;
         clearInterval(t);

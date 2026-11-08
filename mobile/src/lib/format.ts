@@ -30,6 +30,17 @@ export function formatIban(iban: string) {
   return iban.replace(/(.{4})/g, "$1 ").trim();
 }
 
+/** Saniyesiz süre (Lite): "4 sa 12 dk", "12 dk", "1 dk'dan az" */
+export function formatDurationShort(ms: number) {
+  const totalMin = Math.max(0, Math.ceil(ms / 60_000));
+  const d = Math.floor(totalMin / 1440);
+  const h = Math.floor((totalMin % 1440) / 60);
+  const m = totalMin % 60;
+  if (d > 0) return `${d} gün ${h} sa`;
+  if (h > 0) return m ? `${h} sa ${m} dk` : `${h} sa`;
+  return ms < 60_000 ? "1 dk'dan az" : `${m} dk`;
+}
+
 export function formatDuration(ms: number) {
   const s = Math.max(0, Math.floor(ms / 1000));
   const d = Math.floor(s / 86400);

@@ -6,6 +6,7 @@ import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 import { API_URL } from "./config";
 import { enqueue } from "./offline";
+import { LITE } from "./variant";
 
 export const REPORT_CATEGORY = "REPORT";
 const COUNTDOWN_MINUTES = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
@@ -99,6 +100,7 @@ function dayCardContent(g: Schedule["groups"][number], deadline: Date, dayKey: s
 const STICKY_KEY = "sticky-today";
 /** Kilit ekranında sabit bildirim tercihi (isteğe bağlı, varsayılan kapalı) */
 export async function getStickyPref() {
+  if (LITE) return false; // Lite: kilit ekranı sabit kartı yok
   return (await SecureStore.getItemAsync(STICKY_KEY).catch(() => null)) === "1";
 }
 export async function setStickyPref(on: boolean) {
@@ -311,6 +313,17 @@ async function alreadyHandled(key: string) {
   return false;
 }
 
+/** Yalnızca bu grubun bu günkü bildirimlerini kaldırır (diğer grupların kartları kalsın) */
+async function dismissDayNotifications(data: Pick<ReportData, "groupId" | "dayKey">) {
+  const presented = await Notifications.getPresentedNotificationsAsync().catch(() => []);
+  for (const n of presented) {
+    const d = n.request.content.data as Partial<ReportData> | undefined;
+    if (n.request.identifier === "report-result" || (d?.groupId === data.groupId && d?.dayKey === data.dayKey)) {
+      await Notifications.dismissNotificationAsync(n.request.identifier).catch(() => {});
+    }
+  }
+}
+
 /** Bildirimdeki hızlı butona basıldığında okumayı sunucuya iletir (uygulama kapalıyken de çalışır). */
 export async function handleReportAction(actionId: string, data: ReportData, userText?: string, key?: string) {
   if (!["all", "pages", "min", "none"].includes(actionId) || !data?.token) return false;
@@ -323,7 +336,7 @@ export async function handleReportAction(actionId: string, data: ReportData, use
     // İnternet yok: bildirim butonundaki seçim sıraya alınır, bağlanınca işlem anıyla gönderilir
     const label = { all: "Okudum", min: "Alt sınırı okudum", none: "Okumadım", pages: "Sayfa bildirimi" }[actionId] ?? "Bildirim";
     await enqueue({ kind: "quick", groupId: data.groupId, dayKey: data.dayKey, label, body: payload });
-    await Notifications.dismissAllNotificationsAsync();
+    await dismissDayNotifications(data);
     await Notifications.scheduleNotificationAsync({
       identifier: "report-result",
       content: { title: "📴 Çevrimdışı kaydedildi", body: `${label}: internet gelince işlem saatiyle gönderilecek.` },
@@ -344,7 +357,7 @@ export async function handleReportAction(actionId: string, data: ReportData, use
         .map((n) => Notifications.cancelScheduledNotificationAsync(n.identifier)),
     );
   }
-  await Notifications.dismissAllNotificationsAsync();
+  await dismissDayNotifications(data);
   await Notifications.scheduleNotificationAsync({
     identifier: "report-result",
     content: {

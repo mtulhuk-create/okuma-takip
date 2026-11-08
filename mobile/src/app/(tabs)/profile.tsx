@@ -130,7 +130,7 @@ export default function ProfileScreen() {
           />
         )}
         {perm?.notif && perm.exact && <Body style={{ color: c.success }}>Bildirimler açık ve tam zamanında gelecek.</Body>}
-        {perm?.notif && (
+        {perm?.notif && !LITE && (
           <Row style={{ justifyContent: "space-between", borderTopWidth: 1, borderTopColor: c.border, paddingTop: 10 }}>
             <View style={{ flex: 1 }}>
               <Text style={{ fontFamily: fonts.semibold, fontSize: 14, color: c.foreground }}>Bugünün kartı kilit ekranında</Text>

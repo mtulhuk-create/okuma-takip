@@ -1,7 +1,11 @@
 import { memo, useSyncExternalStore } from "react";
 import { Text, type StyleProp, type TextStyle } from "react-native";
-import { formatDuration } from "@/lib/format";
+import { formatDuration, formatDurationShort } from "@/lib/format";
 import { fonts, useColors } from "@/lib/theme";
+import { LITE } from "@/lib/variant";
+
+// Lite: saniye gösterilmez, sayaçlar 30 saniyede bir güncellenir (eski telefonları yormasın)
+const TICK_MS = LITE ? 30_000 : 1000;
 
 // Tüm geri sayımlar tek bir saniyelik zamanlayıcıyı paylaşır (eski cihazlarda her sayaç için ayrı
 // zamanlayıcı çalıştırmak kasma yapıyordu). Ekranda sayaç kalmayınca zamanlayıcı durur.
@@ -15,7 +19,7 @@ function subscribe(l: () => void) {
     timer = setInterval(() => {
       now = Date.now();
       listeners.forEach((f) => f());
-    }, 1000);
+    }, TICK_MS);
   }
   return () => {
     listeners.delete(l);
@@ -34,7 +38,7 @@ export const Countdown = memo(function Countdown({ to, suffix = "kaldı", style 
   const urgent = left > 0 && left < 10 * 60_000;
   return (
     <Text style={[{ fontFamily: fonts.semibold, fontVariant: ["tabular-nums"], color: urgent ? c.destructive : c.foreground }, style]}>
-      {left > 0 ? `${formatDuration(left)} ${suffix}` : "süre doldu"}
+      {left > 0 ? `${LITE ? formatDurationShort(left) : formatDuration(left)} ${suffix}` : "süre doldu"}
     </Text>
   );
 });
