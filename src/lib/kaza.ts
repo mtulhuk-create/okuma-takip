@@ -128,3 +128,24 @@ export async function applyKaza(userId: string, op: KazaOp) {
   });
   return kazaState(userId);
 }
+
+/**
+ * Kaza geçmişi (Bugün sayfasındaki geçmiş kutusu, "Kaza" seçiliyken): aralıktaki her gün kılınan kaza sayısı.
+ * all: kaza takibinin başladığı günden beri (en çok 1 yıl gösterilir).
+ */
+export async function kazaHistory(userId: string, range: "7d" | "1m" | "3m" | "1y" | "all") {
+  const db = getDb();
+  const today = kazaDayKey();
+  const k = await db.kaza.findUnique({ where: { userId }, select: { createdAt: true } });
+  const span = { "7d": 7, "1m": 30, "3m": 90, "1y": 365, all: 365 }[range];
+  let start = shift(today, -(span - 1));
+  if (range === "all" && k) {
+    const since = kazaDayKey(k.createdAt.getTime());
+    if (since > start) start = since;
+  }
+  const rows = await db.kazaDay.findMany({ where: { userId, dayKey: { gte: start } } });
+  const byDay = new Map(rows.map((d) => [d.dayKey, d.count]));
+  const n = Math.round((Date.parse(today) - Date.parse(start)) / 86_400_000) + 1;
+  const counts = Array.from({ length: n }, (_, i) => byDay.get(shift(start, i)) ?? 0);
+  return { range, start, counts, total: counts.reduce((a, b) => a + b, 0), days: counts.filter((c) => c > 0).length };
+}

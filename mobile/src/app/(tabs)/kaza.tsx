@@ -16,7 +16,7 @@ const fmtDate = (d: Date) => `${String(d.getDate()).padStart(2, "0")}.${String(d
 function Section({ title, right }: { title: string; right?: React.ReactNode }) {
   const c = useColors();
   return (
-    <Row style={{ marginTop: 6, marginBottom: -4 }}>
+    <Row style={{ marginTop: 2, marginBottom: -6 }}>
       <Text style={{ flex: 1, fontFamily: fonts.bold, fontSize: 13, color: c.foreground }}>{title}</Text>
       {right}
     </Row>
@@ -63,7 +63,7 @@ export default function KazaScreen() {
           <UndoBar op={op} />
 
           <Section title="Kılınan kaza" />
-          <StatsTable s={data} />
+          <StatsTable s={data} compact />
 
           <Section title="Ayarlar" />
           <Settings s={data} onGoal={(goal) => op.mutate({ op: "goal", goal })} onCalc={() => setCalc(true)} onDisable={() => op.mutate({ op: "enable", on: false })} />
@@ -136,20 +136,20 @@ function Summary({ s, onCalc }: { s: KazaState; onCalc: () => void }) {
     </View>
   );
   return (
-    <Card style={{ gap: 12 }}>
+    <Card style={{ gap: 10, padding: 14 }}>
       <Row style={{ alignItems: "flex-end" }}>
         <View style={{ flex: 1 }}>
           <Text style={{ fontFamily: fonts.regular, fontSize: 12, color: c.mutedForeground }}>Kalan kaza</Text>
-          <Text style={{ fontFamily: fonts.serif, fontSize: 32, lineHeight: 40, color: KAZA }}>{fmt(left)}</Text>
+          <Text style={{ fontFamily: fonts.serif, fontSize: 26, lineHeight: 32, color: KAZA }}>{fmt(left)}</Text>
         </View>
         <Text style={{ fontFamily: fonts.semibold, fontSize: 12, color: c.mutedForeground, marginBottom: 6 }}>
           {fmt(made)} kılındı · %{pct}
         </Text>
       </Row>
-      <View style={{ height: 6, borderRadius: 3, backgroundColor: c.muted, overflow: "hidden" }}>
+      <View style={{ height: 5, borderRadius: 3, backgroundColor: c.muted, overflow: "hidden" }}>
         <View style={{ width: `${pct}%`, height: "100%", backgroundColor: KAZA }} />
       </View>
-      <Row gap={12} style={{ borderTopWidth: 1, borderTopColor: c.border, paddingTop: 10 }}>
+      <Row gap={12} style={{ borderTopWidth: 1, borderTopColor: c.border, paddingTop: 8 }}>
         {stat("Bugün", s.dailyGoal ? `${s.today} / ${s.dailyGoal}` : String(s.today))}
         <View style={{ flex: 1 }}>
           <Text style={{ fontFamily: fonts.regular, fontSize: 11, color: c.mutedForeground }}>Seri</Text>
@@ -171,15 +171,15 @@ function Settings({ s, onGoal, onCalc, onDisable }: { s: KazaState; onGoal: (g: 
   useEffect(() => {
     getKazaStickyPref().then(setSticky);
   }, []);
-  const rowStyle = { paddingHorizontal: 14, paddingVertical: 12, borderTopWidth: 1, borderTopColor: c.border } as const;
+  const rowStyle = { paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: 1, borderTopColor: c.border } as const;
   const icon = (I: typeof Bell) => (
-    <View style={{ width: 30, height: 30, borderRadius: 8, backgroundColor: KAZA + "1a", alignItems: "center", justifyContent: "center" }}>
-      <I size={16} color={KAZA} />
+    <View style={{ width: 26, height: 26, borderRadius: 7, backgroundColor: KAZA + "1a", alignItems: "center", justifyContent: "center" }}>
+      <I size={14} color={KAZA} />
     </View>
   );
   return (
     <Card style={{ padding: 0, overflow: "hidden" }}>
-      <View style={{ paddingHorizontal: 14, paddingVertical: 12, gap: 10 }}>
+      <View style={{ paddingHorizontal: 14, paddingVertical: 10, gap: 8 }}>
         <Row gap={10}>
           {icon(Target)}
           <View style={{ flex: 1 }}>

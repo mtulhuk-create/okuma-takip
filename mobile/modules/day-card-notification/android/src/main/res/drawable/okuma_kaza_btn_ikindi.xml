@@ -5,14 +5,14 @@
     <shape android:shape="rectangle">
       <solid android:color="@color/kaza_ikindi_soft" />
       <stroke android:width="1.5dp" android:color="@color/kaza_ikindi_dark" />
-      <corners android:radius="10dp" />
+      <corners android:radius="8dp" />
     </shape>
   </item>
   <item>
     <shape android:shape="rectangle">
       <solid android:color="@android:color/transparent" />
       <stroke android:width="1.5dp" android:color="@color/kaza_ikindi" />
-      <corners android:radius="10dp" />
+      <corners android:radius="8dp" />
     </shape>
   </item>
 </selector>

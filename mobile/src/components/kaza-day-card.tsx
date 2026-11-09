@@ -3,34 +3,31 @@ import { ChevronRight, MoonStar } from "lucide-react-native";
 import { Pressable, Text, View } from "react-native";
 import { KAZA, sum } from "@/lib/kaza";
 import { fonts, useColors } from "@/lib/theme";
-import { fmt, PrayerGrid, StatsTable, UndoBar, useKaza } from "./kaza";
-import { Card, Muted, Row } from "./ui";
+import { fmt, PrayerStrip, UndoBar, useKaza } from "./kaza";
+import { Card, Row } from "./ui";
 
-/** Bugün sayfasında kaza gün kartı (kaza takibi açıksa okuma kartlarının altında) */
+/** Bugün sayfasında kaza kartı (kaza takibi açıksa okuma kartlarının altında): kalan, bugün ve vakitlerde − / + */
 export function KazaDayCard() {
   const c = useColors();
   const { data, op } = useKaza();
   if (!data?.enabled) return null;
   return (
-    <Card style={{ gap: 12 }}>
-      <Pressable onPress={() => router.push("/kaza")}>
-        <Row gap={10}>
-          <View style={{ width: 34, height: 34, borderRadius: 9, backgroundColor: KAZA, alignItems: "center", justifyContent: "center" }}>
-            <MoonStar size={17} color="#fff" />
+    <Card style={{ gap: 10, padding: 12 }}>
+      <Pressable onPress={() => router.push("/kaza")} hitSlop={4}>
+        <Row gap={8}>
+          <View style={{ width: 24, height: 24, borderRadius: 7, backgroundColor: KAZA, alignItems: "center", justifyContent: "center" }}>
+            <MoonStar size={13} color="#fff" />
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontFamily: fonts.serif, fontSize: 15, color: c.foreground }}>Namaz kaza</Text>
-            <Muted>
-              {fmt(sum(data.remaining))} kalan · bugün {data.dailyGoal ? `${data.today}/${data.dailyGoal}` : data.today}
-            </Muted>
-          </View>
-          <ChevronRight size={18} color={c.mutedForeground} />
+          <Text style={{ fontFamily: fonts.semibold, fontSize: 14, color: c.foreground }}>Namaz kaza</Text>
+          <Text numberOfLines={1} style={{ flex: 1, fontFamily: fonts.regular, fontSize: 12, color: c.mutedForeground }}>
+            {fmt(sum(data.remaining))} kalan
+          </Text>
+          <Text style={{ fontFamily: fonts.semibold, fontSize: 11, color: KAZA }}>bugün {data.dailyGoal ? `${data.today}/${data.dailyGoal}` : data.today}</Text>
+          <ChevronRight size={16} color={c.mutedForeground} />
         </Row>
       </Pressable>
-      <StatsTable s={data} compact />
-      <PrayerGrid s={data} op={op} compact />
+      <PrayerStrip s={data} op={op} />
       <UndoBar op={op} />
-      <Muted style={{ fontSize: 10.5, textAlign: "center" }}>− kıldım (kalandan düşer) · + kaçırdım (kazaya ekler)</Muted>
     </Card>
   );
 }
