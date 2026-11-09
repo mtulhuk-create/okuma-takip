@@ -42,7 +42,7 @@ export function HistoryGrid({ start, cells, colorOf, labelOf }: { start: string;
   const base = useCellColor();
   const color = colorOf ?? base;
   // Koyu hücrede beyaz yazı
-  const strong = (ch: string) => (colorOf ? ch >= "2" : "rknm".includes(ch));
+  const strong = (ch: string) => (colorOf ? ch >= "3" : "rknm".includes(ch));
   const [width, setWidth] = useState(0);
   const todayRing = { borderWidth: 2, borderColor: c.primary + "99" };
   if (cells.length <= 14) {
@@ -184,15 +184,17 @@ export function StreakBadge({ n, small }: { n: number; small?: boolean }) {
   );
 }
 
-export function RangePicker({ value, onChange, labels = RANGE_LABELS }: { value: HistoryRange; onChange: (r: HistoryRange) => void; labels?: Record<HistoryRange, string> }) {
+export function RangePicker({ value, onChange, labels = RANGE_LABELS, small }: { value: HistoryRange; onChange: (r: HistoryRange) => void; labels?: Record<HistoryRange, string>; small?: boolean }) {
   const c = useColors();
   const [open, setOpen] = useState(false);
   return (
     <>
       <Pressable onPress={() => setOpen(true)} hitSlop={8}>
-        <Row gap={4}>
-          <Text style={{ fontFamily: fonts.bold, fontSize: 14, color: c.foreground }}>{labels[value]}</Text>
-          <ChevronDown size={16} color={c.foreground} />
+        <Row gap={3}>
+          <Text numberOfLines={1} style={{ fontFamily: fonts.bold, fontSize: small ? 12 : 14, color: c.foreground }}>
+            {labels[value]}
+          </Text>
+          <ChevronDown size={small ? 13 : 16} color={c.foreground} />
         </Row>
       </Pressable>
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
@@ -219,18 +221,18 @@ export function RangePicker({ value, onChange, labels = RANGE_LABELS }: { value:
 }
 
 /** Açılır seçim (grup seçimi) */
-function GroupPicker({ value, options, onChange }: { value: string; options: { value: string; label: string }[]; onChange: (v: string) => void }) {
+function GroupPicker({ value, options, onChange, small }: { value: string; options: { value: string; label: string }[]; onChange: (v: string) => void; small?: boolean }) {
   const c = useColors();
   const [open, setOpen] = useState(false);
   const current = options.find((o) => o.value === value);
   return (
     <>
-      <Pressable onPress={() => setOpen(true)} hitSlop={6} style={{ flexShrink: 1, flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: c.muted, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 }}>
-        <Layers size={13} color={c.primary} />
-        <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: fonts.semibold, fontSize: 12, color: c.foreground }}>
+      <Pressable onPress={() => setOpen(true)} hitSlop={6} style={{ flexShrink: 1, flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: c.muted, borderRadius: 7, paddingHorizontal: small ? 6 : 8, paddingVertical: small ? 3 : 4 }}>
+        <Layers size={small ? 11 : 13} color={c.primary} />
+        <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: fonts.semibold, fontSize: small ? 11 : 12, color: c.foreground }}>
           {current?.label}
         </Text>
-        <ChevronDown size={14} color={c.foreground} />
+        <ChevronDown size={small ? 12 : 14} color={c.foreground} />
       </Pressable>
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
         <Pressable onPress={() => setOpen(false)} style={{ flex: 1, backgroundColor: "#0005", justifyContent: "center", padding: 32 }}>
@@ -261,8 +263,10 @@ function GroupPicker({ value, options, onChange }: { value: string; options: { v
 
 /** Bugün ekranı: kendi okuma geçmişin. Varsayılan tüm gruplar; menüden tek grup seçilebilir. */
 type KazaHistory = { start: string; counts: number[]; total: number; days: number };
-/** Günlük kaza sayısı → ısı haritası seviyesi */
-const kazaLevel = (n: number) => (n <= 0 ? "0" : n === 1 ? "1" : n <= 3 ? "2" : n <= 5 ? "3" : "4");
+/** Günlük net kaza → ısı haritası seviyesi: 1–5 arası her sayı ayrı ton, 6 ve üstü en koyu */
+const kazaLevel = (n: number) => String(Math.max(0, Math.min(6, n)));
+/** Mor tonları: en belirgin fark 1 ile 5 arasında */
+const KAZA_TONES: Record<string, string> = { "1": KAZA + "33", "2": KAZA + "59", "3": KAZA + "80", "4": KAZA + "a6", "5": KAZA + "d1", "6": KAZA };
 
 /** Okuma / Kaza seçimi (geçmiş kutusunun başında) */
 function ModeSwitch({ value, onChange }: { value: "read" | "kaza"; onChange: (v: "read" | "kaza") => void }) {
@@ -277,8 +281,8 @@ function ModeSwitch({ value, onChange }: { value: "read" | "kaza"; onChange: (v:
       ).map(([v, label]) => {
         const on = value === v;
         return (
-          <Pressable key={v} onPress={() => onChange(v)} hitSlop={4} style={{ paddingHorizontal: 10, height: 24, justifyContent: "center", borderRadius: 99, backgroundColor: on ? c.card : "transparent", elevation: on ? 1 : 0 }}>
-            <Text style={{ fontFamily: fonts.semibold, fontSize: 11, color: on ? (v === "kaza" ? KAZA : c.primary) : c.mutedForeground }}>{label}</Text>
+          <Pressable key={v} onPress={() => onChange(v)} hitSlop={4} style={{ paddingHorizontal: 9, height: 22, justifyContent: "center", borderRadius: 99, backgroundColor: on ? c.card : "transparent", elevation: on ? 1 : 0 }}>
+            <Text style={{ fontFamily: fonts.semibold, fontSize: 10.5, color: on ? (v === "kaza" ? KAZA : c.primary) : c.mutedForeground }}>{label}</Text>
           </Pressable>
         );
       })}
@@ -312,31 +316,32 @@ export function MyHistorySection() {
   return (
     <Card style={{ gap: 8, padding: 10, opacity: (view === "read" ? isFetching : kh.isFetching) ? 0.7 : 1 }}>
       <Row gap={6}>
-        {kazaOn && hasRead && <ModeSwitch value={mode} onChange={setMode} />}
-        <RangePicker value={range} onChange={setRange} />
         <View style={{ flex: 1, flexDirection: "row" }}>
+          <RangePicker value={range} onChange={setRange} small />
+        </View>
+        {kazaOn && hasRead && <ModeSwitch value={mode} onChange={setMode} />}
+        <View style={{ flex: 1, flexDirection: "row", justifyContent: "flex-end" }}>
           {view === "read" && row ? (
             multi ? (
-              <GroupPicker value={group ? sel : "all"} onChange={setSel} options={[{ value: "all", label: "Tüm gruplar" }, ...data!.groups.map((g) => ({ value: g.group.id, label: g.group.name }))]} />
+              <GroupPicker value={group ? sel : "all"} onChange={setSel} small options={[{ value: "all", label: "Tüm gruplar" }, ...data!.groups.map((g) => ({ value: g.group.id, label: g.group.name }))]} />
             ) : (
-              <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: fonts.semibold, fontSize: 12, color: c.mutedForeground }}>
+              <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: fonts.semibold, fontSize: 11, color: c.mutedForeground }}>
                 {data!.groups[0].group.name}
               </Text>
             )
-          ) : !hasRead ? (
-            <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: fonts.semibold, fontSize: 12, color: KAZA }}>
+          ) : (
+            <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: fonts.semibold, fontSize: 11, color: KAZA }}>
               Namaz kaza
             </Text>
-          ) : null}
+          )}
         </View>
-        <StreakBadge n={view === "read" ? (row?.streak ?? 0) : (kaza.data?.streak ?? 0)} small />
       </Row>
       {view === "read" && row ? (
         <>
           <HistoryGrid start={row.start} cells={row.cells} />
-          <Row style={{ flexWrap: "wrap", justifyContent: "space-between", rowGap: 2 }}>
+          <Row style={{ flexWrap: "wrap", justifyContent: "space-between", rowGap: 4 }}>
             <StatsLine stats={row.stats} />
-            <Text style={{ fontFamily: fonts.regular, fontSize: 10, color: c.mutedForeground }}>Yalnızca senin okumaların</Text>
+            <StreakBadge n={row.streak ?? 0} small />
           </Row>
         </>
       ) : k ? (
@@ -344,10 +349,11 @@ export function MyHistorySection() {
           <HistoryGrid
             start={k.start}
             cells={k.counts.map(kazaLevel).join("")}
-            colorOf={(ch) => ({ "0": c.muted, "1": KAZA + "4d", "2": KAZA + "88", "3": KAZA + "c4", "4": KAZA })[ch] ?? c.muted}
+            colorOf={(ch) => KAZA_TONES[ch] ?? c.muted}
             labelOf={(_ch, i) => (k.counts[i] ? String(k.counts[i]) : null)}
           />
-          <Row gap={10} style={{ flexWrap: "wrap", rowGap: 2 }}>
+          <Row style={{ flexWrap: "wrap", justifyContent: "space-between", rowGap: 4 }}>
+          <Row gap={10} style={{ flexWrap: "wrap", rowGap: 2, flexShrink: 1 }}>
             {[
               { n: k.total, label: "kaza kılındı", color: KAZA },
               { n: k.days, label: "gün", color: c.foreground },
@@ -358,6 +364,8 @@ export function MyHistorySection() {
                 <Text style={{ fontFamily: fonts.regular, fontSize: 11, color: c.mutedForeground }}>{x.label}</Text>
               </Row>
             ))}
+          </Row>
+            <StreakBadge n={kaza.data?.streak ?? 0} small />
           </Row>
         </>
       ) : (
