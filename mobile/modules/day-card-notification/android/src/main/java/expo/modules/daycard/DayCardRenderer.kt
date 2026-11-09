@@ -6,10 +6,12 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.SystemClock
+import android.graphics.Color
 import android.view.View
 import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import org.json.JSONObject
 
 /**
@@ -105,6 +107,8 @@ object DayCardRenderer {
     val books = p.optJSONArray("books") ?: return
     val plan = p.optBoolean("plan")
     val kefaretOn = p.optBoolean("kefaretOn")
+    // Ceza tek eserde butona yazılır (birden çok eserde günün cezası toplam okumaya göre çıkar)
+    val fines = if (books.length() == 1) mapOf("min" to p.optInt("fineMin"), "none" to p.optInt("fineNone")) else emptyMap()
     val count = if (big) books.length() else minOf(1, books.length())
     for (i in 0 until count) {
       val b = books.getJSONObject(i)
@@ -112,50 +116,86 @@ object DayCardRenderer {
       val bookId = b.getString("id")
       val target = b.optInt("target")
       val min = b.optInt("min")
+      val kefPages = if (b.has("kefPages")) b.optInt("kefPages") else target
       val pages = if (b.isNull("pages")) null else b.optInt("pages")
-      row.setTextViewText(R.id.book_title, b.optString("title"))
       if (big) {
+        row.setTextViewText(R.id.book_title, b.optString("title"))
         val info = buildString {
-          append("Hedef $target · alt sınır $min")
-          if (pages != null) append(" · $pages sf")
-          if (plan && b.has("kefPages")) append(" · kefaret ${b.optInt("kefPages")}")
+          append("Hedef $target sf · alt sınır $min sf")
+          if (pages != null) append(" · okunan $pages sf")
         }
         row.setTextViewText(R.id.book_info, info)
+      } else {
+        row.setTextViewText(R.id.book_title, "${b.optString("title")} · $target sf")
       }
-      val state = when {
-        kefaretOn -> "kefaret"
-        pages == null -> null
-        pages >= target -> "read"
-        pages == 0 -> "none"
-        pages >= min -> "min"
-        else -> null
-      }
-      for ((k, viewName) in listOf("kefaret" to "b_kefaret", "read" to "b_read", "min" to "b_min", "none" to "b_none")) {
-        val vid = viewId(context, viewName)
-        if (k == "kefaret" && !plan) {
-          row.setViewVisibility(vid, View.GONE)
+      val state = stateOf(kefaretOn, pages, target, min)
+      for (btn in BUTTONS) {
+        if (btn.key == "kefaret" && !plan) {
+          row.setViewVisibility(if (big) btn.cell else btn.button, View.GONE)
           continue
         }
-        val on = state == k || (k == "read" && state == "kefaret")
-        row.setInt(vid, "setBackgroundResource", drawableId(context, if (on) "okuma_chip_${k}_on" else "okuma_chip_$k"))
-        row.setImageViewResource(vid, drawableId(context, if (on) "okuma_ic_${k}_on" else "okuma_ic_$k"))
+        // Seçili buton dolu ve kenarlı; basılıyken koyulaşır (seçici arka plan)
+        val on = state == btn.key || (btn.key == "read" && state == "kefaret")
+        row.setInt(btn.button, "setBackgroundResource", if (on) btn.chipOn else btn.chip)
+        if (big) {
+          row.setImageViewResource(btn.icon, if (on) btn.iconOn else btn.iconOff)
+          // 4 buton varken ikon gizlenir, yazı sığsın
+          row.setViewVisibility(btn.icon, if (plan) View.GONE else View.VISIBLE)
+          row.setTextColor(btn.label, if (on) Color.WHITE else ContextCompat.getColor(context, btn.color))
+          // Sağ üst çentik: okunacak sayfa; sağ alt çentik: yazılacak ceza
+          val corner = when (btn.key) {
+            "kefaret" -> "$kefPages sf"
+            "read" -> "$target sf"
+            "min" -> "$min sf"
+            else -> null
+          }
+          if (btn.notch != 0) {
+            row.setViewVisibility(btn.notch, if (corner != null) View.VISIBLE else View.GONE)
+            if (corner != null) row.setTextViewText(btn.notch, corner)
+          }
+          if (btn.fine != 0) {
+            val fine = fines[btn.key] ?: 0
+            row.setViewVisibility(btn.fine, if (fine > 0) View.VISIBLE else View.GONE)
+            if (fine > 0) row.setTextViewText(btn.fine, "-$fine TL")
+          }
+        } else {
+          row.setImageViewResource(btn.button, if (on) btn.iconOn else btn.iconOff)
+        }
         val intent = Intent(context, DayCardReceiver::class.java).apply {
           action = DayCardReceiver.ACTION
           putExtra("id", id)
-          if (k == "kefaret") putExtra("choice", "kefaret") else {
+          if (btn.key == "kefaret") putExtra("choice", "kefaret") else {
             putExtra("choice", "all")
             putExtra("bookId", bookId)
-            putExtra("bookChoice", k)
+            putExtra("bookChoice", btn.key)
           }
-          data = Uri.parse("okumatakip://daycard/$id/$bookId/$k")
+          data = Uri.parse("okumatakip://daycard/$id/$bookId/${btn.key}")
         }
-        val code = (id + bookId + k).hashCode()
-        row.setOnClickPendingIntent(vid, PendingIntent.getBroadcast(context, code, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
+        val code = (id + bookId + btn.key).hashCode()
+        row.setOnClickPendingIntent(btn.button, PendingIntent.getBroadcast(context, code, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
       }
       v.addView(R.id.books, row)
     }
   }
 
-  private fun viewId(context: Context, name: String) = context.resources.getIdentifier(name, "id", context.packageName)
-  private fun drawableId(context: Context, name: String) = context.resources.getIdentifier(name, "drawable", context.packageName)
+  fun stateOf(kefaretOn: Boolean, pages: Int?, target: Int, min: Int): String? = when {
+    kefaretOn -> "kefaret"
+    pages == null -> null
+    pages >= target -> "read"
+    pages == 0 -> "none"
+    pages >= min -> "min"
+    else -> null
+  }
+
+  /**
+   * Kaynaklar doğrudan R ile anılır: yayın derlemesinde kaynak küçültme yalnızca adla aranan
+   * (getIdentifier) çizimleri siler; seçili butonun kaybolması bundandı.
+   */
+  private class Btn(val key: String, val cell: Int, val button: Int, val icon: Int, val label: Int, val notch: Int, val fine: Int, val chip: Int, val chipOn: Int, val iconOff: Int, val iconOn: Int, val color: Int)
+  private val BUTTONS = listOf(
+    Btn("kefaret", R.id.c_kefaret, R.id.b_kefaret, R.id.i_kefaret, R.id.l_kefaret, R.id.n_kefaret, 0, R.drawable.okuma_chip_kefaret, R.drawable.okuma_chip_kefaret_on, R.drawable.okuma_ic_kefaret, R.drawable.okuma_ic_kefaret_on, R.color.okuma_kefaret),
+    Btn("read", R.id.c_read, R.id.b_read, R.id.i_read, R.id.l_read, R.id.n_read, 0, R.drawable.okuma_chip_read, R.drawable.okuma_chip_read_on, R.drawable.okuma_ic_read, R.drawable.okuma_ic_read_on, R.color.okuma_read),
+    Btn("min", R.id.c_min, R.id.b_min, R.id.i_min, R.id.l_min, R.id.n_min, R.id.f_min, R.drawable.okuma_chip_min, R.drawable.okuma_chip_min_on, R.drawable.okuma_ic_min, R.drawable.okuma_ic_min_on, R.color.okuma_min),
+    Btn("none", R.id.c_none, R.id.b_none, R.id.i_none, R.id.l_none, 0, R.id.f_none, R.drawable.okuma_chip_none, R.drawable.okuma_chip_none_on, R.drawable.okuma_ic_none, R.drawable.okuma_ic_none_on, R.color.okuma_none),
+  )
 }

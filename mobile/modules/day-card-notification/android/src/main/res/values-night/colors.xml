@@ -8,4 +8,5 @@
   <color name="okuma_notch_bg">#262220</color>
   <color name="okuma_selected_border">#D9FFFFFF</color>
   <color name="okuma_divider">#332E2B</color>
+  <color name="okuma_box_bg">#2D2826</color>
 </resources>

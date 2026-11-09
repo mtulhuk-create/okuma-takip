@@ -24,6 +24,9 @@ class DayCardReceiver : BroadcastReceiver() {
     val bookChoice = intent.getStringExtra("bookChoice")
     val p = DayCardRenderer.load(context, id) ?: return
     val pending = goAsync()
+    // Basılan buton hemen seçili görünsün; sunucu yanıtı gelince kesinleşir, hata olursa eski hâline döner
+    val before = JSONObject(p.toString())
+    optimistic(p, choice, bookId, bookChoice)
     DayCardRenderer.render(context, p, "Gönderiliyor…", silent = true)
     Thread {
       try {
@@ -31,13 +34,41 @@ class DayCardReceiver : BroadcastReceiver() {
         if (ok && res != null) apply(p, res)
         val label = LABEL[bookChoice ?: choice] ?: "Bildirim"
         val undone = ok && res?.optInt("pages", -1) == 0 && (res.optJSONArray("books")?.length() ?: 0) == 0
-        DayCardRenderer.render(context, p, if (ok) (if (undone) "Geri alındı · beklemede" else "$label kaydedildi ✓") else (res?.optString("error")?.takeIf { it.isNotEmpty() } ?: "Bildirilemedi"), silent = true)
+        if (ok) DayCardRenderer.render(context, p, if (undone) "Geri alındı · beklemede" else "$label kaydedildi ✓", silent = true)
+        else DayCardRenderer.render(context, before, res?.optString("error")?.takeIf { it.isNotEmpty() } ?: "Bildirilemedi", silent = true)
       } catch (_: Throwable) {
-        DayCardRenderer.render(context, p, "Gönderilemedi: internet yok", silent = true)
+        DayCardRenderer.render(context, before, "Gönderilemedi: internet yok", silent = true)
       } finally {
         pending.finish()
       }
     }.start()
+  }
+
+  /** Sunucudaki kuralın aynısı: aynı seçime tekrar basmak geri alır */
+  private fun optimistic(p: JSONObject, choice: String, bookId: String?, bookChoice: String?) {
+    val books = p.optJSONArray("books") ?: return
+    if (choice == "kefaret" && bookId == null) {
+      val on = !p.optBoolean("kefaretOn")
+      p.put("kefaretOn", on)
+      for (i in 0 until books.length()) {
+        val b = books.getJSONObject(i)
+        b.put("pages", if (on) (if (b.has("kefPages")) b.optInt("kefPages") else b.optInt("target")) else JSONObject.NULL)
+      }
+      return
+    }
+    if (bookId == null || bookChoice == null) return
+    p.put("kefaretOn", false)
+    for (i in 0 until books.length()) {
+      val b = books.getJSONObject(i)
+      if (b.getString("id") != bookId) continue
+      val next = when (bookChoice) {
+        "read" -> b.optInt("target")
+        "min" -> b.optInt("min")
+        else -> 0
+      }
+      val cur = if (b.isNull("pages")) null else b.optInt("pages")
+      b.put("pages", if (cur == next) JSONObject.NULL else next)
+    }
   }
 
   /** Sunucunun döndürdüğü eser sayfalarını ve kefareti karta işler */

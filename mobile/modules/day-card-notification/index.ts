@@ -20,6 +20,9 @@ export type DayCardPayload = {
   plan: boolean;
   /** Bugün kefaret okuması bildirildi */
   kefaretOn: boolean;
+  /** Butonların sağ alt çentiğinde yazılan ceza (TL; 0 ise gösterilmez) */
+  fineMin: number;
+  fineNone: number;
   kefaretLine: string | null;
 };
 

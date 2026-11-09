@@ -155,6 +155,8 @@ function dayCardPayload(g: Schedule["groups"][number], p: Schedule["groups"][num
     books,
     plan: !!plan,
     kefaretOn: !!me?.kefaret,
+    fineMin: me?.fine?.min ?? 0,
+    fineNone: me?.fine?.none ?? 0,
     kefaretLine: plan ? `Kefaret ${plan.doneDays}${me?.kefaret ? "+1" : ""}/${plan.days} gün · ${plan.earned}/${plan.discountTotal} TL silindi` : null,
   };
 }

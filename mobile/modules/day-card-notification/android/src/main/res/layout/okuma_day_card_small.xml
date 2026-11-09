@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Kilit ekranında duran gün kartı (kapalı hali): isim + okuma çubuğu + kalan süre ve ilk eserin butonları -->
+<!-- Kilit ekranında duran gün kartı (kapalı hali, sistem sınırı 64dp): isim + okuma çubuğu + kalan süre ve ilk eserin butonları -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
   android:layout_width="match_parent" android:layout_height="wrap_content"
   android:background="@drawable/okuma_card_bg" android:orientation="vertical"
-  android:paddingLeft="14dp" android:paddingRight="14dp" android:paddingTop="7dp" android:paddingBottom="5dp">
+  android:paddingLeft="20dp" android:paddingRight="20dp" android:paddingTop="9dp" android:paddingBottom="7dp">
   <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal">
     <TextView android:id="@+id/title" android:layout_width="wrap_content" android:layout_height="wrap_content" android:maxWidth="150dp" android:fontFamily="serif"
       android:maxLines="1" android:ellipsize="end" android:textColor="@color/okuma_fg" android:textSize="13sp" android:textStyle="bold" />
