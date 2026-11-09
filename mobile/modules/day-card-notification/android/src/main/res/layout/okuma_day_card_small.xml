@@ -1,14 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Kilit ekranında duran gün kartı (kapalı hali): isim + gün çubuğu + kalan süre; ince çizginin altında ilk eser ve butonları -->
+<!--
+  Kapalı gün kartı. Sistem çerçevesinde (başlıkta uygulama adı, durum ve geri sayım) gösterilir; içerik en çok 48dp
+  (Android 12+) olduğundan tek satır: solda grup adı ve gün çubuğu, sağda butonlar.
+-->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-  android:layout_width="match_parent" android:layout_height="wrap_content"
-  android:orientation="vertical"
-  android:paddingLeft="22dp" android:paddingRight="22dp" android:paddingTop="14dp" android:paddingBottom="10dp">
-  <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal">
-    <TextView android:id="@+id/title" android:layout_width="wrap_content" android:layout_height="wrap_content" android:maxWidth="150dp" android:fontFamily="serif"
-      android:maxLines="1" android:ellipsize="end" android:includeFontPadding="false" android:textColor="@color/okuma_fg" android:textSize="13.5sp" android:textStyle="bold" />
-    <!-- Grubun günlük durumu: başlıkla sayı arasındaki boşluğu ortalayarak doldurur -->
-    <FrameLayout android:layout_width="0dp" android:layout_height="8dp" android:layout_weight="1" android:layout_marginLeft="14dp" android:layout_marginRight="10dp">
+  android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal">
+  <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+    <TextView android:id="@+id/title" android:layout_width="wrap_content" android:layout_height="wrap_content" android:fontFamily="serif"
+      android:maxLines="1" android:ellipsize="end" android:includeFontPadding="false"
+      android:textAppearance="@android:style/TextAppearance.Material.Notification.Title" android:textSize="13.5sp" android:textStyle="bold" />
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:gravity="center_vertical" android:orientation="horizontal">
+    <FrameLayout android:layout_width="0dp" android:layout_height="6dp" android:layout_weight="1" android:layout_marginLeft="0dp" android:layout_marginRight="8dp">
       <ProgressBar android:id="@+id/bar_none" style="@android:style/Widget.ProgressBar.Horizontal" android:layout_width="match_parent"
         android:layout_height="match_parent" android:progressDrawable="@drawable/okuma_bar_none" />
       <ProgressBar android:id="@+id/bar_min" style="@android:style/Widget.ProgressBar.Horizontal" android:layout_width="match_parent"
@@ -18,12 +20,9 @@
       <ProgressBar android:id="@+id/bar_kef" style="@android:style/Widget.ProgressBar.Horizontal" android:layout_width="match_parent"
         android:layout_height="match_parent" android:progressDrawable="@drawable/okuma_bar_kef" />
     </FrameLayout>
-    <TextView android:id="@+id/count" android:layout_width="wrap_content" android:layout_height="wrap_content"
-      android:includeFontPadding="false" android:textColor="@color/okuma_muted" android:textSize="11sp" android:textStyle="bold" />
-    <Chronometer android:id="@+id/countdown" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginLeft="12dp"
-      android:includeFontPadding="false" android:textColor="@color/okuma_fg" android:textSize="12sp" android:textStyle="bold" />
+      <TextView android:id="@+id/count" android:layout_width="wrap_content" android:layout_height="wrap_content" android:includeFontPadding="false"
+        android:textAppearance="@android:style/TextAppearance.Material.Notification" android:textSize="10.5sp" android:textStyle="bold" />
+    </LinearLayout>
   </LinearLayout>
-  <!-- Başlık ile eser arasında yalnızca üst çizgi -->
-  <FrameLayout android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginTop="12dp" android:background="@color/okuma_card_border" />
-  <LinearLayout android:id="@+id/books" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:orientation="vertical" />
+  <LinearLayout android:id="@+id/books" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginLeft="6dp" android:orientation="vertical" />
 </LinearLayout>

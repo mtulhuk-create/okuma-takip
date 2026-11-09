@@ -1,66 +1,44 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Bell, Calculator, Check, ChevronDown, ChevronUp, Flame, MoonStar, RotateCcw, Target } from "lucide-react-native";
+import { Bell, Calculator, Check, ChevronRight, Flame, MoonStar, Target, X } from "lucide-react-native";
 import { useEffect, useState } from "react";
-import { Alert, Pressable, Switch, Text, View } from "react-native";
+import { Alert, Modal, Pressable, ScrollView, Switch, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { fmt, PrayerGrid, StatsTable, UndoBar, useKaza } from "@/components/kaza";
 import { Button, Card, ErrorView, H1, Input, Label, Loading, Muted, Row, Screen, Segmented } from "@/components/ui";
-import { toast, useApi, useApiFetch } from "@/lib/api";
+import { toast } from "@/lib/api";
 import { calcKaza, getKazaStickyPref, KAZA, parseDate, PRAYER_INFO, PRAYERS, setKazaStickyPref, sum, syncKazaCard, type Counts, type KazaState, type Prayer } from "@/lib/kaza";
 import { fonts, useColors } from "@/lib/theme";
 import { LITE } from "@/lib/variant";
 import { kazaNotificationAvailable } from "../../../modules/day-card-notification";
 
-const PATH = "/api/m/kaza";
-type Op =
-  | { op: "enable"; on: boolean }
-  | { op: "make" | "undo"; prayer: Prayer }
-  | { op: "set"; counts: Partial<Counts>; mode: "replace" | "add" }
-  | { op: "goal"; goal: number };
-
-const fmt = (n: number) => n.toLocaleString("tr-TR");
 const fmtDate = (d: Date) => `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.${d.getFullYear()}`;
 
-/** Kaza işlemi; "kıldım" ve "geri al" anında ekrana yansır, sunucu yanıtı kesinleştirir */
-function useKazaOp() {
-  const fetcher = useApiFetch();
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (body: Op) => fetcher<KazaState>(PATH, { method: "POST", body: JSON.stringify(body) }),
-    onMutate: async (body) => {
-      if (body.op !== "make" && body.op !== "undo") return;
-      await qc.cancelQueries({ queryKey: [PATH] });
-      const prev = qc.getQueryData<KazaState>([PATH]);
-      if (prev) {
-        const d = body.op === "make" ? 1 : -1;
-        qc.setQueryData<KazaState>([PATH], {
-          ...prev,
-          remaining: { ...prev.remaining, [body.prayer]: Math.max(0, prev.remaining[body.prayer] - d) },
-          made: { ...prev.made, [body.prayer]: Math.max(0, prev.made[body.prayer] + d) },
-          today: Math.max(0, prev.today + d),
-        });
-      }
-      return { prev };
-    },
-    onError: (e, _b, ctx) => {
-      if (ctx?.prev) qc.setQueryData([PATH], ctx.prev);
-      Alert.alert("İşlem yapılamadı", e.message);
-    },
-    // Token yalnızca GET'te gelir; korunur
-    onSuccess: (s) => qc.setQueryData<KazaState>([PATH], (old) => ({ ...s, token: old?.token })),
-  });
+/** Bölüm başlığı */
+function Section({ title, right }: { title: string; right?: React.ReactNode }) {
+  const c = useColors();
+  return (
+    <Row style={{ marginTop: 6, marginBottom: -4 }}>
+      <Text style={{ flex: 1, fontFamily: fonts.bold, fontSize: 13, color: c.foreground }}>{title}</Text>
+      {right}
+    </Row>
+  );
 }
 
 export default function KazaScreen() {
-  const c = useColors();
-  const { data, isLoading, error, refetch, isRefetching } = useApi<KazaState>(PATH);
-  const op = useKazaOp();
-
-  // Bildirim panelindeki kaza kartı sayfadaki sayılarla aynı kalsın
-  useEffect(() => {
-    syncKazaCard(data).catch(() => {});
-  }, [data]);
+  const { data, isLoading, error, refetch, isRefetching, op } = useKaza();
+  const [calc, setCalc] = useState(false);
 
   if (isLoading) return <Loading />;
   if (!data) return <ErrorView message={error?.message ?? "Yüklenemedi"} onRetry={refetch} />;
+  const apply = (counts: Counts, mode: "replace" | "add") =>
+    op.mutate(
+      { op: "set", counts, mode },
+      {
+        onSuccess: () => {
+          setCalc(false);
+          toast(mode === "add" ? "Kazalar eklendi" : "Kalan kazalar güncellendi");
+        },
+      },
+    );
 
   return (
     <Screen refreshing={isRefetching} onRefresh={refetch}>
@@ -78,24 +56,18 @@ export default function KazaScreen() {
         <Intro onEnable={() => op.mutate({ op: "enable", on: true })} pending={op.isPending} />
       ) : (
         <>
-          <Hero s={data} />
-          <PrayerList s={data} op={op} />
-          <Week s={data} />
-          <Goal s={data} onChange={(goal) => op.mutate({ op: "goal", goal })} />
-          {!LITE && kazaNotificationAvailable && <StickyToggle s={data} />}
-          <CalcCard s={data} onApply={(counts, mode) => op.mutate({ op: "set", counts, mode }, { onSuccess: () => toast(mode === "add" ? "Kazalar eklendi" : "Kalan kazalar güncellendi") })} />
-          <Pressable
-            hitSlop={8}
-            onPress={() =>
-              Alert.alert("Kaza takibi kapatılsın mı?", "Sayıların silinmez; istediğinde yeniden açabilirsin.", [
-                { text: "Vazgeç", style: "cancel" },
-                { text: "Kapat", style: "destructive", onPress: () => op.mutate({ op: "enable", on: false }) },
-              ])
-            }
-            style={{ alignSelf: "center", paddingVertical: 6 }}
-          >
-            <Text style={{ fontFamily: fonts.medium, fontSize: 12, color: c.mutedForeground }}>Kaza takibini kapat</Text>
-          </Pressable>
+          <Summary s={data} onCalc={() => setCalc(true)} />
+
+          <Section title="Vakitler" right={<Muted style={{ fontSize: 11 }}>− kıldım · + kaçırdım</Muted>} />
+          <PrayerGrid s={data} op={op} />
+          <UndoBar op={op} />
+
+          <Section title="Kılınan kaza" />
+          <StatsTable s={data} />
+
+          <Section title="Ayarlar" />
+          <Settings s={data} onGoal={(goal) => op.mutate({ op: "goal", goal })} onCalc={() => setCalc(true)} onDisable={() => op.mutate({ op: "enable", on: false })} />
+          <CalcSheet open={calc} s={data} onClose={() => setCalc(false)} onApply={apply} />
         </>
       )}
     </Screen>
@@ -139,236 +111,157 @@ function Intro({ onEnable, pending }: { onEnable: () => void; pending: boolean }
 }
 
 /** Özet: kalan toplam, ilerleme, bugün, seri ve bitiş tahmini */
-function Hero({ s }: { s: KazaState }) {
+function Summary({ s, onCalc }: { s: KazaState; onCalc: () => void }) {
+  const c = useColors();
   const left = sum(s.remaining);
   const made = sum(s.made);
   const pct = left + made ? Math.round((made / (left + made)) * 100) : 0;
-  // Bugün sunucunun gününden (son 14 günün sonu) sayılır
+  // Bitiş: sunucunun bugününden (son 14 günün sonu) günlük hedefe göre
   const today = Date.parse(s.week[s.week.length - 1]?.dayKey ?? "");
   const finish = s.dailyGoal > 0 && left > 0 && !isNaN(today) ? new Date(today + Math.ceil(left / s.dailyGoal) * 86_400_000) : null;
-  const white = { color: "#fff" } as const;
-  const soft = { fontFamily: fonts.regular, fontSize: 11, color: "#ffffffcc" } as const;
-  return (
-    <View style={{ borderRadius: 16, padding: 16, gap: 12, backgroundColor: KAZA, overflow: "hidden" }}>
-      <View style={{ position: "absolute", right: -24, top: -24, width: 120, height: 120, borderRadius: 60, backgroundColor: "#ffffff14" }} />
-      <View>
-        <Text style={soft}>Kalan kaza</Text>
-        <Text style={{ fontFamily: fonts.serif, fontSize: 34, lineHeight: 42, ...white }}>{fmt(left)}</Text>
-        <Text style={soft}>
-          {fmt(made)} kılındı · %{pct}
-        </Text>
-      </View>
-      <View style={{ height: 8, borderRadius: 4, backgroundColor: "#ffffff33", overflow: "hidden" }}>
-        <View style={{ width: `${pct}%`, height: "100%", backgroundColor: "#fff", borderRadius: 4 }} />
-      </View>
-      <Row gap={8}>
-        {[
-          { label: "Bugün", value: s.dailyGoal ? `${s.today}/${s.dailyGoal}` : String(s.today) },
-          { label: "Seri", value: `${s.streak} gün`, Icon: Flame },
-          { label: "Bitiş", value: finish ? fmtDate(finish) : left ? "hedef koy" : "bitti 🎉" },
-        ].map((x) => (
-          <View key={x.label} style={{ flex: 1, backgroundColor: "#ffffff1f", borderRadius: 10, paddingVertical: 8, paddingHorizontal: 10 }}>
-            <Text style={soft}>{x.label}</Text>
-            <Text numberOfLines={1} style={{ fontFamily: fonts.bold, fontSize: 14, ...white }}>
-              {x.value}
-            </Text>
-          </View>
-        ))}
-      </Row>
+  if (left + made === 0)
+    return (
+      <Card style={{ gap: 10, borderColor: KAZA + "44" }}>
+        <Text style={{ fontFamily: fonts.semibold, fontSize: 14, color: c.foreground }}>Önce kazanı belirle</Text>
+        <Muted>Buluğdan bu yana kılamadığın namazları toplu hesapla ya da sayıları elle gir.</Muted>
+        <Button title="Kaza hesapla" icon={Calculator} style={{ backgroundColor: KAZA, borderColor: KAZA }} onPress={onCalc} />
+      </Card>
+    );
+  const stat = (label: string, value: string) => (
+    <View style={{ flex: 1 }}>
+      <Text style={{ fontFamily: fonts.regular, fontSize: 11, color: c.mutedForeground }}>{label}</Text>
+      <Text numberOfLines={1} style={{ fontFamily: fonts.bold, fontSize: 14, color: c.foreground }}>
+        {value}
+      </Text>
     </View>
   );
-}
-
-/** Vakitler: kalan sayı, ilerleme, "Kıldım" ve geri al */
-function PrayerList({ s, op }: { s: KazaState; op: ReturnType<typeof useKazaOp> }) {
-  const c = useColors();
-  return (
-    <Card style={{ padding: 0, overflow: "hidden" }}>
-      {PRAYERS.map((p, i) => {
-        const { label, Icon, color } = PRAYER_INFO[p];
-        const left = s.remaining[p];
-        const made = s.made[p];
-        const pct = left + made ? (made / (left + made)) * 100 : 0;
-        return (
-          <Row key={p} gap={12} style={{ paddingHorizontal: 14, paddingVertical: 12, borderTopWidth: i ? 1 : 0, borderTopColor: c.border }}>
-            <View style={{ width: 38, height: 38, borderRadius: 10, backgroundColor: color + "1f", alignItems: "center", justifyContent: "center" }}>
-              <Icon size={19} color={color} />
-            </View>
-            <View style={{ flex: 1, gap: 4 }}>
-              <Row gap={6}>
-                <Text style={{ fontFamily: fonts.semibold, fontSize: 14, color: c.foreground }}>{label}</Text>
-                <Text style={{ fontFamily: fonts.bold, fontSize: 14, color }}>{fmt(left)}</Text>
-              </Row>
-              <View style={{ height: 4, borderRadius: 2, backgroundColor: c.muted, overflow: "hidden" }}>
-                <View style={{ width: `${pct}%`, height: "100%", backgroundColor: color }} />
-              </View>
-              <Text style={{ fontFamily: fonts.regular, fontSize: 10, color: c.mutedForeground }}>{fmt(made)} kılındı</Text>
-            </View>
-            <Pressable
-              hitSlop={6}
-              disabled={!made}
-              accessibilityLabel={`${label}: geri al`}
-              onPress={() => op.mutate({ op: "undo", prayer: p })}
-              style={({ pressed }) => ({ width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center", opacity: made ? (pressed ? 0.5 : 1) : 0.3 })}
-            >
-              <RotateCcw size={16} color={c.mutedForeground} />
-            </Pressable>
-            <Pressable
-              disabled={!left}
-              accessibilityLabel={`${label} kazası kıldım`}
-              onPress={() => op.mutate({ op: "make", prayer: p })}
-              style={({ pressed }) => ({
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 4,
-                height: 34,
-                paddingHorizontal: 12,
-                borderRadius: 10,
-                borderWidth: 1.5,
-                borderColor: color,
-                backgroundColor: pressed ? color : color + "14",
-                opacity: left ? 1 : 0.4,
-                transform: [{ scale: pressed ? 0.94 : 1 }],
-              })}
-            >
-              {({ pressed }) => (
-                <>
-                  <Check size={14} color={pressed ? "#fff" : color} strokeWidth={2.6} />
-                  <Text style={{ fontFamily: fonts.semibold, fontSize: 12, color: pressed ? "#fff" : color }}>Kıldım</Text>
-                </>
-              )}
-            </Pressable>
-          </Row>
-        );
-      })}
-    </Card>
-  );
-}
-
-/** Son 14 gün: günlük kılınan kaza */
-function Week({ s }: { s: KazaState }) {
-  const c = useColors();
-  const max = Math.max(1, s.dailyGoal, ...s.week.map((d) => d.count));
-  return (
-    <Card style={{ gap: 10 }}>
-      <Row>
-        <Label>Son 14 gün</Label>
-        <View style={{ flex: 1 }} />
-        <Muted>{fmt(s.week.reduce((n, d) => n + d.count, 0))} kaza</Muted>
-      </Row>
-      <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 4, height: 70 }}>
-        {s.week.map((d, i) => {
-          const last = i === s.week.length - 1;
-          return (
-            <View key={d.dayKey} style={{ flex: 1, alignItems: "center", gap: 3 }}>
-              {d.count > 0 && <Text style={{ fontFamily: fonts.bold, fontSize: 9, color: last ? KAZA : c.mutedForeground }}>{d.count}</Text>}
-              <View style={{ width: "100%", height: Math.max(3, (d.count / max) * 52), borderRadius: 4, backgroundColor: d.count ? (last ? KAZA : KAZA + "66") : c.muted }} />
-            </View>
-          );
-        })}
-      </View>
-      <Row>
-        <Muted style={{ fontSize: 10 }}>{s.week[0]?.dayKey.slice(5).split("-").reverse().join(".")}</Muted>
-        <View style={{ flex: 1 }} />
-        <Muted style={{ fontSize: 10 }}>bugün</Muted>
-      </Row>
-    </Card>
-  );
-}
-
-/** Günlük hedef (bitiş tarihi buna göre hesaplanır) */
-function Goal({ s, onChange }: { s: KazaState; onChange: (g: number) => void }) {
-  const c = useColors();
-  const opts = [0, 1, 2, 3, 6, 12];
-  return (
-    <Card style={{ gap: 10 }}>
-      <Row gap={8}>
-        <Target size={16} color={KAZA} />
-        <Text style={{ flex: 1, fontFamily: fonts.semibold, fontSize: 14, color: c.foreground }}>Günlük hedef</Text>
-      </Row>
-      <Row gap={6} style={{ flexWrap: "wrap" }}>
-        {opts.map((g) => {
-          const on = s.dailyGoal === g;
-          return (
-            <Pressable
-              key={g}
-              onPress={() => onChange(g)}
-              style={({ pressed }) => ({ paddingHorizontal: 14, height: 34, justifyContent: "center", borderRadius: 10, borderWidth: 1.5, borderColor: on ? KAZA : c.border, backgroundColor: on ? KAZA : pressed ? c.muted : c.card })}
-            >
-              <Text style={{ fontFamily: fonts.semibold, fontSize: 12, color: on ? "#fff" : c.foreground }}>{g === 0 ? "Yok" : g === 6 ? "6 (1 gün)" : g === 12 ? "12 (2 gün)" : g}</Text>
-            </Pressable>
-          );
-        })}
-      </Row>
-      <Muted>Her gün bir günlük kaza (6 vakit) kılan, kazasını gün sayısı kadar sürede bitirir.</Muted>
-    </Card>
-  );
-}
-
-/** Bildirim panelinde kaza kartı (uygulamayı açmadan "kıldım") */
-function StickyToggle({ s }: { s: KazaState }) {
-  const c = useColors();
-  const [on, setOn] = useState(false);
-  useEffect(() => {
-    getKazaStickyPref().then(setOn);
-  }, []);
-  return (
-    <Card>
-      <Row gap={10}>
-        <Bell size={18} color={KAZA} />
-        <View style={{ flex: 1 }}>
-          <Text style={{ fontFamily: fonts.semibold, fontSize: 14, color: c.foreground }}>Bildirim panelinde göster</Text>
-          <Muted>Vakit butonlarıyla uygulamayı açmadan kaza işaretle</Muted>
-        </View>
-        <Switch
-          value={on}
-          onValueChange={async (v) => {
-            setOn(v);
-            await setKazaStickyPref(v);
-            await syncKazaCard(s);
-          }}
-          trackColor={{ true: KAZA + "88", false: c.muted }}
-          thumbColor={on ? KAZA : "#f4f4f5"}
-        />
-      </Row>
-    </Card>
-  );
-}
-
-/** Toplu kaza hesabı ya da elle giriş */
-function CalcCard({ s, onApply }: { s: KazaState; onApply: (counts: Counts, mode: "replace" | "add") => void }) {
-  const c = useColors();
-  const empty = sum(s.remaining) + sum(s.made) === 0;
-  const [open, setOpen] = useState(empty);
-  const [tab, setTab] = useState<"calc" | "manual">("calc");
   return (
     <Card style={{ gap: 12 }}>
-      <Pressable onPress={() => setOpen((v) => !v)}>
+      <Row style={{ alignItems: "flex-end" }}>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontFamily: fonts.regular, fontSize: 12, color: c.mutedForeground }}>Kalan kaza</Text>
+          <Text style={{ fontFamily: fonts.serif, fontSize: 32, lineHeight: 40, color: KAZA }}>{fmt(left)}</Text>
+        </View>
+        <Text style={{ fontFamily: fonts.semibold, fontSize: 12, color: c.mutedForeground, marginBottom: 6 }}>
+          {fmt(made)} kılındı · %{pct}
+        </Text>
+      </Row>
+      <View style={{ height: 6, borderRadius: 3, backgroundColor: c.muted, overflow: "hidden" }}>
+        <View style={{ width: `${pct}%`, height: "100%", backgroundColor: KAZA }} />
+      </View>
+      <Row gap={12} style={{ borderTopWidth: 1, borderTopColor: c.border, paddingTop: 10 }}>
+        {stat("Bugün", s.dailyGoal ? `${s.today} / ${s.dailyGoal}` : String(s.today))}
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontFamily: fonts.regular, fontSize: 11, color: c.mutedForeground }}>Seri</Text>
+          <Row gap={3}>
+            <Flame size={13} color={s.streak ? "#f97316" : c.mutedForeground} />
+            <Text style={{ fontFamily: fonts.bold, fontSize: 14, color: c.foreground }}>{s.streak} gün</Text>
+          </Row>
+        </View>
+        {stat("Tahmini bitiş", finish ? fmtDate(finish) : left ? "hedef koy" : "bitti")}
+      </Row>
+    </Card>
+  );
+}
+
+/** Ayarlar: günlük hedef, hesaplama, bildirim kartı, kapat */
+function Settings({ s, onGoal, onCalc, onDisable }: { s: KazaState; onGoal: (g: number) => void; onCalc: () => void; onDisable: () => void }) {
+  const c = useColors();
+  const [sticky, setSticky] = useState(false);
+  useEffect(() => {
+    getKazaStickyPref().then(setSticky);
+  }, []);
+  const rowStyle = { paddingHorizontal: 14, paddingVertical: 12, borderTopWidth: 1, borderTopColor: c.border } as const;
+  const icon = (I: typeof Bell) => (
+    <View style={{ width: 30, height: 30, borderRadius: 8, backgroundColor: KAZA + "1a", alignItems: "center", justifyContent: "center" }}>
+      <I size={16} color={KAZA} />
+    </View>
+  );
+  return (
+    <Card style={{ padding: 0, overflow: "hidden" }}>
+      <View style={{ paddingHorizontal: 14, paddingVertical: 12, gap: 10 }}>
         <Row gap={10}>
-          <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: KAZA + "1f", alignItems: "center", justifyContent: "center" }}>
-            <Calculator size={17} color={KAZA} />
+          {icon(Target)}
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontFamily: fonts.semibold, fontSize: 14, color: c.foreground }}>Günlük hedef</Text>
+            <Muted>Bitiş tarihi buna göre hesaplanır</Muted>
           </View>
+        </Row>
+        <Chips values={[0, 1, 2, 3, 6, 12]} value={s.dailyGoal} onChange={onGoal} render={(g) => (g === 0 ? "Yok" : String(g))} />
+      </View>
+      <Pressable onPress={onCalc} style={({ pressed }) => [rowStyle, { backgroundColor: pressed ? c.muted : "transparent" }]}>
+        <Row gap={10}>
+          {icon(Calculator)}
           <View style={{ flex: 1 }}>
             <Text style={{ fontFamily: fonts.semibold, fontSize: 14, color: c.foreground }}>Kaza hesapla</Text>
-            <Muted>Buluğdan bu yana kazanı toplu hesapla ya da elle gir</Muted>
+            <Muted>Toplu hesapla ya da sayıları elle düzenle</Muted>
           </View>
-          {open ? <ChevronUp size={18} color={c.mutedForeground} /> : <ChevronDown size={18} color={c.mutedForeground} />}
+          <ChevronRight size={18} color={c.mutedForeground} />
         </Row>
       </Pressable>
-      {open && (
-        <>
+      {!LITE && kazaNotificationAvailable && (
+        <View style={rowStyle}>
+          <Row gap={10}>
+            {icon(Bell)}
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontFamily: fonts.semibold, fontSize: 14, color: c.foreground }}>Bildirim panelinde göster</Text>
+              <Muted>Uygulamayı açmadan kıldım / kaçırdım</Muted>
+            </View>
+            <Switch
+              value={sticky}
+              onValueChange={async (v) => {
+                setSticky(v);
+                await setKazaStickyPref(v);
+                await syncKazaCard(s);
+              }}
+              trackColor={{ true: KAZA + "88", false: c.muted }}
+              thumbColor={sticky ? KAZA : "#f4f4f5"}
+            />
+          </Row>
+        </View>
+      )}
+      <Pressable
+        onPress={() =>
+          Alert.alert("Kaza takibi kapatılsın mı?", "Sayıların silinmez; istediğinde yeniden açabilirsin.", [
+            { text: "Vazgeç", style: "cancel" },
+            { text: "Kapat", style: "destructive", onPress: onDisable },
+          ])
+        }
+        style={({ pressed }) => [rowStyle, { backgroundColor: pressed ? c.muted : "transparent" }]}
+      >
+        <Text style={{ fontFamily: fonts.semibold, fontSize: 13, color: c.destructive, textAlign: "center" }}>Kaza takibini kapat</Text>
+      </Pressable>
+    </Card>
+  );
+}
+
+/** Kaza hesaplama penceresi: toplu hesap ya da elle giriş */
+function CalcSheet({ open, s, onClose, onApply }: { open: boolean; s: KazaState; onClose: () => void; onApply: (counts: Counts, mode: "replace" | "add") => void }) {
+  const c = useColors();
+  const insets = useSafeAreaInsets();
+  const [tab, setTab] = useState<"calc" | "manual">("calc");
+  return (
+    <Modal visible={open} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
+      <View style={{ flex: 1, backgroundColor: c.background, paddingTop: insets.top }}>
+        <Row style={{ paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: c.border }}>
+          <Text style={{ flex: 1, fontFamily: fonts.bold, fontSize: 16, color: c.foreground }}>Kaza hesapla</Text>
+          <Pressable hitSlop={10} onPress={onClose} accessibilityLabel="Kapat">
+            <X size={22} color={c.foreground} />
+          </Pressable>
+        </Row>
+        <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: insets.bottom + 40 }} keyboardShouldPersistTaps="handled">
           <Segmented
             value={tab}
             onChange={setTab}
             options={[
-              { value: "calc", label: "Hesapla" },
+              { value: "calc", label: "Toplu hesapla" },
               { value: "manual", label: "Elle gir" },
             ]}
           />
           {tab === "calc" ? <Calc onApply={onApply} /> : <Manual s={s} onApply={onApply} />}
-        </>
-      )}
-    </Card>
+        </ScrollView>
+      </View>
+    </Modal>
   );
 }
 

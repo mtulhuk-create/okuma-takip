@@ -29,6 +29,8 @@ export type KazaState = {
   today: number;
   streak: number;
   week: { dayKey: string; count: number }[];
+  /** Son 7 gün / 1 ay / 3 ay / 1 yıl: kılınan kaza ve kaza kılınan gün (eski sunucuda yok) */
+  periods?: Record<"d7" | "m1" | "m3" | "y1", { count: number; days: number; span: number }>;
   token?: string;
 };
 

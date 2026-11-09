@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Kaza kartında seçili olmayan mod -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+  <item android:state_pressed="true">
+    <shape android:shape="rectangle"><solid android:color="#334F46E5" /><stroke android:width="1.5dp" android:color="@color/kaza_primary" /><corners android:radius="14dp" /></shape>
+  </item>
+  <item>
+    <shape android:shape="rectangle"><solid android:color="@android:color/transparent" /><stroke android:width="1.5dp" android:color="@color/kaza_primary" /><corners android:radius="14dp" /></shape>
+  </item>
+</selector>

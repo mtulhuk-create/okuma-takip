@@ -25,12 +25,18 @@ export async function kazaState(userId: string) {
   const today = kazaDayKey();
   const [k, days] = await Promise.all([
     db.kaza.findUnique({ where: { userId } }),
-    db.kazaDay.findMany({ where: { userId, dayKey: { gte: shift(today, -89) } }, orderBy: { dayKey: "desc" } }),
+    db.kazaDay.findMany({ where: { userId, dayKey: { gte: shift(today, -364) } }, orderBy: { dayKey: "desc" } }),
   ]);
   const byDay = new Map(days.map((d) => [d.dayKey, d.count]));
   // Seri: bugünden (bugün henüz kılınmadıysa dünden) geriye kesintisiz kaza kılınan gün
   let streak = 0;
-  for (let i = byDay.get(today) ? 0 : 1; i < 90 && (byDay.get(shift(today, -i)) ?? 0) > 0; i++) streak++;
+  for (let i = byDay.get(today) ? 0 : 1; i < 365 && (byDay.get(shift(today, -i)) ?? 0) > 0; i++) streak++;
+  // Son 7 gün, 1 ay, 3 ay, 1 yılda kılınan kaza ve kaza kılınan gün sayısı
+  const period = (n: number) => {
+    const from = shift(today, -(n - 1));
+    const inRange = days.filter((d) => d.dayKey >= from && d.count > 0);
+    return { count: inRange.reduce((a, d) => a + d.count, 0), days: inRange.length, span: n };
+  };
   return {
     enabled: k?.enabled ?? false,
     remaining: counts(k?.remaining),
@@ -38,6 +44,7 @@ export async function kazaState(userId: string) {
     dailyGoal: k?.dailyGoal ?? 0,
     today: byDay.get(today) ?? 0,
     streak,
+    periods: { d7: period(7), m1: period(30), m3: period(90), y1: period(365) },
     // Son 14 gün (eskiden yeniye)
     week: Array.from({ length: 14 }, (_, i) => {
       const d = shift(today, i - 13);
@@ -50,6 +57,8 @@ export type KazaOp =
   | { op: "enable"; on: boolean }
   | { op: "make"; prayer: Prayer }
   | { op: "undo"; prayer: Prayer }
+  | { op: "add"; prayer: Prayer }
+  | { op: "unadd"; prayer: Prayer }
   | { op: "set"; counts: Partial<Counts>; mode: "replace" | "add" }
   | { op: "goal"; goal: number };
 
@@ -61,6 +70,8 @@ export function parseKazaOp(b: unknown): KazaOp | null {
       return { op: "enable", on: o.on === true };
     case "make":
     case "undo":
+    case "add":
+    case "unadd":
       return isPrayer(o.prayer) ? { op: o.op, prayer: o.prayer } : null;
     case "set":
       return { op: "set", counts: counts(o.counts), mode: o.mode === "add" ? "add" : "replace" };
@@ -71,7 +82,10 @@ export function parseKazaOp(b: unknown): KazaOp | null {
   }
 }
 
-/** Kaza işlemi: kılındı (kalan −1), geri al, toplu ayarla/ekle, günlük hedef, aç/kapat */
+/**
+ * Kaza işlemi: kılındı (kalan −1, kılınan +1) ve geri alması; kaçırılan namaz ekle (kalan +1) ve geri alması;
+ * toplu ayarla/ekle, günlük hedef, aç/kapat
+ */
 export async function applyKaza(userId: string, op: KazaOp) {
   const db = getDb();
   const today = kazaDayKey();
@@ -90,6 +104,12 @@ export async function applyKaza(userId: string, op: KazaOp) {
     if (op.op === "set") {
       for (const p of PRAYERS) remaining[p] = Math.min(MAX, (op.mode === "add" ? remaining[p] : 0) + (op.counts[p] ?? 0));
       await tx.kaza.update({ where: { userId }, data: { remaining, enabled: true } });
+      return;
+    }
+    if (op.op === "add" || op.op === "unadd") {
+      if (op.op === "unadd" && remaining[op.prayer] <= 0) throw new Error("Geri alınacak kaza yok");
+      remaining[op.prayer] = Math.min(MAX, remaining[op.prayer] + (op.op === "add" ? 1 : -1));
+      await tx.kaza.update({ where: { userId }, data: { remaining } });
       return;
     }
     if (op.op === "make") {

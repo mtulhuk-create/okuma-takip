@@ -24,7 +24,10 @@ class DayCardNotificationModule : Module() {
     // Namaz kaza kartı: son geri alınabilir kılınan (last) korunur
     Function("showKaza") { json: String ->
       val p = JSONObject(json)
-      KazaCard.load(context)?.optString("last")?.takeIf { it.isNotEmpty() }?.let { p.put("last", it) }
+      // Kartta son işlem (geri al) ve seçili mod uygulama yenilese de korunur
+      KazaCard.load(context)?.let { old ->
+        for (k in listOf("last", "lastOp", "mode")) old.optString(k).takeIf { it.isNotEmpty() }?.let { p.put(k, it) }
+      }
       KazaCard.render(context, p)
     }
 
