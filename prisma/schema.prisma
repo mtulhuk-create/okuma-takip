@@ -88,25 +88,25 @@ enum RequestStatus {
 }
 
 model User {
-  id        String   @id // Clerk user id
-  username  String?  @unique
-  name      String // ad soyad (kullanıcının girdiği)
-  accountName String? // hesaptan (Google/e-posta) gelen ad
-  nameConfirmed Boolean @default(false) // kullanıcı ad soyadını onayladı mı
+  id            String   @id // Clerk user id
+  username      String?  @unique
+  name          String // ad soyad (kullanıcının girdiği)
+  accountName   String? // hesaptan (Google/e-posta) gelen ad
+  nameConfirmed Boolean  @default(false) // kullanıcı ad soyadını onayladı mı
   liteApp       Boolean  @default(false) // mobil uygulamanın Lite sürümünü kullanıyor (yönetici yapılamaz)
-  email     String?
-  imageUrl  String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  email         String?
+  imageUrl      String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   memberships       GroupMember[]
   teamChanges       TeamChangeRequest[]
-  ownedGroups       Group[]            @relation("GroupOwner")
+  ownedGroups       Group[]             @relation("GroupOwner")
   readingLogs       ReadingLog[]
   penalties         Penalty[]
   dues              PaymentDue[]
-  invitesReceived   Invitation[]       @relation("Invitee")
-  invitesSent       Invitation[]       @relation("Inviter")
+  invitesReceived   Invitation[]        @relation("Invitee")
+  invitesSent       Invitation[]        @relation("Inviter")
   joinRequests      JoinRequest[]
   pushSubscriptions PushSubscription[]
   notifications     Notification[]
@@ -117,43 +117,44 @@ model User {
   kefaretPlans      KefaretPlan[]
   badgeOptions      BadgeOption[]
   badgeVotes        BadgeVote[]
+  kaza              Kaza?
 
   @@index([name])
 }
 
 model Group {
-  id            String      @id @default(cuid())
-  name          String
-  description   String?
-  visibility    Visibility  @default(PRIVATE)
-  ownerId       String
-  owner         User        @relation("GroupOwner", fields: [ownerId], references: [id])
+  id             String      @id @default(cuid())
+  name           String
+  description    String?
+  visibility     Visibility  @default(PRIVATE)
+  ownerId        String
+  owner          User        @relation("GroupOwner", fields: [ownerId], references: [id])
   // Okuma kuralları
   // Okuma kuralları (ekipler kapalıyken tüm grup için geçerli)
-  penaltyMode   PenaltyMode @default(FIXED)
-  targetPages   Int         @default(20) // günlük okuma hedefi
-  minPages      Int         @default(10) // alt sınır
-  penaltyAmount Int         @default(20) // TL (sabit) ya da eksik sayfa başına TL
-  minDiscount   Int         @default(50) // alt sınırı okuyanlara cezada % indirim (sabit cezada)
-  books         Json        @default("[]") // okunacak eserler: [{id, title, targetPages, minPages}]
-  teamsEnabled  Boolean     @default(false)
-  shareProgress Boolean     @default(false) // üyeler birbirinin okuma geçmişini görebilir
-  iban          String      @default("")
-  ibanName      String      @default("")
+  penaltyMode    PenaltyMode @default(FIXED)
+  targetPages    Int         @default(20) // günlük okuma hedefi
+  minPages       Int         @default(10) // alt sınır
+  penaltyAmount  Int         @default(20) // TL (sabit) ya da eksik sayfa başına TL
+  minDiscount    Int         @default(50) // alt sınırı okuyanlara cezada % indirim (sabit cezada)
+  books          Json        @default("[]") // okunacak eserler: [{id, title, targetPages, minPages}]
+  teamsEnabled   Boolean     @default(false)
+  shareProgress  Boolean     @default(false) // üyeler birbirinin okuma geçmişini görebilir
+  iban           String      @default("")
+  ibanName       String      @default("")
   // Zamanlama (yerel saat, gece yarısından itibaren dakika)
-  startMinute   Int         @default(0) // yeni okuma gününün başlangıcı
-  deadlineMinute Int        @default(1439) // son bildirim saati
-  reminderHours Int         @default(2) // son saatten kaç saat önce uyarı
-  tzOffset      Int         @default(180) // dakika, Türkiye = UTC+3
-  chatPolicy    ChatPolicy  @default(ALL)
-  dueOffsetDays Int         @default(0) // varsayılan ödeme vadesi: ay sonundan kaç gün önce (-) / sonra (+)
-  kickOnExpire  Boolean     @default(true) // vadesinde ödemeyen (yönetici kararından sonra) gruptan çıkarılır
-  nameDisplay   NameDisplay @default(ENTERED) // grupta okuyucuların adı nasıl görünsün
-  badgesEnabled Boolean     @default(false) // latife rozetleri (yönetici uyarıyı onaylayarak açar)
-  badgesSince   String? // rozetler açıldığında kapanmış son gün; seriler sonraki günlerden sayılır
+  startMinute    Int         @default(0) // yeni okuma gününün başlangıcı
+  deadlineMinute Int         @default(1439) // son bildirim saati
+  reminderHours  Int         @default(2) // son saatten kaç saat önce uyarı
+  tzOffset       Int         @default(180) // dakika, Türkiye = UTC+3
+  chatPolicy     ChatPolicy  @default(ALL)
+  dueOffsetDays  Int         @default(0) // varsayılan ödeme vadesi: ay sonundan kaç gün önce (-) / sonra (+)
+  kickOnExpire   Boolean     @default(true) // vadesinde ödemeyen (yönetici kararından sonra) gruptan çıkarılır
+  nameDisplay    NameDisplay @default(ENTERED) // grupta okuyucuların adı nasıl görünsün
+  badgesEnabled  Boolean     @default(false) // latife rozetleri (yönetici uyarıyı onaylayarak açar)
+  badgesSince    String? // rozetler açıldığında kapanmış son gün; seriler sonraki günlerden sayılır
   lastSettledDay String? // ceza hesaplaması yapılan son okuma günü (YYYY-MM-DD)
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
 
   members      GroupMember[]
   readingLogs  ReadingLog[]
@@ -172,17 +173,17 @@ model Group {
 }
 
 model GroupMember {
-  id         String       @id @default(cuid())
-  groupId    String
-  group      Group        @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  userId     String
-  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role       MemberRole   @default(MEMBER)
-  status     MemberStatus @default(ACTIVE)
-  teamId     String?
-  team       Team?        @relation(fields: [teamId], references: [id], onDelete: SetNull)
-  joinedAt   DateTime     @default(now())
-  leftAt     DateTime?
+  id       String       @id @default(cuid())
+  groupId  String
+  group    Group        @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role     MemberRole   @default(MEMBER)
+  status   MemberStatus @default(ACTIVE)
+  teamId   String?
+  team     Team?        @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  joinedAt DateTime     @default(now())
+  leftAt   DateTime?
 
   @@unique([groupId, userId])
   @@index([userId, status])
@@ -210,41 +211,41 @@ model ReadingLog {
 }
 
 model Penalty {
-  id            String        @id @default(cuid())
-  groupId       String
-  group         Group         @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  userId        String
-  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  dayKey        String
-  amount        Int // TL
+  id             String        @id @default(cuid())
+  groupId        String
+  group          Group         @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dayKey         String
+  amount         Int // TL
   originalAmount Int? // indirim yapıldıysa ilk tutar
-  pagesRead     Int
-  requiredPages Int
-  status        PenaltyStatus @default(UNPAID)
-  dueId         String?
-  due           PaymentDue?   @relation(fields: [dueId], references: [id], onDelete: SetNull)
-  createdAt     DateTime      @default(now())
+  pagesRead      Int
+  requiredPages  Int
+  status         PenaltyStatus @default(UNPAID)
+  dueId          String?
+  due            PaymentDue?   @relation(fields: [dueId], references: [id], onDelete: SetNull)
+  createdAt      DateTime      @default(now())
 
   @@unique([groupId, userId, dayKey])
   @@index([groupId, userId, status])
 }
 
 model PaymentDue {
-  id          String    @id @default(cuid())
-  groupId     String
-  group       Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  userId      String
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  amount      Int
-  dueAt       DateTime
+  id            String    @id @default(cuid())
+  groupId       String
+  group         Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount        Int
+  dueAt         DateTime
   originalDueAt DateTime? // ek süre verildiyse ilk vade
-  extensions  Int       @default(0) // kaç kez ek süre verildi
+  extensions    Int       @default(0) // kaç kez ek süre verildi
   decisionUntil DateTime? // vade dolunca yöneticinin karar vermesi için son an
-  status      DueStatus @default(PENDING)
-  paymentNote String? // üyenin dekont/açıklama notu
-  submittedAt DateTime?
-  resolvedAt  DateTime?
-  createdAt   DateTime  @default(now())
+  status        DueStatus @default(PENDING)
+  paymentNote   String? // üyenin dekont/açıklama notu
+  submittedAt   DateTime?
+  resolvedAt    DateTime?
+  createdAt     DateTime  @default(now())
 
   penalties Penalty[]
 
@@ -370,17 +371,17 @@ model PollVote {
 }
 
 model Team {
-  id            String      @id @default(cuid())
+  id            String              @id @default(cuid())
   groupId       String
-  group         Group       @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  group         Group               @relation(fields: [groupId], references: [id], onDelete: Cascade)
   name          String
-  position      Int         @default(0)
-  penaltyMode   PenaltyMode @default(FIXED)
-  targetPages   Int         @default(20)
-  minPages      Int         @default(10)
-  penaltyAmount Int         @default(20)
-  minDiscount   Int         @default(50)
-  books         Json        @default("[]")
+  position      Int                 @default(0)
+  penaltyMode   PenaltyMode         @default(FIXED)
+  targetPages   Int                 @default(20)
+  minPages      Int                 @default(10)
+  penaltyAmount Int                 @default(20)
+  minDiscount   Int                 @default(50)
+  books         Json                @default("[]")
   members       GroupMember[]
   changes       TeamChangeRequest[]
 
@@ -430,25 +431,27 @@ model BookLink {
   @@index([userId, groupId])
 }
 
-/** Gruba özel rozet: o grubun okuma verisine göre verilir ve kaldırılır */
+/**
+ * Gruba özel rozet: o grubun okuma verisine göre verilir ve kaldırılır
+ */
 model Badge {
-  id         String        @id @default(cuid())
-  groupId    String
-  group      Group         @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  userId     String
-  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  kind       BadgeKind
-  status     BadgeStatus
-  label      String? // en fazla 2 kelime
-  streakDay  String // 7 günlük serinin son günü; kaldırma için sonraki günler sayılır
-  voteUntil  DateTime?
-  awardedAt  DateTime?
-  endedDay   String? // yeni seri bu günden sonra başlar
-  endedAt    DateTime?
-  createdAt  DateTime      @default(now())
-  options    BadgeOption[]
-  votes      BadgeVote[]
-  messages   Message[]
+  id        String        @id @default(cuid())
+  groupId   String
+  group     Group         @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind      BadgeKind
+  status    BadgeStatus
+  label     String? // en fazla 2 kelime
+  streakDay String // 7 günlük serinin son günü; kaldırma için sonraki günler sayılır
+  voteUntil DateTime?
+  awardedAt DateTime?
+  endedDay  String? // yeni seri bu günden sonra başlar
+  endedAt   DateTime?
+  createdAt DateTime      @default(now())
+  options   BadgeOption[]
+  votes     BadgeVote[]
+  messages  Message[]
 
   @@index([groupId, status])
   @@index([groupId, userId])
@@ -508,4 +511,32 @@ model KefaretPlan {
 
   @@index([groupId, status])
   @@index([groupId, userId])
+}
+
+/**
+ * Namaz kaza takibi (kişisel). Varsayılan kapalı; kişi "Kaza namazım var" deyince açılır.
+ * remaining/made: { sabah, ogle, ikindi, aksam, yatsi, vitir } kalan ve kılınan sayılar.
+ */
+model Kaza {
+  userId    String    @id
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  enabled   Boolean   @default(false)
+  remaining Json      @default("{}")
+  made      Json      @default("{}")
+  dailyGoal Int       @default(0) // günlük kaza hedefi (0: yok)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  days      KazaDay[]
+}
+
+/**
+ * Günlük kılınan kaza sayısı (seri ve son günler grafiği)
+ */
+model KazaDay {
+  userId String
+  kaza   Kaza   @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  dayKey String // YYYY-MM-DD (Türkiye saati)
+  count  Int    @default(0)
+
+  @@id([userId, dayKey])
 }

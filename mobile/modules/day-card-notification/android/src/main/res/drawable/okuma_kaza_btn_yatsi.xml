@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Kaza kartında vakit butonu: kenarı vaktin renginde; basılıyken dolar -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+  <item android:state_pressed="true">
+    <shape android:shape="rectangle">
+      <solid android:color="@color/kaza_yatsi_soft" />
+      <stroke android:width="1.5dp" android:color="@color/kaza_yatsi_dark" />
+      <corners android:radius="10dp" />
+    </shape>
+  </item>
+  <item>
+    <shape android:shape="rectangle">
+      <solid android:color="@android:color/transparent" />
+      <stroke android:width="1.5dp" android:color="@color/kaza_yatsi" />
+      <corners android:radius="10dp" />
+    </shape>
+  </item>
+</selector>

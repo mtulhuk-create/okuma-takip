@@ -11,7 +11,7 @@
         android:contentDescription="Kefaret okuması" />
       <TextView android:id="@+id/n_kefaret" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="top|right" android:layout_marginRight="3dp"
         android:background="@drawable/okuma_notch_kefaret" android:paddingLeft="3dp" android:paddingRight="3dp" android:includeFontPadding="false"
-        android:textColor="@color/okuma_kefaret" android:textSize="7sp" android:textStyle="bold" android:visibility="gone" />
+        android:textColor="#FFFFFF" android:textSize="7sp" android:textStyle="bold" android:visibility="gone" />
     </FrameLayout>
     <FrameLayout android:id="@+id/c_read" android:layout_width="52dp" android:layout_height="38dp" android:layout_marginLeft="8dp">
       <ImageView android:id="@+id/b_read" android:layout_width="match_parent" android:layout_height="match_parent" android:layout_marginTop="5dp" android:layout_marginBottom="5dp"
@@ -19,7 +19,7 @@
         android:contentDescription="Okudum" />
       <TextView android:id="@+id/n_read" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="top|right" android:layout_marginRight="3dp"
         android:background="@drawable/okuma_notch_read" android:paddingLeft="3dp" android:paddingRight="3dp" android:includeFontPadding="false"
-        android:textColor="@color/okuma_read" android:textSize="7sp" android:textStyle="bold" android:visibility="gone" />
+        android:textColor="#FFFFFF" android:textSize="7sp" android:textStyle="bold" android:visibility="gone" />
     </FrameLayout>
     <FrameLayout android:id="@+id/c_min" android:layout_width="52dp" android:layout_height="38dp" android:layout_marginLeft="8dp">
       <ImageView android:id="@+id/b_min" android:layout_width="match_parent" android:layout_height="match_parent" android:layout_marginTop="5dp" android:layout_marginBottom="5dp"
@@ -27,10 +27,10 @@
         android:contentDescription="Alt sınırı okudum" />
       <TextView android:id="@+id/n_min" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="top|right" android:layout_marginRight="3dp"
         android:background="@drawable/okuma_notch_min" android:paddingLeft="3dp" android:paddingRight="3dp" android:includeFontPadding="false"
-        android:textColor="@color/okuma_min" android:textSize="7sp" android:textStyle="bold" android:visibility="gone" />
+        android:textColor="#FFFFFF" android:textSize="7sp" android:textStyle="bold" android:visibility="gone" />
       <TextView android:id="@+id/f_min" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="bottom|right" android:layout_marginRight="3dp"
         android:background="@drawable/okuma_notch_none" android:paddingLeft="3dp" android:paddingRight="3dp" android:includeFontPadding="false"
-        android:textColor="@color/okuma_none" android:textSize="7sp" android:textStyle="bold" android:visibility="gone" />
+        android:textColor="#FFFFFF" android:textSize="7sp" android:textStyle="bold" android:visibility="gone" />
     </FrameLayout>
     <FrameLayout android:id="@+id/c_none" android:layout_width="52dp" android:layout_height="38dp" android:layout_marginLeft="8dp">
       <ImageView android:id="@+id/b_none" android:layout_width="match_parent" android:layout_height="match_parent" android:layout_marginTop="5dp" android:layout_marginBottom="5dp"
@@ -38,6 +38,6 @@
         android:contentDescription="Okumadım" />
       <TextView android:id="@+id/f_none" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="bottom|right" android:layout_marginRight="3dp"
         android:background="@drawable/okuma_notch_none" android:paddingLeft="3dp" android:paddingRight="3dp" android:includeFontPadding="false"
-        android:textColor="@color/okuma_none" android:textSize="7sp" android:textStyle="bold" android:visibility="gone" />
+        android:textColor="#FFFFFF" android:textSize="7sp" android:textStyle="bold" android:visibility="gone" />
     </FrameLayout>
 </LinearLayout>

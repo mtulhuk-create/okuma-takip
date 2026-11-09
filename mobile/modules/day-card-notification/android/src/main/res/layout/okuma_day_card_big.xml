@@ -2,7 +2,7 @@
 <!-- Kilit ekranında duran gün kartı (açık hali): ferah kenar boşlukları, isim yanında okuma çubuğu, eserler ve küçük butonlar -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
   android:layout_width="match_parent" android:layout_height="wrap_content"
-  android:background="@drawable/okuma_card_bg" android:orientation="vertical"
+  android:orientation="vertical"
   android:paddingLeft="22dp" android:paddingRight="22dp" android:paddingTop="18dp" android:paddingBottom="16dp">
 
   <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal">

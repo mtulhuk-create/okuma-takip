@@ -46,3 +46,13 @@ export async function verifyInboxToken(token: string) {
   const p = await verifyPayload<{ t?: string; u: string; e: number }>(token);
   return p?.t === "i" ? p.u : null;
 }
+
+/** Kaza takibi bildirim kartı (uygulama açılmadan kaza kılındı bildirir): yalnızca kişinin kaza sayılarını değiştirir */
+export function signKazaToken(userId: string) {
+  return signPayload({ t: "k", u: userId, e: Date.now() + 90 * 86_400_000 });
+}
+
+export async function verifyKazaToken(token: string) {
+  const p = await verifyPayload<{ t?: string; u: string; e: number }>(token);
+  return p?.t === "k" ? p.u : null;
+}

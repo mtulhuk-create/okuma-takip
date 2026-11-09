@@ -20,7 +20,7 @@
         </LinearLayout>
         <TextView android:id="@+id/n_kefaret" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="top|right" android:layout_marginRight="6dp"
           android:background="@drawable/okuma_notch_kefaret" android:paddingLeft="4dp" android:paddingRight="4dp" android:includeFontPadding="false"
-          android:textColor="@color/okuma_kefaret" android:textSize="8sp" android:textStyle="bold" android:visibility="gone" />
+          android:textColor="#FFFFFF" android:textSize="8sp" android:textStyle="bold" android:visibility="gone" />
       </FrameLayout>
       <FrameLayout android:id="@+id/c_read" android:layout_width="0dp" android:layout_height="52dp" android:layout_weight="1" android:layout_marginLeft="3dp" android:layout_marginRight="3dp">
         <LinearLayout android:id="@+id/b_read" android:layout_width="match_parent" android:layout_height="match_parent" android:layout_marginTop="6dp" android:layout_marginBottom="6dp"
@@ -32,7 +32,7 @@
         </LinearLayout>
         <TextView android:id="@+id/n_read" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="top|right" android:layout_marginRight="6dp"
           android:background="@drawable/okuma_notch_read" android:paddingLeft="4dp" android:paddingRight="4dp" android:includeFontPadding="false"
-          android:textColor="@color/okuma_read" android:textSize="8sp" android:textStyle="bold" android:visibility="gone" />
+          android:textColor="#FFFFFF" android:textSize="8sp" android:textStyle="bold" android:visibility="gone" />
       </FrameLayout>
       <FrameLayout android:id="@+id/c_min" android:layout_width="0dp" android:layout_height="52dp" android:layout_weight="1" android:layout_marginLeft="3dp" android:layout_marginRight="3dp">
         <LinearLayout android:id="@+id/b_min" android:layout_width="match_parent" android:layout_height="match_parent" android:layout_marginTop="6dp" android:layout_marginBottom="6dp"
@@ -44,10 +44,10 @@
         </LinearLayout>
         <TextView android:id="@+id/n_min" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="top|right" android:layout_marginRight="6dp"
           android:background="@drawable/okuma_notch_min" android:paddingLeft="4dp" android:paddingRight="4dp" android:includeFontPadding="false"
-          android:textColor="@color/okuma_min" android:textSize="8sp" android:textStyle="bold" android:visibility="gone" />
+          android:textColor="#FFFFFF" android:textSize="8sp" android:textStyle="bold" android:visibility="gone" />
         <TextView android:id="@+id/f_min" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="bottom|right" android:layout_marginRight="6dp"
           android:background="@drawable/okuma_notch_none" android:paddingLeft="4dp" android:paddingRight="4dp" android:includeFontPadding="false"
-          android:textColor="@color/okuma_none" android:textSize="8sp" android:textStyle="bold" android:visibility="gone" />
+          android:textColor="#FFFFFF" android:textSize="8sp" android:textStyle="bold" android:visibility="gone" />
       </FrameLayout>
       <FrameLayout android:id="@+id/c_none" android:layout_width="0dp" android:layout_height="52dp" android:layout_weight="1" android:layout_marginLeft="3dp" android:layout_marginRight="3dp">
         <LinearLayout android:id="@+id/b_none" android:layout_width="match_parent" android:layout_height="match_parent" android:layout_marginTop="6dp" android:layout_marginBottom="6dp"
@@ -59,7 +59,7 @@
         </LinearLayout>
         <TextView android:id="@+id/f_none" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="bottom|right" android:layout_marginRight="6dp"
           android:background="@drawable/okuma_notch_none" android:paddingLeft="4dp" android:paddingRight="4dp" android:includeFontPadding="false"
-          android:textColor="@color/okuma_none" android:textSize="8sp" android:textStyle="bold" android:visibility="gone" />
+          android:textColor="#FFFFFF" android:textSize="8sp" android:textStyle="bold" android:visibility="gone" />
       </FrameLayout>
     </LinearLayout>
   </LinearLayout>

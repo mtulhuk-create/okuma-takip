@@ -5,6 +5,7 @@ import { AppState, Pressable, Text } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApi, useApiFetch } from "@/lib/api";
 import { markInboxSeen, refreshInboxToken } from "@/lib/inbox";
+import { getKazaStickyPref, syncKazaCard, type KazaState } from "@/lib/kaza";
 import { exactAlarmsAllowed, handleReportAction, requestExactAlarms, setupNotifications, syncSchedule, type ReportData, SCHEDULE_PATH, setDayCards } from "@/lib/notifications";
 import { fonts, useColors } from "@/lib/theme";
 import type { MeResponse } from "@/lib/types";
@@ -32,6 +33,13 @@ export function NotificationBridge() {
   useEffect(() => {
     if (me.data?.groups) setDayCards(me.data.groups);
   }, [me.data]);
+
+  // Bildirim panelindeki kaza kartı: uygulama açılınca güncel sayılar ve yeni token ile yenilenir
+  useEffect(() => {
+    getKazaStickyPref()
+      .then(async (on) => (on ? syncKazaCard(await fetcher<KazaState>("/api/m/kaza")) : undefined))
+      .catch(() => {});
+  }, [fetcher]);
 
   // Okuma günleri/raporlar değiştikçe (me verisi tazelenince) planı güncelle
   useEffect(() => {
