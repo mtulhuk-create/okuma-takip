@@ -3,7 +3,7 @@ import { useSSO } from "@clerk/expo/experimental";
 import { Image } from "expo-image";
 import * as WebBrowser from "expo-web-browser";
 import { useState } from "react";
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from "react-native";
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View, useColorScheme } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Body, Button, H1, Input, Muted, Row, Segmented } from "@/components/ui";
 import { fonts, useColors } from "@/lib/theme";
@@ -37,6 +37,7 @@ type Step = "form" | "signUpCode" | "signInCode";
 
 export default function SignInScreen() {
   const c = useColors();
+  const scheme = useColorScheme();
   const insets = useSafeAreaInsets();
   const { signIn } = useSignIn();
   const { signUp } = useSignUp();
@@ -138,7 +139,8 @@ export default function SignInScreen() {
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1, backgroundColor: c.background }}>
       <ScrollView contentContainerStyle={{ flexGrow: 1, padding: 24, paddingTop: insets.top + 28, paddingBottom: insets.bottom + 24, gap: 18, justifyContent: "center" }} keyboardShouldPersistTaps="handled">
         <View style={{ alignItems: "center", gap: 8 }}>
-          <Image source={require("@/assets/images/icon.png")} style={{ width: 84, height: 84, borderRadius: 22 }} />
+          {/* Amblem: açık ve koyu temaya göre */}
+          <Image source={scheme === "dark" ? require("@/assets/images/logo-dark.png") : require("@/assets/images/logo-light.png")} style={{ width: 150, height: 80 }} contentFit="contain" />
           <H1 style={{ fontSize: 28 }}>Okuma Takip</H1>
           <Body style={{ textAlign: "center", color: c.mutedForeground }}>Arkadaşlarınla okuma grubu kur, her gün sayfanı bildir.</Body>
         </View>

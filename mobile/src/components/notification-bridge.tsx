@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import * as Notifications from "expo-notifications";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
@@ -14,6 +15,7 @@ import type { MeResponse } from "@/lib/types";
 export function NotificationBridge() {
   const router = useRouter();
   const fetcher = useApiFetch();
+  const qc = useQueryClient();
   const me = useApi<MeResponse>("/api/m/me");
   const [ready, setReady] = useState(false);
   const [exactDenied, setExactDenied] = useState(false);
@@ -36,10 +38,11 @@ export function NotificationBridge() {
 
   // Bildirim panelindeki kaza kartı: uygulama açılınca güncel sayılar ve yeni token ile yenilenir
   useEffect(() => {
+    // Önbellekteki aynı sorgu kullanılır (Bugün sayfası da aynı veriyi istiyor: tek istek)
     getKazaStickyPref()
-      .then(async (on) => (on ? syncKazaCard(await fetcher<KazaState>("/api/m/kaza")) : undefined))
+      .then(async (on) => (on ? syncKazaCard(await qc.fetchQuery({ queryKey: ["/api/m/kaza"], queryFn: () => fetcher<KazaState>("/api/m/kaza"), staleTime: 15_000 })) : undefined))
       .catch(() => {});
-  }, [fetcher]);
+  }, [fetcher, qc]);
 
   // Okuma günleri/raporlar değiştikçe (me verisi tazelenince) planı güncelle
   useEffect(() => {

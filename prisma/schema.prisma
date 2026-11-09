@@ -208,6 +208,8 @@ model ReadingLog {
 
   @@unique([groupId, userId, dayKey])
   @@index([groupId, dayKey])
+  // Gün kartında kefaret okunan günler
+  @@index([kefaretPlanId])
 }
 
 model Penalty {
@@ -289,6 +291,9 @@ model PushSubscription {
   p256dh    String
   auth      String
   createdAt DateTime @default(now())
+
+  // Bildirim gönderiminde kişinin abonelikleri
+  @@index([userId])
 }
 
 model Notification {

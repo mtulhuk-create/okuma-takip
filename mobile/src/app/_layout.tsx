@@ -32,6 +32,21 @@ const queryClient = new QueryClient({
 });
 const persister = createAsyncStoragePersister({ storage: AsyncStorage, key: "okuma-takip-cache", throttleTime: 3000 });
 
+/**
+ * Cihazda saklanacak sorgular: internetsiz açılışta gereken ekranlar (Bugün, gruplar, sohbet, kaza, profil).
+ * Yönetim, kefaret önizlemesi, uzun geçmiş aralıkları ve aramalar saklanmaz: önbellek küçük kalır,
+ * açılışta okunup çözümlenmesi eski telefonlarda hızlanır; bu ekranlar açıldığında zaten yeniden yüklenir.
+ */
+function shouldPersist(q: { queryKey: readonly unknown[]; state: { status: string } }) {
+  if (q.state.status !== "success") return false;
+  const [key, arg] = q.queryKey;
+  if (typeof key !== "string") return false;
+  if (key === "user-search" || key.endsWith("/admin") || key.includes("/kefaret") || key.includes("/book-matches")) return false;
+  // Geçmiş: yalnızca varsayılan 7 günlük görünüm
+  if (key.endsWith("/history")) return arg === undefined || arg === "7d";
+  return true;
+}
+
 /** Ekran çizilirken hata olursa uygulama kapanmaz: hata mesajı ve "Tekrar dene" gösterilir */
 export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
   const text = `${error.message}\n\n${(error.stack ?? "").slice(0, 800)}`;
@@ -58,7 +73,7 @@ export default function RootLayout() {
   const [fontsLoaded] = useFonts({ Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700Bold, LibreBaskerville_700Bold });
   return (
     <ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY} tokenCache={tokenCache} __experimental_resourceCache={resourceCache}>
-      <PersistQueryClientProvider client={queryClient} persistOptions={{ persister, maxAge: WEEK, buster: "1" }}>
+      <PersistQueryClientProvider client={queryClient} persistOptions={{ persister, maxAge: WEEK, buster: "1", dehydrateOptions: { shouldDehydrateQuery: shouldPersist } }}>
         {fontsLoaded && <Navigation />}
       </PersistQueryClientProvider>
     </ClerkProvider>

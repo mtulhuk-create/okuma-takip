@@ -2,7 +2,7 @@
   "expo": {
     "name": "Okuma Takip",
     "slug": "okuma-takip",
-    "version": "2.2.1",
+    "version": "2.3.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "okumatakip",
@@ -13,7 +13,7 @@
     },
     "android": {
       "package": "com.okumatakip.app",
-      "versionCode": 35,
+      "versionCode": 36,
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -37,10 +37,10 @@
         {
           "backgroundColor": "#FFFFFF",
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 180,
+          "imageWidth": 220,
           "dark": {
-            "backgroundColor": "#1C1917",
-            "image": "./assets/images/splash-icon.png"
+            "backgroundColor": "#2A2A2B",
+            "image": "./assets/images/splash-icon-dark.png"
           }
         }
       ],
