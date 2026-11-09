@@ -69,13 +69,18 @@ object DayCardRenderer {
       .setOngoing(true)
       .setOnlyAlertOnce(true)
       .setSilent(silent)
-      .setShowWhen(false)
+      // Geri sayım ve durum sistem başlığında: uygulama adı · "2/5 okudu" · kalan süre
+      .setSubText(status ?: segments(p).let { "${it.getValue("kef") + it.getValue("read") + it.getValue("min")}/${it.values.sum()} okudu" })
+      .setUsesChronometer(true)
+      .setChronometerCountDown(true)
+      .setWhen(deadline)
+      .setShowWhen(true)
       .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
       .setCategory(NotificationCompat.CATEGORY_REMINDER)
       .setTimeoutAfter(left)
       .setColor(0xFF9B2C2C.toInt())
-    // Android 12+ özel görünümleri sistem çerçevesinde gösterir
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) builder.setStyle(NotificationCompat.DecoratedCustomViewStyle())
+      // Sistem çerçevesi her sürümde: arka plan bildirim panelinin temasından gelir (Samsung temaları dahil)
+      .setStyle(NotificationCompat.DecoratedCustomViewStyle())
     if (open != null) builder.setContentIntent(PendingIntent.getActivity(context, notificationId(id), open, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
     try {
       nm.notify(notificationId(id), builder.build())
@@ -87,11 +92,8 @@ object DayCardRenderer {
   private fun fill(context: Context, v: RemoteViews, p: JSONObject, status: String?, left: Long, big: Boolean) {
     val id = p.getString("id")
     v.setTextViewText(R.id.title, p.optString("title"))
-    val subtitle = listOfNotNull(status, p.optString("subtitle").takeIf { it.isNotEmpty() }).joinToString(" · ")
+    val subtitle = p.optString("subtitle")
     v.setTextViewText(R.id.subtitle, subtitle)
-    // Geri sayım: sistem kendisi saydığı için bildirim güncellenmeden kalan süre akar
-    v.setChronometer(R.id.countdown, SystemClock.elapsedRealtime() + left, null, true)
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) v.setChronometerCountDown(R.id.countdown, true)
     // Gün çubuğu uygulamadaki gibi bölümlü: kefaret, okudu, alt sınır, okumadı (katmanlar üst üste, birikimli)
     val s = segments(p)
     val total = maxOf(s.values.sum(), 1)
@@ -119,14 +121,17 @@ object DayCardRenderer {
     val count = if (big) books.length() else minOf(1, books.length())
     for (i in 0 until count) {
       val b = books.getJSONObject(i)
-      val row = RemoteViews(context.packageName, if (big) R.layout.okuma_book_row else R.layout.okuma_book_row_small)
+      // Kapalı kartta yalnızca butonlar; açık kartta tek eser geniş, birden çok eser sığsın diye satır satır
+      val layout = if (!big) R.layout.okuma_book_chips else if (books.length() == 1) R.layout.okuma_book_row else R.layout.okuma_book_row_small
+      val row = RemoteViews(context.packageName, layout)
+      val wide = big && books.length() == 1
       val bookId = b.getString("id")
       val target = b.optInt("target")
       val min = b.optInt("min")
       val kefPages = if (b.has("kefPages")) b.optInt("kefPages") else target
       val pages = if (b.isNull("pages")) null else b.optInt("pages")
       row.setTextViewText(R.id.book_title, b.optString("title"))
-      if (big) {
+      if (wide) {
         val info = buildString {
           append("Hedef $target sf · alt sınır $min sf")
           if (pages != null) append(" · okunan $pages sf")
@@ -142,7 +147,7 @@ object DayCardRenderer {
         // Seçili buton dolu ve kenarlı; basılıyken koyulaşır (seçici arka plan)
         val on = state == btn.key || (btn.key == "read" && state == "kefaret")
         row.setInt(btn.button, "setBackgroundResource", if (on) btn.chipOn else btn.chip)
-        if (big) {
+        if (wide) {
           row.setImageViewResource(btn.icon, if (on) btn.iconOn else btn.iconOff)
           // 4 buton varken ikon gizlenir, yazı sığsın
           row.setViewVisibility(btn.icon, if (plan) View.GONE else View.VISIBLE)

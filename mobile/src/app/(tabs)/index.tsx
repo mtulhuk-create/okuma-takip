@@ -5,6 +5,7 @@ import { DayCardMini } from "@/components/day-card";
 import { MyHistorySection } from "@/components/history";
 import { DebtButton } from "@/components/pay-sheet";
 import { DueBadge } from "@/components/due-badge";
+import { KazaDayCard } from "@/components/kaza-day-card";
 import { Avatar, Button, Card, ErrorView, H1, Loading, Muted, Row, Screen, Title } from "@/components/ui";
 import { useApi } from "@/lib/api";
 import { LITE } from "@/lib/variant";
@@ -72,6 +73,7 @@ export default function TodayScreen() {
           ))}
         </>
       )}
+      <KazaDayCard />
     </Screen>
   );
 }

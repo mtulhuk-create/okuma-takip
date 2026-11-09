@@ -2,9 +2,9 @@
 <!-- Kapalı kartta ilk eser: adı ve butonları; sağ üstten sayfa, sağ alttan ceza çentiği çıkar -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
   android:layout_width="match_parent" android:layout_height="wrap_content"
-  android:gravity="center_vertical" android:orientation="horizontal">
+  android:gravity="center_vertical" android:orientation="horizontal" android:paddingTop="4dp">
   <TextView android:id="@+id/book_title" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginRight="2dp"
-    android:maxLines="1" android:ellipsize="end" android:textColor="@color/okuma_fg" android:textSize="13sp" android:textStyle="bold" />
+    android:maxLines="1" android:ellipsize="end" android:textAppearance="@android:style/TextAppearance.Material.Notification.Title" android:textSize="13sp" android:textStyle="bold" />
     <FrameLayout android:id="@+id/c_kefaret" android:layout_width="52dp" android:layout_height="38dp" android:layout_marginLeft="8dp">
       <ImageView android:id="@+id/b_kefaret" android:layout_width="match_parent" android:layout_height="match_parent" android:layout_marginTop="5dp" android:layout_marginBottom="5dp"
         android:background="@drawable/okuma_chip_kefaret" android:paddingTop="7dp" android:paddingBottom="7dp" android:scaleType="fitCenter" android:src="@drawable/okuma_ic_kefaret"
