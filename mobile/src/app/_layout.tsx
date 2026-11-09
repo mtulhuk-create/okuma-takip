@@ -135,6 +135,8 @@ function Navigation() {
         <Stack.Protected guard={!isSignedIn}>
           <Stack.Screen name="sign-in" options={{ headerShown: false }} />
         </Stack.Protected>
+        {/* Google ile giriş dönüşü: oturum açılınca ana sayfaya geçer */}
+        <Stack.Screen name="sso-callback" options={{ headerShown: false, animation: "none" }} />
       </Stack>
     </ThemeProvider>
   );
