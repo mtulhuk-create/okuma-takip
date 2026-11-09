@@ -1,43 +1,43 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Kapalı kartta ilk eser: adı ve geniş, renkli kenarlı butonlar; sağ üstten sayfa, sağ alttan ceza çentiği çıkar -->
+<!-- Kapalı kartta ilk eser: ince kenarlı kutu içinde adı ve butonları; sağ üstten sayfa, sağ alttan ceza çentiği çıkar -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-  android:layout_width="match_parent" android:layout_height="wrap_content"
-  android:gravity="center_vertical" android:orientation="horizontal" android:paddingTop="2dp">
+  android:layout_width="match_parent" android:layout_height="wrap_content" android:background="@drawable/okuma_book_box_small"
+  android:gravity="center_vertical" android:orientation="horizontal" android:paddingLeft="10dp" android:paddingRight="4dp">
   <TextView android:id="@+id/book_title" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginRight="2dp"
     android:maxLines="1" android:ellipsize="end" android:textColor="@color/okuma_fg" android:textSize="12sp" android:textStyle="bold" />
-  <FrameLayout android:id="@+id/c_kefaret" android:layout_width="48dp" android:layout_height="34dp" android:layout_marginLeft="5dp">
-    <ImageView android:id="@+id/b_kefaret" android:layout_width="match_parent" android:layout_height="match_parent" android:layout_marginTop="5dp" android:layout_marginBottom="5dp"
-      android:background="@drawable/okuma_chip_kefaret" android:paddingTop="5dp" android:paddingBottom="5dp" android:scaleType="fitCenter" android:src="@drawable/okuma_ic_kefaret"
-      android:contentDescription="Kefaret okuması" />
-    <TextView android:id="@+id/n_kefaret" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="top|right" android:layout_marginRight="3dp"
-      android:background="@drawable/okuma_notch_kefaret" android:paddingLeft="3dp" android:paddingRight="3dp" android:includeFontPadding="false"
-      android:textColor="@color/okuma_kefaret" android:textSize="7sp" android:textStyle="bold" android:visibility="gone" />
-  </FrameLayout>
-  <FrameLayout android:id="@+id/c_read" android:layout_width="48dp" android:layout_height="34dp" android:layout_marginLeft="5dp">
-    <ImageView android:id="@+id/b_read" android:layout_width="match_parent" android:layout_height="match_parent" android:layout_marginTop="5dp" android:layout_marginBottom="5dp"
-      android:background="@drawable/okuma_chip_read" android:paddingTop="5dp" android:paddingBottom="5dp" android:scaleType="fitCenter" android:src="@drawable/okuma_ic_read"
-      android:contentDescription="Okudum" />
-    <TextView android:id="@+id/n_read" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="top|right" android:layout_marginRight="3dp"
-      android:background="@drawable/okuma_notch_read" android:paddingLeft="3dp" android:paddingRight="3dp" android:includeFontPadding="false"
-      android:textColor="@color/okuma_read" android:textSize="7sp" android:textStyle="bold" android:visibility="gone" />
-  </FrameLayout>
-  <FrameLayout android:id="@+id/c_min" android:layout_width="48dp" android:layout_height="34dp" android:layout_marginLeft="5dp">
-    <ImageView android:id="@+id/b_min" android:layout_width="match_parent" android:layout_height="match_parent" android:layout_marginTop="5dp" android:layout_marginBottom="5dp"
-      android:background="@drawable/okuma_chip_min" android:paddingTop="5dp" android:paddingBottom="5dp" android:scaleType="fitCenter" android:src="@drawable/okuma_ic_min"
-      android:contentDescription="Alt sınırı okudum" />
-    <TextView android:id="@+id/n_min" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="top|right" android:layout_marginRight="3dp"
-      android:background="@drawable/okuma_notch_min" android:paddingLeft="3dp" android:paddingRight="3dp" android:includeFontPadding="false"
-      android:textColor="@color/okuma_min" android:textSize="7sp" android:textStyle="bold" android:visibility="gone" />
-    <TextView android:id="@+id/f_min" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="bottom|right" android:layout_marginRight="3dp"
-      android:background="@drawable/okuma_notch_none" android:paddingLeft="3dp" android:paddingRight="3dp" android:includeFontPadding="false"
-      android:textColor="@color/okuma_none" android:textSize="7sp" android:textStyle="bold" android:visibility="gone" />
-  </FrameLayout>
-  <FrameLayout android:id="@+id/c_none" android:layout_width="48dp" android:layout_height="34dp" android:layout_marginLeft="5dp">
-    <ImageView android:id="@+id/b_none" android:layout_width="match_parent" android:layout_height="match_parent" android:layout_marginTop="5dp" android:layout_marginBottom="5dp"
-      android:background="@drawable/okuma_chip_none" android:paddingTop="5dp" android:paddingBottom="5dp" android:scaleType="fitCenter" android:src="@drawable/okuma_ic_none"
-      android:contentDescription="Okumadım" />
-    <TextView android:id="@+id/f_none" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="bottom|right" android:layout_marginRight="3dp"
-      android:background="@drawable/okuma_notch_none" android:paddingLeft="3dp" android:paddingRight="3dp" android:includeFontPadding="false"
-      android:textColor="@color/okuma_none" android:textSize="7sp" android:textStyle="bold" android:visibility="gone" />
-  </FrameLayout>
+    <FrameLayout android:id="@+id/c_kefaret" android:layout_width="46dp" android:layout_height="31dp" android:layout_marginLeft="5dp">
+      <ImageView android:id="@+id/b_kefaret" android:layout_width="match_parent" android:layout_height="match_parent" android:layout_marginTop="4dp" android:layout_marginBottom="4dp"
+        android:background="@drawable/okuma_chip_kefaret" android:paddingTop="5dp" android:paddingBottom="5dp" android:scaleType="fitCenter" android:src="@drawable/okuma_ic_kefaret"
+        android:contentDescription="Kefaret okuması" />
+      <TextView android:id="@+id/n_kefaret" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="top|right" android:layout_marginRight="3dp"
+        android:background="@drawable/okuma_notch_kefaret" android:paddingLeft="3dp" android:paddingRight="3dp" android:includeFontPadding="false"
+        android:textColor="@color/okuma_kefaret" android:textSize="7sp" android:textStyle="bold" android:visibility="gone" />
+    </FrameLayout>
+    <FrameLayout android:id="@+id/c_read" android:layout_width="46dp" android:layout_height="31dp" android:layout_marginLeft="5dp">
+      <ImageView android:id="@+id/b_read" android:layout_width="match_parent" android:layout_height="match_parent" android:layout_marginTop="4dp" android:layout_marginBottom="4dp"
+        android:background="@drawable/okuma_chip_read" android:paddingTop="5dp" android:paddingBottom="5dp" android:scaleType="fitCenter" android:src="@drawable/okuma_ic_read"
+        android:contentDescription="Okudum" />
+      <TextView android:id="@+id/n_read" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="top|right" android:layout_marginRight="3dp"
+        android:background="@drawable/okuma_notch_read" android:paddingLeft="3dp" android:paddingRight="3dp" android:includeFontPadding="false"
+        android:textColor="@color/okuma_read" android:textSize="7sp" android:textStyle="bold" android:visibility="gone" />
+    </FrameLayout>
+    <FrameLayout android:id="@+id/c_min" android:layout_width="46dp" android:layout_height="31dp" android:layout_marginLeft="5dp">
+      <ImageView android:id="@+id/b_min" android:layout_width="match_parent" android:layout_height="match_parent" android:layout_marginTop="4dp" android:layout_marginBottom="4dp"
+        android:background="@drawable/okuma_chip_min" android:paddingTop="5dp" android:paddingBottom="5dp" android:scaleType="fitCenter" android:src="@drawable/okuma_ic_min"
+        android:contentDescription="Alt sınırı okudum" />
+      <TextView android:id="@+id/n_min" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="top|right" android:layout_marginRight="3dp"
+        android:background="@drawable/okuma_notch_min" android:paddingLeft="3dp" android:paddingRight="3dp" android:includeFontPadding="false"
+        android:textColor="@color/okuma_min" android:textSize="7sp" android:textStyle="bold" android:visibility="gone" />
+      <TextView android:id="@+id/f_min" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="bottom|right" android:layout_marginRight="3dp"
+        android:background="@drawable/okuma_notch_none" android:paddingLeft="3dp" android:paddingRight="3dp" android:includeFontPadding="false"
+        android:textColor="@color/okuma_none" android:textSize="7sp" android:textStyle="bold" android:visibility="gone" />
+    </FrameLayout>
+    <FrameLayout android:id="@+id/c_none" android:layout_width="46dp" android:layout_height="31dp" android:layout_marginLeft="5dp">
+      <ImageView android:id="@+id/b_none" android:layout_width="match_parent" android:layout_height="match_parent" android:layout_marginTop="4dp" android:layout_marginBottom="4dp"
+        android:background="@drawable/okuma_chip_none" android:paddingTop="5dp" android:paddingBottom="5dp" android:scaleType="fitCenter" android:src="@drawable/okuma_ic_none"
+        android:contentDescription="Okumadım" />
+      <TextView android:id="@+id/f_none" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="bottom|right" android:layout_marginRight="3dp"
+        android:background="@drawable/okuma_notch_none" android:paddingLeft="3dp" android:paddingRight="3dp" android:includeFontPadding="false"
+        android:textColor="@color/okuma_none" android:textSize="7sp" android:textStyle="bold" android:visibility="gone" />
+    </FrameLayout>
 </LinearLayout>

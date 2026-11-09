@@ -139,6 +139,12 @@ function dayCardPayload(g: Schedule["groups"][number], p: Schedule["groups"][num
   // Gelecek günde kefaret yalnızca plan bitmeyecekse sürer
   const plan = today ? (me?.plan ?? null) : base?.plan && base.plan.doneDays + (base.kefaret ? 1 : 0) < base.plan.days ? base.plan : null;
   const total = card ? card.read.length + card.min.length + card.none.length + card.pending.length : 0;
+  // Üstteki bölümlü çubuk: kefaret, okudu, alt sınır, okumadı, bekleyen (gelecek günde herkes bekliyor)
+  const kefCount = card ? card.read.filter((x) => x.kefaret).length : 0;
+  const all = entry ? entry.card.read.length + entry.card.min.length + entry.card.none.length + entry.card.pending.length : 0;
+  const seg = card
+    ? { kef: kefCount, read: card.read.length - kefCount, min: card.min.length, none: card.none.length, pending: card.pending.length }
+    : { kef: 0, read: 0, min: 0, none: 0, pending: all };
   // Eser kimliği bilinmiyorsa (uygulama verisi yok) boş kimlik: butonlar tüm eserler için gönderilir
   const list = base?.books?.length
     ? base.books.map((b) => ({ ...b, pages: today ? b.pages : null }))
@@ -161,7 +167,8 @@ function dayCardPayload(g: Schedule["groups"][number], p: Schedule["groups"][num
     deadline: new Date(p.deadline).getTime(),
     done: card ? card.read.length + card.min.length : 0,
     total,
-    kefCount: card ? card.read.filter((x) => x.kefaret).length : 0,
+    kefCount,
+    seg,
     books,
     plan: !!plan,
     kefaretOn: !!me?.kefaret,

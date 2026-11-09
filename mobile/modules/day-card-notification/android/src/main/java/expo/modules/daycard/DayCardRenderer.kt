@@ -89,15 +89,22 @@ object DayCardRenderer {
     v.setTextViewText(R.id.title, p.optString("title"))
     val subtitle = listOfNotNull(status, p.optString("subtitle").takeIf { it.isNotEmpty() }).joinToString(" · ")
     v.setTextViewText(R.id.subtitle, subtitle)
-    val done = p.optInt("done")
-    val total = p.optInt("total")
-    v.setTextViewText(R.id.count, "$done/$total")
     // Geri sayım: sistem kendisi saydığı için bildirim güncellenmeden kalan süre akar
     v.setChronometer(R.id.countdown, SystemClock.elapsedRealtime() + left, null, true)
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) v.setChronometerCountDown(R.id.countdown, true)
+    // Gün çubuğu uygulamadaki gibi bölümlü: kefaret, okudu, alt sınır, okumadı (katmanlar üst üste, birikimli)
+    val s = segments(p)
+    val total = maxOf(s.values.sum(), 1)
+    val kef = s.getValue("kef")
+    val read = s.getValue("read")
+    val atMin = s.getValue("min")
+    val none = s.getValue("none")
+    v.setTextViewText(R.id.count, "${kef + read + atMin}/${s.values.sum()}")
     // Yalnızca resmi RemoteViews API'si (desteklenmeyen çağrı bildirimi bozar)
-    v.setProgressBar(R.id.progress, maxOf(total, 1), done, false)
-    v.setProgressBar(R.id.progress_kef, maxOf(total, 1), p.optInt("kefCount"), false)
+    v.setProgressBar(R.id.bar_none, total, kef + read + atMin + none, false)
+    v.setProgressBar(R.id.bar_min, total, kef + read + atMin, false)
+    v.setProgressBar(R.id.bar_read, total, kef + read, false)
+    v.setProgressBar(R.id.bar_kef, total, kef, false)
     val line = p.optString("kefaretLine").takeIf { it.isNotEmpty() && it != "null" }
     v.setViewVisibility(R.id.kefaret_line, if (line != null) View.VISIBLE else View.GONE)
     if (line != null) v.setTextViewText(R.id.kefaret_line, line)
@@ -179,6 +186,15 @@ object DayCardRenderer {
       }
       v.addView(R.id.books, row)
     }
+  }
+
+  /** Grubun günlük durumu; eski kartlarda (seg yok) okuyan sayısından çıkarılır */
+  fun segments(p: JSONObject): MutableMap<String, Int> {
+    val seg = p.optJSONObject("seg")
+    if (seg != null) return linkedMapOf("kef" to seg.optInt("kef"), "read" to seg.optInt("read"), "min" to seg.optInt("min"), "none" to seg.optInt("none"), "pending" to seg.optInt("pending"))
+    val kef = p.optInt("kefCount")
+    val read = maxOf(0, p.optInt("done") - kef)
+    return linkedMapOf("kef" to kef, "read" to read, "min" to 0, "none" to 0, "pending" to maxOf(0, p.optInt("total") - kef - read))
   }
 
   fun stateOf(kefaretOn: Boolean, pages: Int?, target: Int, min: Int): String? = when {

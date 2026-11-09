@@ -26,7 +26,9 @@ class DayCardReceiver : BroadcastReceiver() {
     val pending = goAsync()
     // Basılan buton hemen seçili görünsün; sunucu yanıtı gelince kesinleşir, hata olursa eski hâline döner
     val before = JSONObject(p.toString())
+    val was = myCategory(p)
     optimistic(p, choice, bookId, bookChoice)
+    moveMe(p, was, myCategory(p))
     DayCardRenderer.render(context, p, "Gönderiliyor…", silent = true)
     Thread {
       try {
@@ -102,6 +104,43 @@ class DayCardReceiver : BroadcastReceiver() {
       }
     }
     p.put("kefaretOn", res.optInt("kefaret") > 0)
+    // Grubun güncel durumu (üstteki çubuk)
+    res.optJSONObject("day")?.let { p.put("seg", it) }
+  }
+
+  /** Kişinin çubuktaki yeri: bekliyor / kefaret / okudu / alt sınır / okumadı */
+  private fun myCategory(p: JSONObject): String {
+    if (p.optBoolean("kefaretOn")) return "kef"
+    val books = p.optJSONArray("books") ?: return "pending"
+    var pages = 0
+    var target = 0
+    var min = 0
+    var any = false
+    for (i in 0 until books.length()) {
+      val b = books.getJSONObject(i)
+      target += b.optInt("target")
+      min += b.optInt("min")
+      if (!b.isNull("pages")) {
+        any = true
+        pages += b.optInt("pages")
+      }
+    }
+    return when {
+      !any -> "pending"
+      pages >= target -> "read"
+      pages >= min -> "min"
+      else -> "none"
+    }
+  }
+
+  /** Basınca çubuk hemen güncellensin; sunucu yanıtı gelince kesin sayılar yazılır */
+  private fun moveMe(p: JSONObject, from: String, to: String) {
+    if (from == to) return
+    val seg = DayCardRenderer.segments(p)
+    if ((seg[from] ?: 0) <= 0) return
+    seg[from] = seg.getValue(from) - 1
+    seg[to] = (seg[to] ?: 0) + 1
+    p.put("seg", JSONObject(seg as Map<*, *>))
   }
 
   private fun post(apiUrl: String, token: String, choice: String, bookId: String?, bookChoice: String?): Pair<Boolean, JSONObject?> {

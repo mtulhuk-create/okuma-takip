@@ -15,6 +15,8 @@ export type DayCardPayload = {
   done: number;
   total: number;
   kefCount: number;
+  /** Gün çubuğu bölümleri (kişi sayısı) */
+  seg: { kef: number; read: number; min: number; none: number; pending: number };
   books: DayCardBook[];
   /** Süren kefaret okuması varsa kefaret butonu görünür */
   plan: boolean;
