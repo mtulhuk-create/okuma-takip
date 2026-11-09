@@ -118,20 +118,18 @@ object DayCardRenderer {
       val min = b.optInt("min")
       val kefPages = if (b.has("kefPages")) b.optInt("kefPages") else target
       val pages = if (b.isNull("pages")) null else b.optInt("pages")
+      row.setTextViewText(R.id.book_title, b.optString("title"))
       if (big) {
-        row.setTextViewText(R.id.book_title, b.optString("title"))
         val info = buildString {
           append("Hedef $target sf · alt sınır $min sf")
           if (pages != null) append(" · okunan $pages sf")
         }
         row.setTextViewText(R.id.book_info, info)
-      } else {
-        row.setTextViewText(R.id.book_title, "${b.optString("title")} · $target sf")
       }
       val state = stateOf(kefaretOn, pages, target, min)
       for (btn in BUTTONS) {
         if (btn.key == "kefaret" && !plan) {
-          row.setViewVisibility(if (big) btn.cell else btn.button, View.GONE)
+          row.setViewVisibility(btn.cell, View.GONE)
           continue
         }
         // Seçili buton dolu ve kenarlı; basılıyken koyulaşır (seçici arka plan)
@@ -142,32 +140,37 @@ object DayCardRenderer {
           // 4 buton varken ikon gizlenir, yazı sığsın
           row.setViewVisibility(btn.icon, if (plan) View.GONE else View.VISIBLE)
           row.setTextColor(btn.label, if (on) Color.WHITE else ContextCompat.getColor(context, btn.color))
-          // Sağ üst çentik: okunacak sayfa; sağ alt çentik: yazılacak ceza
-          val corner = when (btn.key) {
-            "kefaret" -> "$kefPages sf"
-            "read" -> "$target sf"
-            "min" -> "$min sf"
-            else -> null
-          }
-          if (btn.notch != 0) {
-            row.setViewVisibility(btn.notch, if (corner != null) View.VISIBLE else View.GONE)
-            if (corner != null) row.setTextViewText(btn.notch, corner)
-          }
-          if (btn.fine != 0) {
-            val fine = fines[btn.key] ?: 0
-            row.setViewVisibility(btn.fine, if (fine > 0) View.VISIBLE else View.GONE)
-            if (fine > 0) row.setTextViewText(btn.fine, "-$fine TL")
-          }
         } else {
           row.setImageViewResource(btn.button, if (on) btn.iconOn else btn.iconOff)
+        }
+        // Uygulamadaki gün kartı gibi: sağ üst köşeden çıkan çentik sayfa, sağ alttan çıkan çentik ceza
+        val corner = when (btn.key) {
+          "kefaret" -> "$kefPages sf"
+          "read" -> "$target sf"
+          "min" -> "$min sf"
+          else -> null
+        }
+        if (btn.notch != 0) {
+          row.setViewVisibility(btn.notch, if (corner != null) View.VISIBLE else View.GONE)
+          if (corner != null) row.setTextViewText(btn.notch, corner)
+        }
+        if (btn.fine != 0) {
+          val fine = fines[btn.key] ?: 0
+          row.setViewVisibility(btn.fine, if (fine > 0) View.VISIBLE else View.GONE)
+          if (fine > 0) row.setTextViewText(btn.fine, "-$fine TL")
         }
         val intent = Intent(context, DayCardReceiver::class.java).apply {
           action = DayCardReceiver.ACTION
           putExtra("id", id)
-          if (btn.key == "kefaret") putExtra("choice", "kefaret") else {
-            putExtra("choice", "all")
-            putExtra("bookId", bookId)
-            putExtra("bookChoice", btn.key)
+          when {
+            btn.key == "kefaret" -> putExtra("choice", "kefaret")
+            // Eser kimliği bilinmiyor (uygulama henüz açılmadı): seçim tüm eserler için gönderilir
+            bookId.isEmpty() -> putExtra("choice", if (btn.key == "read") "all" else btn.key)
+            else -> {
+              putExtra("choice", "all")
+              putExtra("bookId", bookId)
+              putExtra("bookChoice", btn.key)
+            }
           }
           data = Uri.parse("okumatakip://daycard/$id/$bookId/${btn.key}")
         }

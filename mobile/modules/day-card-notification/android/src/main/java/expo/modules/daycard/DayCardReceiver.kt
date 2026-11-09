@@ -14,7 +14,7 @@ import java.net.URL
 class DayCardReceiver : BroadcastReceiver() {
   companion object {
     const val ACTION = "expo.modules.daycard.ACTION"
-    private val LABEL = mapOf("kefaret" to "Kefaret okuması", "read" to "Okudum", "min" to "Alt sınır", "none" to "Okumadım")
+    private val LABEL = mapOf("kefaret" to "Kefaret okuması", "read" to "Okudum", "all" to "Okudum", "min" to "Alt sınır", "none" to "Okumadım")
   }
 
   override fun onReceive(context: Context, intent: Intent) {
@@ -56,8 +56,17 @@ class DayCardReceiver : BroadcastReceiver() {
       }
       return
     }
-    if (bookId == null || bookChoice == null) return
     p.put("kefaretOn", false)
+    if (bookId == null || bookChoice == null) {
+      // Tüm eserler için: hepsi zaten bu seçimdeyse geri alınır
+      val next = { b: JSONObject -> when (choice) { "all" -> b.optInt("target"); "min" -> b.optInt("min"); else -> 0 } }
+      val same = (0 until books.length()).all { val b = books.getJSONObject(it); !b.isNull("pages") && b.optInt("pages") == next(b) }
+      for (i in 0 until books.length()) {
+        val b = books.getJSONObject(i)
+        b.put("pages", if (same) JSONObject.NULL else next(b))
+      }
+      return
+    }
     for (i in 0 until books.length()) {
       val b = books.getJSONObject(i)
       if (b.getString("id") != bookId) continue
@@ -80,7 +89,13 @@ class DayCardReceiver : BroadcastReceiver() {
         pages[b.getString("id")] = if (b.isNull("pages")) null else b.optInt("pages")
       }
     }
-    p.optJSONArray("books")?.let { arr ->
+    val mine = p.optJSONArray("books")
+    val fromServer = res.optJSONArray("books")
+    // Kart eser kimlikleri bilinmeden kurulduysa (gün başı alarmı) sunucunun eser listesi alınır
+    val unknown = mine != null && (0 until mine.length()).any { mine.getJSONObject(it).optString("id").isEmpty() }
+    if (unknown && fromServer != null && fromServer.length() > 0) {
+      p.put("books", fromServer)
+    } else mine?.let { arr ->
       for (i in 0 until arr.length()) {
         val b = arr.getJSONObject(i)
         b.put("pages", pages[b.getString("id")] ?: JSONObject.NULL)

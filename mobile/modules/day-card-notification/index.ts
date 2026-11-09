@@ -26,12 +26,20 @@ export type DayCardPayload = {
   kefaretLine: string | null;
 };
 
-type Native = { show(json: string): void; hide(id: string): void; hideAll(): void };
+type Native = { show(json: string): void; schedule?(json: string): void; hide(id: string): void; hideAll(): void };
 const native = requireOptionalNativeModule<Native>("DayCardNotification");
 
 export const dayCardNotificationAvailable = !!native;
 export function showDayCardNotification(p: DayCardPayload) {
   native?.show(JSON.stringify(p));
+}
+/** Sonraki okuma günlerinin kartları: gün başında sistem alarmıyla, uygulama açılmadan gösterilir */
+export function scheduleDayCardNotifications(items: (DayCardPayload & { start: number })[]) {
+  native?.schedule?.(JSON.stringify(items));
+}
+/** Aynı plan tekrar gönderilmesin diye dışarıdan JSON metniyle de çağrılabilir */
+export function scheduleDayCardNotificationsJson(json: string) {
+  native?.schedule?.(json);
 }
 export function hideDayCardNotification(id: string) {
   native?.hide(id);
