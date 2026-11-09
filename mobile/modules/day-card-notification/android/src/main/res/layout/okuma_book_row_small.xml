@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Kapalı kartta ilk eser: adı ve küçük butonları -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  android:layout_width="match_parent" android:layout_height="wrap_content"
+  android:gravity="center_vertical" android:orientation="horizontal" android:paddingTop="3dp">
+  <TextView android:id="@+id/book_title" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginRight="4dp"
+    android:maxLines="1" android:ellipsize="end" android:textColor="@color/okuma_fg" android:textSize="12sp" android:textStyle="bold" />
+  <ImageView android:id="@+id/b_kefaret" android:layout_width="26dp" android:layout_height="26dp" android:layout_marginLeft="6dp"
+    android:background="@drawable/okuma_chip_kefaret" android:padding="6dp" android:scaleType="fitCenter" android:src="@drawable/okuma_ic_kefaret"
+    android:contentDescription="Kefaret okuması" />
+  <ImageView android:id="@+id/b_read" android:layout_width="26dp" android:layout_height="26dp" android:layout_marginLeft="6dp"
+    android:background="@drawable/okuma_chip_read" android:padding="6dp" android:scaleType="fitCenter" android:src="@drawable/okuma_ic_read"
+    android:contentDescription="Okudum" />
+  <ImageView android:id="@+id/b_min" android:layout_width="26dp" android:layout_height="26dp" android:layout_marginLeft="6dp"
+    android:background="@drawable/okuma_chip_min" android:padding="6dp" android:scaleType="fitCenter" android:src="@drawable/okuma_ic_min"
+    android:contentDescription="Alt sınırı okudum" />
+  <ImageView android:id="@+id/b_none" android:layout_width="26dp" android:layout_height="26dp" android:layout_marginLeft="6dp"
+    android:background="@drawable/okuma_chip_none" android:padding="6dp" android:scaleType="fitCenter" android:src="@drawable/okuma_ic_none"
+    android:contentDescription="Okumadım" />
+</LinearLayout>

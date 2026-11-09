@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Kilit ekranı kartında bir eser: adı, hedefi ve küçük butonları -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  android:layout_width="match_parent" android:layout_height="wrap_content"
+  android:gravity="center_vertical" android:orientation="horizontal" android:paddingTop="7dp" android:paddingBottom="7dp">
+  <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginRight="4dp" android:orientation="vertical">
+    <TextView android:id="@+id/book_title" android:layout_width="wrap_content" android:layout_height="wrap_content"
+      android:maxLines="1" android:ellipsize="end" android:textColor="@color/okuma_fg" android:textSize="13sp" android:textStyle="bold" />
+    <TextView android:id="@+id/book_info" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="1dp"
+      android:maxLines="1" android:ellipsize="end" android:textColor="@color/okuma_muted" android:textSize="10.5sp" />
+  </LinearLayout>
+  <ImageView android:id="@+id/b_kefaret" android:layout_width="30dp" android:layout_height="30dp" android:layout_marginLeft="6dp"
+    android:background="@drawable/okuma_chip_kefaret" android:padding="7dp" android:scaleType="fitCenter" android:src="@drawable/okuma_ic_kefaret"
+    android:contentDescription="Kefaret okuması" />
+  <ImageView android:id="@+id/b_read" android:layout_width="30dp" android:layout_height="30dp" android:layout_marginLeft="6dp"
+    android:background="@drawable/okuma_chip_read" android:padding="7dp" android:scaleType="fitCenter" android:src="@drawable/okuma_ic_read"
+    android:contentDescription="Okudum" />
+  <ImageView android:id="@+id/b_min" android:layout_width="30dp" android:layout_height="30dp" android:layout_marginLeft="6dp"
+    android:background="@drawable/okuma_chip_min" android:padding="7dp" android:scaleType="fitCenter" android:src="@drawable/okuma_ic_min"
+    android:contentDescription="Alt sınırı okudum" />
+  <ImageView android:id="@+id/b_none" android:layout_width="30dp" android:layout_height="30dp" android:layout_marginLeft="6dp"
+    android:background="@drawable/okuma_chip_none" android:padding="7dp" android:scaleType="fitCenter" android:src="@drawable/okuma_ic_none"
+    android:contentDescription="Okumadım" />
+</LinearLayout>

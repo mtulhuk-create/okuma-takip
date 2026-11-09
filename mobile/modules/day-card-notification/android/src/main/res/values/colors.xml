@@ -11,4 +11,13 @@
   <color name="okuma_min">#F59E0B</color>
   <color name="okuma_none">#F43F5E</color>
   <color name="okuma_kefaret">#0D9488</color>
+  <color name="okuma_read_soft">#3310B981</color>
+  <color name="okuma_min_soft">#33F59E0B</color>
+  <color name="okuma_none_soft">#33F43F5E</color>
+  <color name="okuma_kefaret_soft">#330D9488</color>
+  <color name="okuma_read_dark">#047857</color>
+  <color name="okuma_min_dark">#B45309</color>
+  <color name="okuma_none_dark">#BE123C</color>
+  <color name="okuma_kefaret_dark">#115E59</color>
+  <color name="okuma_divider">#EFE9E5</color>
 </resources>

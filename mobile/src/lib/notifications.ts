@@ -131,10 +131,16 @@ function dayCardPayload(g: Schedule["groups"][number], p: Schedule["groups"][num
   const target = me?.target ?? g.dailyPages;
   const min = me?.min ?? g.minPages ?? 0;
   const plan = me?.plan ?? null;
-  const fine = me?.fine;
   const total = card ? card.read.length + card.min.length + card.none.length + card.pending.length : 0;
-  const myState: DayCardPayload["myState"] =
-    me?.pages == null ? null : me.kefaret ? "kefaret" : me.pages >= target ? "all" : me.pages >= min && me.pages > 0 ? "min" : "none";
+  const list = me?.books?.length ? me.books : [{ id: "genel", title: "Günlük okuma", target, min, pages: me?.pages ?? null }];
+  // Kefaret okumasında her esere düşen sayfa (sunucudaki dağıtımla aynı: hedefleri oranında)
+  const sum = list.reduce((n, b) => n + b.target, 0) || 1;
+  let left = plan?.dailyExtra ?? 0;
+  const books = list.map((b, i) => {
+    const share = !plan ? 0 : i === list.length - 1 ? left : Math.min(left, Math.floor((plan.dailyExtra * b.target) / sum));
+    left -= share;
+    return { id: b.id, title: b.title, target: b.target, min: b.min, pages: b.pages, ...(plan ? { kefPages: b.target + share } : {}) };
+  });
   return {
     id: g.groupId,
     dayKey: p.dayKey,
@@ -146,13 +152,9 @@ function dayCardPayload(g: Schedule["groups"][number], p: Schedule["groups"][num
     done: card ? card.read.length + card.min.length : 0,
     total,
     kefCount: card ? card.read.filter((x) => x.kefaret).length : 0,
-    myState,
-    buttons: [
-      ...(plan ? [{ key: "kefaret" as const, label: "Kefaret", top: `${target + plan.dailyExtra} sf` }] : []),
-      { key: "all", label: "Okudum", top: `${target} sf` },
-      { key: "min", label: "Alt sınır", top: `${min} sf`, bottom: fine?.min ? `-${fine.min} TL` : undefined },
-      { key: "none", label: "Okumadım", bottom: fine ? `-${fine.none} TL` : undefined },
-    ],
+    books,
+    plan: !!plan,
+    kefaretOn: !!me?.kefaret,
     kefaretLine: plan ? `Kefaret ${plan.doneDays}${me?.kefaret ? "+1" : ""}/${plan.days} gün · ${plan.earned}/${plan.discountTotal} TL silindi` : null,
   };
 }

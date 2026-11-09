@@ -7,4 +7,5 @@
   <color name="okuma_track">#3A3431</color>
   <color name="okuma_notch_bg">#262220</color>
   <color name="okuma_selected_border">#D9FFFFFF</color>
+  <color name="okuma_divider">#332E2B</color>
 </resources>
