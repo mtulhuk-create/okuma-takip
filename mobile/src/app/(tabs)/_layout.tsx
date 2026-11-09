@@ -1,5 +1,5 @@
 import { Tabs } from "expo-router/js-tabs";
-import { Bell, BookOpen, User, Users, type LucideIcon } from "lucide-react-native";
+import { Bell, BookOpen, MoonStar, User, Users, type LucideIcon } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { NameSheet } from "@/components/name-sheet";
 import { useApi } from "@/lib/api";
@@ -30,6 +30,7 @@ export default function TabsLayout() {
     >
       <Tabs.Screen name="index" options={{ title: "Bugün", tabBarIcon: icon(BookOpen) }} />
       <Tabs.Screen name="groups" options={{ title: "Gruplar", tabBarIcon: icon(Users) }} />
+      <Tabs.Screen name="kaza" options={{ title: "Kaza", tabBarIcon: icon(MoonStar) }} />
       <Tabs.Screen name="notifications" options={{ title: "Bildirimler", tabBarIcon: icon(Bell), tabBarBadge: me.data?.badge || undefined }} />
       <Tabs.Screen name="profile" options={{ title: "Profil", tabBarIcon: icon(User) }} />
     </Tabs>

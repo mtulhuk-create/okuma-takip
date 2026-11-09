@@ -1,11 +1,9 @@
 <resources>
-  <color name="okuma_card_bg">#FFFFFF</color>
-  <color name="okuma_card_border">#E7E0DB</color>
+  <color name="okuma_card_border">#40808080</color>
   <color name="okuma_fg">#1A1A1A</color>
   <color name="okuma_muted">#57534E</color>
   <color name="okuma_primary">#9B2C2C</color>
-  <color name="okuma_track">#F0EBE8</color>
-  <color name="okuma_notch_bg">#FFFFFF</color>
+  <color name="okuma_track">#40808080</color>
   <color name="okuma_selected_border">#59000000</color>
   <color name="okuma_read">#10B981</color>
   <color name="okuma_min">#F59E0B</color>
@@ -20,5 +18,23 @@
   <color name="okuma_none_dark">#BE123C</color>
   <color name="okuma_kefaret_dark">#115E59</color>
   <color name="okuma_divider">#EFE9E5</color>
-  <color name="okuma_box_bg">#FAF8F6</color>
+  <color name="kaza_sabah">#0EA5E9</color>
+  <color name="kaza_sabah_dark">#0369A1</color>
+  <color name="kaza_sabah_soft">#330EA5E9</color>
+  <color name="kaza_ogle">#EAB308</color>
+  <color name="kaza_ogle_dark">#A16207</color>
+  <color name="kaza_ogle_soft">#33EAB308</color>
+  <color name="kaza_ikindi">#F97316</color>
+  <color name="kaza_ikindi_dark">#C2410C</color>
+  <color name="kaza_ikindi_soft">#33F97316</color>
+  <color name="kaza_aksam">#E11D48</color>
+  <color name="kaza_aksam_dark">#9F1239</color>
+  <color name="kaza_aksam_soft">#33E11D48</color>
+  <color name="kaza_yatsi">#6366F1</color>
+  <color name="kaza_yatsi_dark">#4338CA</color>
+  <color name="kaza_yatsi_soft">#336366F1</color>
+  <color name="kaza_vitir">#8B5CF6</color>
+  <color name="kaza_vitir_dark">#6D28D9</color>
+  <color name="kaza_vitir_soft">#338B5CF6</color>
+  <color name="kaza_primary">#4F46E5</color>
 </resources>

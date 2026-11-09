@@ -21,6 +21,17 @@ class DayCardNotificationModule : Module() {
       DayCardScheduler.schedule(context, JSONArray(json))
     }
 
+    // Namaz kaza kartı: son geri alınabilir kılınan (last) korunur
+    Function("showKaza") { json: String ->
+      val p = JSONObject(json)
+      KazaCard.load(context)?.optString("last")?.takeIf { it.isNotEmpty() }?.let { p.put("last", it) }
+      KazaCard.render(context, p)
+    }
+
+    Function("hideKaza") {
+      KazaCard.hide(context)
+    }
+
     Function("hide") { id: String ->
       NotificationManagerCompat.from(context).cancel(DayCardRenderer.notificationId(id))
       DayCardRenderer.forget(context, id)

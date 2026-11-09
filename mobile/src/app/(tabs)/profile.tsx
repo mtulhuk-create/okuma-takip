@@ -9,6 +9,8 @@ import { toast, useApi, useApiFetch } from "@/lib/api";
 import { LITE } from "@/lib/variant";
 import { exactAlarmsAllowed, getLastSync, getStickyPref, requestExactAlarms, scheduledSummary, sendTestNotification, setStickyPref, setupNotifications, syncSchedule, SCHEDULE_PATH } from "@/lib/notifications";
 import { useThemePref } from "@/lib/theme-pref";
+import { setKazaStickyPref } from "@/lib/kaza";
+import { hideAllDayCardNotifications, hideKazaNotification, scheduleDayCardNotificationsJson } from "../../../modules/day-card-notification";
 import { Bell, BookOpen, CalendarCheck, LogOut, Monitor, Moon, Palette, Pencil, Sun, Users, Wallet } from "lucide-react-native";
 import { fonts, useColors } from "@/lib/theme";
 import type { ProfileResponse } from "@/lib/types";
@@ -206,6 +208,11 @@ export default function ProfileScreen() {
               style: "destructive",
               onPress: async () => {
                 await Notifications.cancelAllScheduledNotificationsAsync();
+                // Kilit ekranı ve kaza kartları başka hesaba geçmesin
+                hideAllDayCardNotifications();
+                scheduleDayCardNotificationsJson("[]");
+                hideKazaNotification();
+                await setKazaStickyPref(false);
                 await signOut();
               },
             },

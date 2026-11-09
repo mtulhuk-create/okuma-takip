@@ -1,12 +1,9 @@
 <resources>
-  <color name="okuma_card_bg">#262220</color>
-  <color name="okuma_card_border">#3A3431</color>
+  <color name="okuma_card_border">#40808080</color>
   <color name="okuma_fg">#F5F5F4</color>
   <color name="okuma_muted">#A8A29E</color>
   <color name="okuma_primary">#F87171</color>
-  <color name="okuma_track">#3A3431</color>
-  <color name="okuma_notch_bg">#262220</color>
+  <color name="okuma_track">#40808080</color>
   <color name="okuma_selected_border">#D9FFFFFF</color>
   <color name="okuma_divider">#332E2B</color>
-  <color name="okuma_box_bg">#2D2826</color>
 </resources>

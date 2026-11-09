@@ -28,7 +28,14 @@ export type DayCardPayload = {
   kefaretLine: string | null;
 };
 
-type Native = { show(json: string): void; schedule?(json: string): void; hide(id: string): void; hideAll(): void };
+type Native = {
+  show(json: string): void;
+  schedule?(json: string): void;
+  hide(id: string): void;
+  hideAll(): void;
+  showKaza?(json: string): void;
+  hideKaza?(): void;
+};
 const native = requireOptionalNativeModule<Native>("DayCardNotification");
 
 export const dayCardNotificationAvailable = !!native;
@@ -48,4 +55,21 @@ export function hideDayCardNotification(id: string) {
 }
 export function hideAllDayCardNotifications() {
   native?.hideAll();
+}
+
+/** Namaz kaza kartı: vakit butonlarına basınca uygulama açılmadan "kaza kılındı" bildirir */
+export type KazaPayload = {
+  token: string;
+  apiUrl: string;
+  remaining: Record<string, number>;
+  today: number;
+  goal: number;
+  labels: Record<string, string>;
+};
+export const kazaNotificationAvailable = !!native?.showKaza;
+export function showKazaNotification(p: KazaPayload) {
+  native?.showKaza?.(JSON.stringify(p));
+}
+export function hideKazaNotification() {
+  native?.hideKaza?.();
 }
