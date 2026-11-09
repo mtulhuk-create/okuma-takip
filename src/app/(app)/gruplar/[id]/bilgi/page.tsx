@@ -1,4 +1,5 @@
 import { BadgeChip } from "@/components/badge-chip";
+import { StreakChip } from "@/components/history-grid";
 import { ArrowLeft, Crown, LogOut, Receipt, Settings, Shield, Wallet } from "lucide-react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -142,6 +143,7 @@ export default async function GroupInfoPage({ params }: { params: Promise<{ id: 
                   {m.userId === user.id && <span className="text-muted-foreground"> (sen)</span>}
                 </span>
                 {m.badge && <BadgeChip tag={m.badge} />}
+                <StreakChip s={m.streak} />
               </span>
               {m.role === "ADMIN" && (
                 <span className="badge bg-primary/10 text-primary">

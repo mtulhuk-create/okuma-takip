@@ -169,17 +169,45 @@ export function StatsLine({ stats }: { stats: Stats }) {
   );
 }
 
-/** Okuma serisi rozeti */
-export function StreakBadge({ n, small }: { n: number; small?: boolean }) {
-  const c = useColors();
-  const on = n > 0;
-  const color = on ? "#c2410c" : c.mutedForeground;
+/** Seri en az 3 günden başlar */
+export const STREAK_MIN = 3;
+const STREAK_TONE = {
+  normal: { fg: "#c2410c", bg: "#fff7ed", border: "#fb923c" },
+  full: { fg: "#047857", bg: "#ecfdf5", border: "#10b981" },
+  kaza: { fg: KAZA, bg: "#eef2ff", border: "#818cf8" },
+} as const;
+
+/**
+ * Okuma serisi rozeti (3 gün ve üstü). Tam seri (üst üste hedef) yeşil, alt sınır dahil seri turuncu.
+ * sticker: kartın sağ üst kenarına hafif eğik yapışık durur.
+ */
+export function StreakBadge({ n, full, small, sticker, kaza }: { n: number; full?: boolean; small?: boolean; sticker?: boolean; kaza?: boolean }) {
+  if (n < STREAK_MIN) return null;
+  const t = STREAK_TONE[kaza ? "kaza" : full ? "full" : "normal"];
   return (
-    <Row gap={3} style={{ backgroundColor: on ? "#f9731620" : c.muted, borderRadius: 99, paddingHorizontal: small ? 6 : 10, paddingVertical: small ? 2 : 4 }}>
-      <Flame size={small ? 11 : 14} color={color} fill={on ? color : "none"} />
-      <Text style={{ fontFamily: fonts.bold, fontSize: small ? 10 : 12, color }}>
-        {n} gün seri
+    <Row
+      gap={3}
+      style={[
+        { backgroundColor: t.bg, borderRadius: 99, paddingHorizontal: small ? 7 : 10, paddingVertical: small ? 2 : 4, borderWidth: 1, borderColor: t.border },
+        sticker && { position: "absolute", top: -11, right: 12, transform: [{ rotate: "5deg" }], elevation: 3, shadowColor: "#000", shadowOpacity: 0.12, shadowRadius: 3, shadowOffset: { width: 0, height: 1 }, zIndex: 2 },
+      ]}
+    >
+      <Flame size={small ? 11 : 14} color={t.fg} fill={t.fg} />
+      <Text style={{ fontFamily: fonts.bold, fontSize: small ? 10 : 12, color: t.fg }}>
+        {n} gün {full ? "tam seri" : "seri"}
       </Text>
+    </Row>
+  );
+}
+
+/** İsmin yanında küçük seri işareti (sohbet ve üye listesi): alev ve gün sayısı */
+export function StreakChip({ s }: { s?: { n: number; full: boolean } | null }) {
+  if (!s || s.n < STREAK_MIN) return null;
+  const t = STREAK_TONE[s.full ? "full" : "normal"];
+  return (
+    <Row gap={1} style={{ backgroundColor: t.bg, borderRadius: 99, paddingHorizontal: 5, paddingVertical: 1, borderWidth: 1, borderColor: t.border + "88", flexShrink: 0 }}>
+      <Flame size={9} color={t.fg} fill={t.fg} />
+      <Text style={{ fontFamily: fonts.bold, fontSize: 9, color: t.fg }}>{s.n}</Text>
     </Row>
   );
 }
@@ -339,10 +367,7 @@ export function MyHistorySection() {
       {view === "read" && row ? (
         <>
           <HistoryGrid start={row.start} cells={row.cells} />
-          <Row style={{ flexWrap: "wrap", justifyContent: "space-between", rowGap: 4 }}>
-            <StatsLine stats={row.stats} />
-            <StreakBadge n={row.streak ?? 0} small />
-          </Row>
+          <StatsLine stats={row.stats} />
         </>
       ) : k ? (
         <>
@@ -352,8 +377,7 @@ export function MyHistorySection() {
             colorOf={(ch) => KAZA_TONES[ch] ?? c.muted}
             labelOf={(_ch, i) => (k.counts[i] ? String(k.counts[i]) : null)}
           />
-          <Row style={{ flexWrap: "wrap", justifyContent: "space-between", rowGap: 4 }}>
-          <Row gap={10} style={{ flexWrap: "wrap", rowGap: 2, flexShrink: 1 }}>
+          <Row gap={10} style={{ flexWrap: "wrap", rowGap: 2 }}>
             {[
               { n: k.total, label: "kaza kılındı", color: KAZA },
               { n: k.days, label: "gün", color: c.foreground },
@@ -365,12 +389,14 @@ export function MyHistorySection() {
               </Row>
             ))}
           </Row>
-            <StreakBadge n={kaza.data?.streak ?? 0} small />
-          </Row>
         </>
       ) : (
         <ActivityIndicator size="small" color={KAZA} />
       )}
+      {/* Seri rozeti: kartın sağ üst kenarında, hafif eğik */}
+      {/* Tam seri (üst üste hedef) öncelikli; yoksa alt sınır dahil seri */}
+      {view === "read" && row ? (row.fullStreak ?? 0) >= STREAK_MIN ? <StreakBadge n={row.fullStreak!} full small sticker /> : <StreakBadge n={row.streak ?? 0} small sticker /> : null}
+      {view === "kaza" && <StreakBadge n={kaza.data?.streak ?? 0} small sticker kaza />}
     </Card>
   );
 }

@@ -3,9 +3,9 @@
 import { Layers } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
-import { HistoryGrid, MenuPicker, RangePicker, StatsLine, StreakBadge, useHistory, type Stats } from "./history-grid";
+import { HistoryGrid, MenuPicker, RangePicker, StatsLine, STREAK_MIN, StreakBadge, useHistory, type Stats } from "./history-grid";
 
-type Row = { start: string; cells: string; stats: Stats; streak: number };
+type Row = { start: string; cells: string; stats: Stats; streak: number; fullStreak?: number };
 type Data = { all: Row | null; groups: (Row & { group: { id: string; name: string } })[] };
 
 /** Bugün sayfası: kendi okuma geçmişin. Varsayılan tüm gruplar; menüden tek grup seçilebilir. */
@@ -19,7 +19,10 @@ export function MyHistory({ initial }: { initial: Data }) {
   const shownGroup = (sel === "all" || !group) && multi ? null : (group ?? data.groups[0]).group;
 
   return (
-    <section className={`card space-y-2 p-3 transition-opacity ${loading ? "opacity-60" : ""}`}>
+    <section className={`card relative space-y-2 p-3 transition-opacity ${loading ? "opacity-60" : ""}`}>
+      {/* Seri rozeti: kartın sağ üst kenarında, hafif eğik */}
+      {/* Tam seri (üst üste hedef) öncelikli; yoksa alt sınır dahil seri */}
+      {(row.fullStreak ?? 0) >= STREAK_MIN ? <StreakBadge n={row.fullStreak!} full size="xs" sticker /> : <StreakBadge n={row.streak ?? 0} size="xs" sticker />}
       <div className="flex items-center gap-1.5">
         <RangePicker value={range} onChange={setRange} />
         <div className="min-w-0 flex-1">
@@ -36,7 +39,6 @@ export function MyHistory({ initial }: { initial: Data }) {
             </Link>
           )}
         </div>
-        <StreakBadge n={row.streak ?? 0} size="xs" />
       </div>
       <HistoryGrid start={row.start} cells={row.cells} />
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5">

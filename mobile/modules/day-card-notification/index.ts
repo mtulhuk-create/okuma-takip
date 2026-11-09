@@ -35,6 +35,8 @@ type Native = {
   hideAll(): void;
   showKaza?(json: string): void;
   hideKaza?(): void;
+  getAppIcon?(): string;
+  setAppIcon?(name: string): void;
 };
 const native = requireOptionalNativeModule<Native>("DayCardNotification");
 
@@ -72,4 +74,14 @@ export function showKazaNotification(p: KazaPayload) {
 }
 export function hideKazaNotification() {
   native?.hideKaza?.();
+}
+
+/** Uygulama simgesi (Android): açık ya da koyu amblem */
+export type AppIcon = "light" | "dark";
+export const appIconAvailable = !!native?.setAppIcon;
+export function getAppIcon(): AppIcon {
+  return native?.getAppIcon?.() === "dark" ? "dark" : "light";
+}
+export function setAppIcon(name: AppIcon) {
+  native?.setAppIcon?.(name);
 }

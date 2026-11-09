@@ -27,6 +27,53 @@ export function streakOf(cells: string) {
   return n;
 }
 
+/** Bugünden geriye kesintisiz TAM okunan (hedef ya da kefaret) gün sayısı */
+export function fullStreakOf(cells: string) {
+  let i = cells.length - 1;
+  if (cells[i] === "p") i--;
+  let n = 0;
+  for (; i >= 0 && (cells[i] === "r" || cells[i] === "k"); i--) n++;
+  return n;
+}
+
+/** Seri rozeti en az bu kadar günden başlar (1–2 gün gösterilmez) */
+export const STREAK_MIN = 3;
+
+// Gruptaki üyelerin serileri: sohbet sık yenilendiği için kısa süre bellekte tutulur
+const STREAK_DAYS = 120;
+const streakCache = new Map<string, { at: number; data: Map<string, { n: number; full: number }> }>();
+
+/** Üyelerin okuma serisi (alt sınır dahil) ve tam okuma serisi; son 120 güne bakılır */
+export async function memberStreaks(g: G, members: { userId: string; joinedAt: Date }[]) {
+  const now = new Date();
+  const endKey = currentPeriod(now, g).dayKey;
+  const key = `${g.id}:${endKey}`;
+  const hit = streakCache.get(key);
+  if (hit && Date.now() - hit.at < 60_000) return hit.data;
+  const startKey = shiftDayKey(endKey, -(STREAK_DAYS - 1));
+  const logs = await getDb().readingLog.findMany({
+    where: { groupId: g.id, dayKey: { gte: startKey } },
+    select: { userId: true, dayKey: true, pages: true, requiredPages: true, minPages: true, kefaret: true },
+  });
+  const data = new Map<string, { n: number; full: number }>();
+  for (const m of members) {
+    const mine = new Map(logs.filter((l) => l.userId === m.userId).map((l) => [l.dayKey, l]));
+    const cells = row(g, m.joinedAt, startKey, endKey, mine, now).cells;
+    data.set(m.userId, { n: streakOf(cells), full: fullStreakOf(cells) });
+  }
+  if (streakCache.size > 500) streakCache.clear();
+  streakCache.set(key, { at: Date.now(), data });
+  return data;
+}
+
+/** Gösterilecek seri: tam seri öncelikli; 3 günden azsa yok */
+export function streakTag(s: { n: number; full: number } | undefined) {
+  if (!s) return null;
+  if (s.full >= STREAK_MIN) return { n: s.full, full: true };
+  if (s.n >= STREAK_MIN) return { n: s.n, full: false };
+  return null;
+}
+
 /** Birden çok satırı gün gün birleştirir: o gün en kötü durum (okumadı > bekleniyor > alt sınır > okudu) */
 function combine(rows: HistoryRow[]): HistoryRow {
   const end = rows.reduce((a, r) => {
@@ -99,10 +146,11 @@ export async function getMyHistory(userId: string, range: HistoryRange) {
     const mine = new Map(logs.filter((l) => l.groupId === m.groupId).map((l) => [l.dayKey, l]));
     const long = row(m.group, m.joinedAt, streakKey, endKey, mine, now);
     full.push(long);
-    return { group: { id: m.group.id, name: m.group.name }, ...row(m.group, m.joinedAt, startKey, endKey, mine, now), streak: streakOf(long.cells) };
+    return { group: { id: m.group.id, name: m.group.name }, ...row(m.group, m.joinedAt, startKey, endKey, mine, now), streak: streakOf(long.cells), fullStreak: fullStreakOf(long.cells) };
   });
 
-  const all = groups.length ? { ...combine(groups), streak: streakOf(combine(full).cells) } : null;
+  const allCells = groups.length ? combine(full).cells : "";
+  const all = groups.length ? { ...combine(groups), streak: streakOf(allCells), fullStreak: fullStreakOf(allCells) } : null;
   return { range, all, groups };
 }
 

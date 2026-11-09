@@ -2,6 +2,7 @@ import "server-only";
 import { activeBadges, type BadgeTag } from "./badges";
 import { ensureDayCard } from "./chat";
 import { getDayCards } from "./day";
+import { memberStreaks, streakTag } from "./history";
 import { maintainLater } from "./maintenance";
 import { dueView } from "./due-view";
 import { withShownName } from "./names";
@@ -93,8 +94,10 @@ export async function getGroupDetail(id: string, userId: string) {
   });
   if (!raw) return null;
   // Rozetler yalnızca grup üyelerine görünür
-  const tags = raw.members.some((m) => m.userId === userId) ? await activeBadges(raw) : new Map<string, BadgeTag>();
-  const group = { ...raw, members: raw.members.map((m) => ({ ...m, user: withShownName(m.user, raw.nameDisplay), badge: tags.get(m.userId) ?? null })) };
+  const isMember = raw.members.some((m) => m.userId === userId);
+  const [tags, streaks] = isMember ? await Promise.all([activeBadges(raw), memberStreaks(raw, raw.members)]) : [new Map<string, BadgeTag>(), new Map<string, { n: number; full: number }>()];
+  // Rozet ve okuma serisi (3 gün ve üstü) yalnızca grup üyelerine gösterilir
+  const group = { ...raw, members: raw.members.map((m) => ({ ...m, user: withShownName(m.user, raw.nameDisplay), badge: tags.get(m.userId) ?? null, streak: streakTag(streaks.get(m.userId)) })) };
   const me = group.members.find((m) => m.userId === userId) ?? null;
   const myRules = me ? rulesFor(group, me) : null;
   if (!me) {

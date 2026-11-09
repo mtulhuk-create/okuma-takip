@@ -4,6 +4,7 @@ import { Copy, Crown, LogOut, Receipt, Shield, Wallet } from "lucide-react-nativ
 import { useState } from "react";
 import { Alert, View } from "react-native";
 import { BadgeChip } from "@/components/badge-chip";
+import { StreakChip } from "@/components/history";
 import { DueBadge } from "@/components/due-badge";
 import { GroupRules } from "@/components/group-rules";
 import { TeamPicker } from "@/components/team-picker";
@@ -132,6 +133,7 @@ export default function GroupInfoScreen() {
                 {m.userId === me.userId ? " (sen)" : ""}
               </Body>
               {m.badge && <BadgeChip tag={m.badge} />}
+              <StreakChip s={m.streak} />
             </View>
             {teamsActive(group) && <Muted>{group.teams.find((t) => t.id === m.teamId)?.name ?? ""}</Muted>}
             {m.role === "ADMIN" && <Crown size={15} color={c.primary} />}

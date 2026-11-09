@@ -101,7 +101,7 @@ export function ReportControls({ groupId, card, compact, onDone }: { groupId: st
         {me.books.map((b, i) => {
           const st = bookState(b);
           return (
-            <Row key={b.id} gap={6} style={{ paddingHorizontal: 10, paddingVertical: 6, borderTopWidth: i ? 1 : 0, borderTopColor: c.border }}>
+            <Row key={b.id} gap={8} style={{ paddingHorizontal: 10, paddingVertical: 6, borderTopWidth: i ? 1 : 0, borderTopColor: c.border }}>
               <BookOpen size={14} color={c.primary} />
               <View style={{ flex: 1 }}>
                 <Text numberOfLines={1} style={{ fontFamily: fonts.semibold, fontSize: 13, color: c.foreground }}>
@@ -151,7 +151,8 @@ export function ReportControls({ groupId, card, compact, onDone }: { groupId: st
         })}
       </View>
       {plan && <KefaretOffer plan={plan} today={card.dayKey} dailyPages={me.target + plan.dailyExtra} markedToday={!!me.kefaret} />}
-      <Row gap={5} style={{ paddingTop: 4, paddingBottom: 5 }}>
+      {/* Butonlar arası daha geniş, butonlar bir tık dar */}
+      <Row gap={10} style={{ paddingTop: 4, paddingBottom: 5, paddingHorizontal: 6 }}>
         {bottom.map((b) => {
           const fg = "#fff";
           return (

@@ -138,16 +138,42 @@ export function StatsLine({ stats }: { stats: Stats }) {
   );
 }
 
-/** Okuma serisi rozeti */
-export function StreakBadge({ n, size = "sm" }: { n: number; size?: "sm" | "xs" }) {
-  const on = n > 0;
+/** Seri en az 3 günden başlar */
+export const STREAK_MIN = 3;
+
+/**
+ * Okuma serisi rozeti (3 gün ve üstü). Tam seri (üst üste hedef) yeşil, alt sınır dahil seri turuncu.
+ * sticker: kartın sağ üst kenarına hafif eğik yapışık durur (kart relative olmalı).
+ */
+export function StreakBadge({ n, full, size = "sm", sticker }: { n: number; full?: boolean; size?: "sm" | "xs"; sticker?: boolean }) {
+  if (n < STREAK_MIN) return null;
   return (
     <span
-      title="Bugünden geriye kesintisiz okunan gün sayısı"
-      className={`inline-flex shrink-0 items-center gap-1 rounded-full font-bold ${size === "sm" ? "px-2.5 py-1 text-xs" : "px-1.5 py-0.5 text-[10px]"} ${on ? "bg-orange-500/12 text-orange-700 dark:text-orange-400" : "bg-muted text-muted-foreground"}`}
+      title={full ? "Üst üste hedefi tam okunan gün sayısı" : "Üst üste okunan (alt sınır dahil) gün sayısı"}
+      className={`inline-flex shrink-0 items-center gap-1 rounded-full border font-bold ${size === "sm" ? "px-2.5 py-1 text-xs" : "px-1.5 py-0.5 text-[10px]"} ${
+        full
+          ? "border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+          : "border-orange-400 bg-orange-50 text-orange-700 dark:bg-orange-950 dark:text-orange-300"
+      } ${sticker ? "absolute -top-2.5 right-3 z-10 rotate-[5deg] shadow-sm" : ""}`}
     >
-      <Flame className={size === "sm" ? "size-3.5" : "size-3"} fill={on ? "currentColor" : "none"} />
-      {n} gün seri
+      <Flame className={size === "sm" ? "size-3.5" : "size-3"} fill="currentColor" />
+      {n} gün {full ? "tam seri" : "seri"}
+    </span>
+  );
+}
+
+/** İsmin yanında küçük seri işareti (sohbet ve üye listesi) */
+export function StreakChip({ s }: { s?: { n: number; full: boolean } | null }) {
+  if (!s || s.n < STREAK_MIN) return null;
+  return (
+    <span
+      title={s.full ? `${s.n} gün tam seri` : `${s.n} gün seri`}
+      className={`inline-flex shrink-0 items-center gap-0.5 rounded-full border px-1 text-[9px] font-bold ${
+        s.full ? "border-emerald-400/60 bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" : "border-orange-300/60 bg-orange-50 text-orange-700 dark:bg-orange-950 dark:text-orange-300"
+      }`}
+    >
+      <Flame className="size-2.5" fill="currentColor" />
+      {s.n}
     </span>
   );
 }
