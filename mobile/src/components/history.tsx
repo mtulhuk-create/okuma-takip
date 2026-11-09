@@ -3,7 +3,8 @@ import { BookHeart, BookOpen, CalendarRange, Check, CheckCheck, ChevronDown, Eye
 import { useState } from "react";
 import { ActivityIndicator, Modal, Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useApiFetch } from "@/lib/api";
+import { useApi, useApiFetch } from "@/lib/api";
+import { KAZA, type KazaState } from "@/lib/kaza";
 import { fonts, STATE, useColors } from "@/lib/theme";
 import type { GroupHistory, HistoryRange, MyHistory, Stats } from "@/lib/types";
 import { Avatar, Card, Muted, Row } from "./ui";
@@ -32,9 +33,16 @@ function weeksOf(start: string, cells: string) {
 }
 
 /** Gün durumları kartın genişliğini boşluksuz doldurur: 7 gün şerit, 1 ay takvim, daha uzun aralık haftalık ısı haritası */
-export function HistoryGrid({ start, cells }: { start: string; cells: string }) {
+/**
+ * colorOf / labelOf: başka veri için (kaza geçmişi) hücre rengi ve 7 günlük şeritte hücre içi yazı.
+ * Verilmezse okuma durumları (okudu / alt sınır / okumadı) gösterilir.
+ */
+export function HistoryGrid({ start, cells, colorOf, labelOf }: { start: string; cells: string; colorOf?: (ch: string) => string; labelOf?: (ch: string, i: number) => string | null }) {
   const c = useColors();
-  const color = useCellColor();
+  const base = useCellColor();
+  const color = colorOf ?? base;
+  // Koyu hücrede beyaz yazı
+  const strong = (ch: string) => (colorOf ? ch >= "2" : "rknm".includes(ch));
   const [width, setWidth] = useState(0);
   const todayRing = { borderWidth: 2, borderColor: c.primary + "99" };
   if (cells.length <= 14) {
@@ -53,7 +61,11 @@ export function HistoryGrid({ start, cells }: { start: string; cells: string }) 
                   today && todayRing,
                 ]}
               >
-                {Icon && <Icon size={14} color="#fff" strokeWidth={3} />}
+                {labelOf ? (
+                  <Text style={{ fontFamily: fonts.bold, fontSize: 11, color: strong(ch) ? "#fff" : c.mutedForeground }}>{labelOf(ch, i)}</Text>
+                ) : (
+                  Icon && <Icon size={14} color="#fff" strokeWidth={3} />
+                )}
               </View>
               <Text style={{ fontFamily: fonts.regular, fontSize: 10, color: c.mutedForeground }}>{Number(key.slice(8))}</Text>
             </View>
@@ -87,7 +99,7 @@ export function HistoryGrid({ start, cells }: { start: string; cells: string }) 
                   today && todayRing,
                 ]}
               >
-                <Text style={{ fontFamily: fonts.semibold, fontSize: 11, color: "rknm".includes(ch) ? "#fff" : ch === "x" ? c.mutedForeground + "66" : c.mutedForeground }}>{Number(key.slice(8))}</Text>
+                <Text style={{ fontFamily: fonts.semibold, fontSize: 11, color: strong(ch) ? "#fff" : ch === "x" ? c.mutedForeground + "66" : c.mutedForeground }}>{Number(key.slice(8))}</Text>
               </View>
             ))}
           </Row>
@@ -248,36 +260,109 @@ function GroupPicker({ value, options, onChange }: { value: string; options: { v
 }
 
 /** Bugün ekranı: kendi okuma geçmişin. Varsayılan tüm gruplar; menüden tek grup seçilebilir. */
+type KazaHistory = { start: string; counts: number[]; total: number; days: number };
+/** Günlük kaza sayısı → ısı haritası seviyesi */
+const kazaLevel = (n: number) => (n <= 0 ? "0" : n === 1 ? "1" : n <= 3 ? "2" : n <= 5 ? "3" : "4");
+
+/** Okuma / Kaza seçimi (geçmiş kutusunun başında) */
+function ModeSwitch({ value, onChange }: { value: "read" | "kaza"; onChange: (v: "read" | "kaza") => void }) {
+  const c = useColors();
+  return (
+    <Row gap={0} style={{ backgroundColor: c.muted, borderRadius: 99, padding: 2 }}>
+      {(
+        [
+          ["read", "Okuma"],
+          ["kaza", "Kaza"],
+        ] as const
+      ).map(([v, label]) => {
+        const on = value === v;
+        return (
+          <Pressable key={v} onPress={() => onChange(v)} hitSlop={4} style={{ paddingHorizontal: 10, height: 24, justifyContent: "center", borderRadius: 99, backgroundColor: on ? c.card : "transparent", elevation: on ? 1 : 0 }}>
+            <Text style={{ fontFamily: fonts.semibold, fontSize: 11, color: on ? (v === "kaza" ? KAZA : c.primary) : c.mutedForeground }}>{label}</Text>
+          </Pressable>
+        );
+      })}
+    </Row>
+  );
+}
+
+/** Bugün sayfasının başındaki geçmiş kutusu: okuma (varsayılan) ya da kaza takibi açıksa kaza geçmişi */
 export function MyHistorySection() {
   const c = useColors();
   const fetcher = useApiFetch();
   const [range, setRange] = useState<HistoryRange>("7d");
   const [sel, setSel] = useState("all");
+  const [mode, setMode] = useState<"read" | "kaza">("read");
   const { data, isFetching } = useQuery({ queryKey: ["/api/m/history", range], queryFn: () => fetcher<MyHistory>(`/api/m/history?range=${range}`), placeholderData: (p) => p });
-  if (!data?.groups.length) return null;
-  const multi = !!data.all && data.groups.length > 1;
-  const group = data.groups.find((g) => g.group.id === sel);
-  const row = (sel === "all" || !group) && multi ? data.all! : (group ?? data.groups[0]);
+  const kaza = useApi<KazaState>("/api/m/kaza");
+  const kazaOn = !!kaza.data?.enabled;
+  const hasRead = !!data?.groups.length;
+  const view = !hasRead ? "kaza" : kazaOn ? mode : "read";
+  const kh = useQuery({
+    queryKey: ["/api/m/kaza/history", range],
+    queryFn: () => fetcher<KazaHistory>(`/api/m/kaza/history?range=${range}`),
+    enabled: kazaOn && view === "kaza",
+    placeholderData: (p) => p,
+  });
+  if (!hasRead && !kazaOn) return null;
+  const multi = !!data?.all && (data?.groups.length ?? 0) > 1;
+  const group = data?.groups.find((g) => g.group.id === sel);
+  const row = data && hasRead ? ((sel === "all" || !group) && multi ? data.all! : (group ?? data.groups[0])) : null;
+  const k = kh.data;
   return (
-    <Card style={{ gap: 8, padding: 10, opacity: isFetching ? 0.7 : 1 }}>
+    <Card style={{ gap: 8, padding: 10, opacity: (view === "read" ? isFetching : kh.isFetching) ? 0.7 : 1 }}>
       <Row gap={6}>
+        {kazaOn && hasRead && <ModeSwitch value={mode} onChange={setMode} />}
         <RangePicker value={range} onChange={setRange} />
         <View style={{ flex: 1, flexDirection: "row" }}>
-          {multi ? (
-            <GroupPicker value={group ? sel : "all"} onChange={setSel} options={[{ value: "all", label: "Tüm gruplar" }, ...data.groups.map((g) => ({ value: g.group.id, label: g.group.name }))]} />
-          ) : (
-            <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: fonts.semibold, fontSize: 12, color: c.mutedForeground }}>
-              {data.groups[0].group.name}
+          {view === "read" && row ? (
+            multi ? (
+              <GroupPicker value={group ? sel : "all"} onChange={setSel} options={[{ value: "all", label: "Tüm gruplar" }, ...data!.groups.map((g) => ({ value: g.group.id, label: g.group.name }))]} />
+            ) : (
+              <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: fonts.semibold, fontSize: 12, color: c.mutedForeground }}>
+                {data!.groups[0].group.name}
+              </Text>
+            )
+          ) : !hasRead ? (
+            <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: fonts.semibold, fontSize: 12, color: KAZA }}>
+              Namaz kaza
             </Text>
-          )}
+          ) : null}
         </View>
-        <StreakBadge n={row.streak ?? 0} small />
+        <StreakBadge n={view === "read" ? (row?.streak ?? 0) : (kaza.data?.streak ?? 0)} small />
       </Row>
-      <HistoryGrid start={row.start} cells={row.cells} />
-      <Row style={{ flexWrap: "wrap", justifyContent: "space-between", rowGap: 2 }}>
-        <StatsLine stats={row.stats} />
-        <Text style={{ fontFamily: fonts.regular, fontSize: 10, color: c.mutedForeground }}>Yalnızca senin okumaların</Text>
-      </Row>
+      {view === "read" && row ? (
+        <>
+          <HistoryGrid start={row.start} cells={row.cells} />
+          <Row style={{ flexWrap: "wrap", justifyContent: "space-between", rowGap: 2 }}>
+            <StatsLine stats={row.stats} />
+            <Text style={{ fontFamily: fonts.regular, fontSize: 10, color: c.mutedForeground }}>Yalnızca senin okumaların</Text>
+          </Row>
+        </>
+      ) : k ? (
+        <>
+          <HistoryGrid
+            start={k.start}
+            cells={k.counts.map(kazaLevel).join("")}
+            colorOf={(ch) => ({ "0": c.muted, "1": KAZA + "4d", "2": KAZA + "88", "3": KAZA + "c4", "4": KAZA })[ch] ?? c.muted}
+            labelOf={(_ch, i) => (k.counts[i] ? String(k.counts[i]) : null)}
+          />
+          <Row gap={10} style={{ flexWrap: "wrap", rowGap: 2 }}>
+            {[
+              { n: k.total, label: "kaza kılındı", color: KAZA },
+              { n: k.days, label: "gün", color: c.foreground },
+              { n: k.days ? Math.round((k.total / k.counts.length) * 10) / 10 : 0, label: "günlük ort.", color: c.foreground },
+            ].map((x) => (
+              <Row key={x.label} gap={3}>
+                <Text style={{ fontFamily: fonts.semibold, fontSize: 11, color: x.color }}>{x.n.toLocaleString("tr-TR")}</Text>
+                <Text style={{ fontFamily: fonts.regular, fontSize: 11, color: c.mutedForeground }}>{x.label}</Text>
+              </Row>
+            ))}
+          </Row>
+        </>
+      ) : (
+        <ActivityIndicator size="small" color={KAZA} />
+      )}
     </Card>
   );
 }
