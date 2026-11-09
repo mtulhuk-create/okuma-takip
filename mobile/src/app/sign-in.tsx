@@ -2,16 +2,55 @@ import { useSignIn, useSignUp } from "@clerk/expo";
 import { useSSO } from "@clerk/expo/experimental";
 import { Image } from "expo-image";
 import * as WebBrowser from "expo-web-browser";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View, useColorScheme } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Body, Button, H1, Input, Muted, Row, Segmented } from "@/components/ui";
+import { CLERK_PUBLISHABLE_KEY } from "@/lib/config";
 import { fonts, useColors } from "@/lib/theme";
 
 WebBrowser.maybeCompleteAuthSession();
 
+/**
+ * Şifre kuralları Clerk panelindeki ayardan okunur (sabit 8 yazmak yanlıştı: panelde 15 olabilir,
+ * kişi 8–14 karakter girince "en az 8" hatası alıyordu).
+ */
+type PasswordRules = { min: number; upper: boolean; lower: boolean; number: boolean; special: boolean };
+const DEFAULT_RULES: PasswordRules = { min: 8, upper: false, lower: false, number: false, special: false };
+let rulesCache: PasswordRules | null = null;
+async function loadPasswordRules(): Promise<PasswordRules> {
+  if (rulesCache) return rulesCache;
+  try {
+    // Yayınlanabilir anahtarın içinde Clerk ön yüz adresi var (pk_live_<base64(adres$)>)
+    const host = atob(CLERK_PUBLISHABLE_KEY.split("_")[2] ?? "").replace(/\$$/, "");
+    if (!/^[a-z0-9.-]+$/i.test(host)) return DEFAULT_RULES;
+    const res = await fetch(`https://${host}/v1/environment?_is_native=1`);
+    const p = ((await res.json()) as { user_settings?: { password_settings?: Record<string, unknown> } }).user_settings?.password_settings ?? {};
+    rulesCache = {
+      min: Math.max(8, Number(p.min_length) || 8),
+      upper: p.require_uppercase === true,
+      lower: p.require_lowercase === true,
+      number: p.require_numbers === true,
+      special: p.require_special_char === true,
+    };
+    return rulesCache;
+  } catch {
+    return DEFAULT_RULES;
+  }
+}
+
+/** Şifrenin kurallara uymayan yanı (yoksa null) */
+function passwordProblem(pw: string, r: PasswordRules) {
+  if (pw.length < r.min) return `En az ${r.min} karakter (${pw.length}/${r.min})`;
+  if (r.upper && !/[A-ZÇĞİÖŞÜ]/.test(pw)) return "En az bir büyük harf";
+  if (r.lower && !/[a-zçğıöşü]/.test(pw)) return "En az bir küçük harf";
+  if (r.number && !/\d/.test(pw)) return "En az bir rakam";
+  if (r.special && !/[^A-Za-z0-9ÇĞİÖŞÜçğıöşü]/.test(pw)) return "En az bir özel karakter (! ? . * gibi)";
+  return null;
+}
+
 /** Clerk hatalarını Türkçe, anlaşılır bir mesaja çevirir. */
-function errorText(error: unknown) {
+function errorText(error: unknown, rules: PasswordRules = DEFAULT_RULES, signUp = false) {
   const e = error as { errors?: { code?: string; longMessage?: string; message?: string }[]; code?: string; longMessage?: string; message?: string } | null;
   const first = e?.errors?.[0] ?? e;
   const code = first?.code ?? "";
@@ -20,8 +59,10 @@ function errorText(error: unknown) {
     form_identifier_not_found: "Bu e-posta ile kayıtlı hesap yok. Önce kayıt ol.",
     form_identifier_exists: "Bu e-posta zaten kayıtlı. Giriş yap sekmesinden devam et.",
     form_password_pwned: "Bu şifre güvenli değil (sızdırılmış şifreler listesinde). Başka bir şifre seç.",
-    form_password_length_too_short: "Şifre en az 8 karakter olmalı.",
-    form_password_validation_failed: "Şifre yanlış.",
+    form_password_length_too_short: `Şifre en az ${rules.min} karakter olmalı.`,
+    form_password_validation_failed: signUp ? "Şifre kurallara uymuyor." : "Şifre yanlış.",
+    form_password_not_strong_enough: "Şifre yeterince güçlü değil: harf, rakam ve işaret karıştır.",
+    form_password_size_in_bytes_exceeded: "Şifre çok uzun.",
     form_param_format_invalid: "E-posta adresini kontrol et.",
     form_param_nil: "Tüm alanları doldur.",
     form_code_incorrect: "Kod yanlış.",
@@ -52,6 +93,10 @@ export default function SignInScreen() {
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [rules, setRules] = useState<PasswordRules>(rulesCache ?? DEFAULT_RULES);
+  useEffect(() => {
+    loadPasswordRules().then(setRules);
+  }, []);
 
   async function run(key: string, fn: () => Promise<void>) {
     setBusy(key);
@@ -59,7 +104,7 @@ export default function SignInScreen() {
     try {
       await fn();
     } catch (e) {
-      setError(errorText(e));
+      setError(errorText(e, rules, mode === "up"));
     } finally {
       setBusy(null);
     }
@@ -133,7 +178,9 @@ export default function SignInScreen() {
     });
 
   const validEmail = /\S+@\S+\.\S+/.test(email.trim());
-  const canSubmit = validEmail && password.length >= 8 && (mode === "in" || (first.trim().length >= 2 && last.trim().length >= 2));
+  // Kayıtta şifre panel kurallarına göre denetlenir; girişte yalnızca boş olmasın
+  const pwProblem = mode === "up" ? passwordProblem(password, rules) : null;
+  const canSubmit = validEmail && (mode === "up" ? !pwProblem : password.length > 0) && (mode === "in" || (first.trim().length >= 2 && last.trim().length >= 2));
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1, backgroundColor: c.background }}>
@@ -177,8 +224,9 @@ export default function SignInScreen() {
               autoCapitalize="none"
               autoComplete={mode === "up" ? "new-password" : "current-password"}
               textContentType={mode === "up" ? "newPassword" : "password"}
-              placeholder={mode === "up" ? "En az 8 karakter" : undefined}
+              placeholder={mode === "up" ? `En az ${rules.min} karakter` : undefined}
             />
+            {mode === "up" && password.length > 0 && pwProblem && <Muted style={{ marginTop: -8 }}>{pwProblem}</Muted>}
             {error && <Text style={{ fontFamily: fonts.medium, fontSize: 13, color: c.destructive }}>{error}</Text>}
             <Button
               title={mode === "up" ? "Kayıt ol" : "Giriş yap"}

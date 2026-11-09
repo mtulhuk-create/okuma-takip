@@ -541,7 +541,8 @@ model KazaDay {
   userId String
   kaza   Kaza   @relation(fields: [userId], references: [userId], onDelete: Cascade)
   dayKey String // YYYY-MM-DD (Türkiye saati)
-  count  Int    @default(0)
+  count  Int    @default(0) // kılınan kaza
+  added  Int    @default(0) // o gün kaçırılıp kazaya eklenen (geçmişte net = kılınan − eklenen)
 
   @@id([userId, dayKey])
 }

@@ -47,7 +47,8 @@ export function useKaza() {
       if (prev) {
         const p = body.prayer;
         // kalan / kılınan / bugün değişimi
-        const d = { make: [-1, 1, 1], undo: [1, -1, -1], add: [1, 0, 0], unadd: [-1, 0, 0] }[body.op];
+        // Bugün: net (kılınan − kaçırılıp eklenen)
+        const d = { make: [-1, 1, 1], undo: [1, -1, -1], add: [1, 0, -1], unadd: [-1, 0, 1] }[body.op];
         qc.setQueryData<KazaState>([KAZA_PATH], {
           ...prev,
           remaining: { ...prev.remaining, [p]: Math.max(0, prev.remaining[p] + d[0]) },

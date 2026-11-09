@@ -27,7 +27,8 @@ export async function kazaState(userId: string) {
     db.kaza.findUnique({ where: { userId } }),
     db.kazaDay.findMany({ where: { userId, dayKey: { gte: shift(today, -364) } }, orderBy: { dayKey: "desc" } }),
   ]);
-  const byDay = new Map(days.map((d) => [d.dayKey, d.count]));
+  // Günlük net: kılınan − o gün kaçırılıp eklenen (en az 0)
+  const byDay = new Map(days.map((d) => [d.dayKey, Math.max(0, d.count - d.added)]));
   // Seri: bugünden (bugün henüz kılınmadıysa dünden) geriye kesintisiz kaza kılınan gün
   let streak = 0;
   for (let i = byDay.get(today) ? 0 : 1; i < 365 && (byDay.get(shift(today, -i)) ?? 0) > 0; i++) streak++;
@@ -110,6 +111,12 @@ export async function applyKaza(userId: string, op: KazaOp) {
       if (op.op === "unadd" && remaining[op.prayer] <= 0) throw new Error("Geri alınacak kaza yok");
       remaining[op.prayer] = Math.min(MAX, remaining[op.prayer] + (op.op === "add" ? 1 : -1));
       await tx.kaza.update({ where: { userId }, data: { remaining } });
+      // Geçmiş tablosunda o günün sayısı düşer (kaçırılan eklendi) ya da geri alınınca geri gelir
+      if (op.op === "add") {
+        await tx.kazaDay.upsert({ where: { userId_dayKey: { userId, dayKey: today } }, create: { userId, dayKey: today, added: 1 }, update: { added: { increment: 1 } } });
+      } else {
+        await tx.kazaDay.updateMany({ where: { userId, dayKey: today, added: { gt: 0 } }, data: { added: { decrement: 1 } } });
+      }
       return;
     }
     if (op.op === "make") {
@@ -144,7 +151,7 @@ export async function kazaHistory(userId: string, range: "7d" | "1m" | "3m" | "1
     if (since > start) start = since;
   }
   const rows = await db.kazaDay.findMany({ where: { userId, dayKey: { gte: start } } });
-  const byDay = new Map(rows.map((d) => [d.dayKey, d.count]));
+  const byDay = new Map(rows.map((d) => [d.dayKey, Math.max(0, d.count - d.added)]));
   const n = Math.round((Date.parse(today) - Date.parse(start)) / 86_400_000) + 1;
   const counts = Array.from({ length: n }, (_, i) => byDay.get(shift(start, i)) ?? 0);
   return { range, start, counts, total: counts.reduce((a, b) => a + b, 0), days: counts.filter((c) => c > 0).length };

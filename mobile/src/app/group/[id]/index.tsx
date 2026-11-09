@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { router, Stack, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { router, Stack, useFocusEffect, useLocalSearchParams, useNavigation } from "expo-router";
 import { BarChart3, CalendarRange, ChevronDown, Info, Landmark, Lock, SendHorizontal, Settings } from "lucide-react-native";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppState, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
@@ -117,6 +117,19 @@ export default function ChatScreen() {
   const [kasaOpen, setKasaOpen] = useState(false);
   const [cardVisible, setCardVisible] = useState(true);
   const qc = useQueryClient();
+  // Gruba girerken kasma: sohbet listesi (gün kartları, baloncuklar) geçiş animasyonu bitince çizilir.
+  // Önce yalnızca başlık ve zemin çizildiği için ekran dokunur dokunmaz açılır (eski telefonlarda fark büyük).
+  const navigation = useNavigation();
+  const [listReady, setListReady] = useState(false);
+  useEffect(() => {
+    const done = () => setListReady(true);
+    const off = navigation.addListener("transitionEnd" as never, done);
+    const t = setTimeout(done, 450);
+    return () => {
+      off();
+      clearTimeout(t);
+    };
+  }, [navigation]);
   const list = useRef<FlatList<ChatMessage>>(null);
   const cursor = useRef(0);
   const scrolledToDay = useRef(false);
@@ -167,11 +180,11 @@ export default function ChatScreen() {
 
   // Bugün ekranından gelindiyse ilgili gün kartına kaydır
   useEffect(() => {
-    if (dayIndex < 0 || scrolledToDay.current) return;
+    if (!listReady || dayIndex < 0 || scrolledToDay.current) return;
     scrolledToDay.current = true;
     const t = setTimeout(() => list.current?.scrollToIndex({ index: dayIndex, viewPosition: 0.4, animated: true }), 300);
     return () => clearTimeout(t);
-  }, [dayIndex]);
+  }, [dayIndex, listReady]);
 
   // Bugünün gün kartı ekranda değilse başlığın altında kısayol göster
   // Sunucu bugünün kartını göndermiyorsa (eski sürüm) sohbetteki en son gün kartı kullanılır
@@ -332,6 +345,7 @@ export default function ChatScreen() {
       <View style={{ flex: 1, backgroundColor: c.chatBg }}>
         {/* Hafif desenli sohbet duvar kağıdı */}
         {!LITE && <ChatWallpaper />}
+      {listReady && (
       <FlatList
         ref={list}
         inverted
@@ -344,12 +358,13 @@ export default function ChatScreen() {
         onViewableItemsChanged={onViewable}
         viewabilityConfig={{ itemVisiblePercentThreshold: 15 }}
         renderItem={renderItem}
-        initialNumToRender={10}
+        initialNumToRender={8}
         maxToRenderPerBatch={6}
         updateCellsBatchingPeriod={60}
         windowSize={7}
         removeClippedSubviews={Platform.OS === "android"}
       />
+      )}
       </View>
       <Composer canPost={data.me.canPost} onSend={send} onPoll={() => setPollOpen(true)} />
       <PollModal groupId={id} visible={pollOpen} onClose={() => setPollOpen(false)} />

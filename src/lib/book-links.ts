@@ -83,8 +83,17 @@ export type BookMatch = { book: { id: string; title: string; target: number }; o
 
 /** Katılmadan önce: gruptaki eserlerle kullanıcının diğer gruplarındaki eserleri karşılaştırır */
 export async function findBookMatches(userId: string, groupId: string, teamId?: string | null): Promise<BookMatch[]> {
-  const g = await getDb().group.findUnique({ where: { id: groupId }, include: { teams: true } });
+  const db = getDb();
+  const g = await db.group.findUnique({ where: { id: groupId }, include: { teams: true } });
   if (!g) return [];
+  // Gizli grubun eserleri yalnızca üyeye ya da davet edilene gösterilir
+  if (g.visibility !== "PUBLIC") {
+    const [member, invite] = await Promise.all([
+      db.groupMember.findUnique({ where: { groupId_userId: { groupId, userId } }, select: { id: true } }),
+      db.invitation.findFirst({ where: { groupId, inviteeId: userId, status: "PENDING" }, select: { id: true } }),
+    ]);
+    if (!member && !invite) return [];
+  }
   const mine = await myBooks(userId, groupId);
   const out: BookMatch[] = [];
   for (const b of groupBooks(g, teamId)) {

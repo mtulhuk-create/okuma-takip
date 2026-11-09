@@ -151,8 +151,9 @@ class KazaReceiver : BroadcastReceiver() {
     }
     val delta = when (op) { "make", "unadd" -> -1; else -> 1 }
     remaining.put(prayer, remaining.optInt(prayer) + delta)
-    if (op == "make") p.put("today", p.optInt("today") + 1)
-    if (op == "undo") p.put("today", maxOf(0, p.optInt("today") - 1))
+    // Bugün: net (kılınan − kaçırılıp eklenen), sunucudaki gibi
+    val todayDelta = when (op) { "make", "unadd" -> 1; else -> -1 }
+    p.put("today", maxOf(0, p.optInt("today") + todayDelta))
     if (undo) {
       p.remove("last")
       p.remove("lastOp")
