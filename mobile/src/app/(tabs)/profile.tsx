@@ -3,6 +3,7 @@ import * as Application from "expo-application";
 import * as Notifications from "expo-notifications";
 import { useEffect, useState } from "react";
 import { Alert, AppState, Linking, Platform, Switch, Text, View } from "react-native";
+import { AppIconPicker } from "@/components/app-icon-picker";
 import { NameSheet } from "@/components/name-sheet";
 import { Avatar, Body, Button, Card, ErrorView, H1, Loading, Muted, Row, Screen, Segmented, Stat, Title } from "@/components/ui";
 import { toast, useApi, useApiFetch } from "@/lib/api";
@@ -110,6 +111,7 @@ export default function ProfileScreen() {
             { value: "system", label: "Sistem", icon: Monitor },
           ]}
         />
+        <AppIconPicker />
       </Card>
 
       <Card>

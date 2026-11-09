@@ -7,6 +7,7 @@ import { formatClock } from "@/lib/format";
 import { fonts, useColors } from "@/lib/theme";
 import type { ChatMessage } from "@/lib/types";
 import { BadgeChip } from "../badge-chip";
+import { StreakChip } from "../history";
 import { Avatar } from "../ui";
 
 const NAME_COLORS = ["#be123c", "#b45309", "#047857", "#0369a1", "#6d28d9", "#c2410c", "#0f766e"];
@@ -88,6 +89,7 @@ export const MessageBubble = memo(function MessageBubble({ m, mine, showAuthor, 
               {m.user.name}
             </Text>
             {m.user.badge && <BadgeChip tag={m.user.badge} />}
+            <StreakChip s={m.user.streak} />
           </View>
         )}
         {poll ? (

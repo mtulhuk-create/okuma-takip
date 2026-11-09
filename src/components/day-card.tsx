@@ -93,7 +93,7 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
                   </p>
                 ) : null}
               </div>
-              <div className="flex gap-1">
+              <div className="flex gap-2">
                 {plan && (
                   <button
                     title={`Kefaret okuması: bugün toplam ${me.target + plan.dailyExtra} sayfa`}
@@ -126,7 +126,7 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
       </ul>
       {plan && <KefaretOffer plan={plan} today={card.dayKey} dailyPages={me.target + plan.dailyExtra} markedToday={me.kefaret > 0} />}
       {/* Kısa etiketli seçim grubu; sayfa / ceza sağ üst çentiklerde */}
-      <div className="flex gap-1 pb-1.5 pt-1" role="group" aria-label="Bugünkü okumanı bildir">
+      <div className="flex gap-2.5 px-1.5 pb-1.5 pt-1" role="group" aria-label="Bugünkü okumanı bildir">
         {plan && (
           <ChoiceButton
             className="bg-teal-600 text-white hover:bg-teal-700"
@@ -554,7 +554,7 @@ export function DayShortcut({ card, groupId, onJump, onReported }: { card: Card;
         </span>
       </button>
       {card.open && me ? (
-        <div className="flex shrink-0 gap-1 pb-1 pt-1">
+        <div className="flex shrink-0 gap-2 pb-1 pt-1">
           {btns.map(({ key, state, label, corner, fine, tone, Icon, on }) => (
             <button
               key={key}

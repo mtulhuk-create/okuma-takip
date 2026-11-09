@@ -48,6 +48,7 @@ export type Member = {
   user: PublicUser;
   /** Gruba özel etkin rozet (yalnızca üyelere gelir) */
   badge?: BadgeTag | null;
+  streak?: StreakTag | null;
 };
 
 export type ReadingLog = { userId: string; dayKey: string; pages: number; requiredPages: number; minPages: number };
@@ -97,7 +98,10 @@ export type Stats = { read: number; min: number; none: number; pages: number };
 export type HistoryRow = { start: string; cells: string; stats: Stats };
 export type HistoryRange = "7d" | "1m" | "3m" | "1y" | "all";
 /** streak: bugünden geriye kesintisiz okunan gün sayısı */
-export type MyHistory = { all: (HistoryRow & { streak?: number }) | null; groups: (HistoryRow & { streak?: number; group: { id: string; name: string } })[] };
+/** fullStreak: üst üste tam (hedef) okunan gün; eski sunucuda yok */
+export type MyHistory = { all: (HistoryRow & { streak?: number; fullStreak?: number }) | null; groups: (HistoryRow & { streak?: number; fullStreak?: number; group: { id: string; name: string } })[] };
+/** Okuma serisi (3 gün ve üstü); full: tam okuma serisi */
+export type StreakTag = { n: number; full: boolean };
 export type GroupHistory = { limited: boolean; rows: (HistoryRow & { user: PublicUser; me: boolean })[] };
 export type PenaltyStatus = "UNPAID" | "IN_DUE" | "PAID" | "WAIVED";
 export type Penalty = { id: string; userId: string; dayKey: string; amount: number; originalAmount?: number | null; pagesRead: number; requiredPages: number; status: PenaltyStatus; user?: PublicUser };
@@ -219,7 +223,7 @@ export type ChatMessage = {
   kind: "TEXT" | "DAY" | "POLL" | "BADGE";
   text: string | null;
   createdAt: string;
-  user: { id: string; name: string; imageUrl: string | null; initial?: string; badge?: BadgeTag | null } | null;
+  user: { id: string; name: string; imageUrl: string | null; initial?: string; badge?: BadgeTag | null; streak?: StreakTag | null } | null;
   day: DayCard | null;
   poll: PollView | null;
   badge?: BadgeView | null;
