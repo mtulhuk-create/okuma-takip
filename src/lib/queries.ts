@@ -31,7 +31,10 @@ export async function myGroupsToday(userId: string) {
   });
   const now = new Date();
   await Promise.all(memberships.map((m) => ensureDayCard(m.group, now)));
-  maintainLater(memberships.map((m) => m.groupId));
+  maintainLater(
+    memberships.map((m) => m.groupId),
+    memberships.map((m) => m.group),
+  );
   return Promise.all(
     memberships.map(async (m) => {
       const { members: rawMembers, ...group } = m.group;

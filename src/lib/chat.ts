@@ -11,12 +11,19 @@ const PAGE = 40;
 const publicUser = { select: { id: true, name: true, accountName: true, imageUrl: true } } as const;
 
 /** Okuma günü başladığında grubun sohbetine gün kartını ekler (zaten varsa dokunmaz). */
+// Bu sunucu örneğinde gün kartı mesajı var olduğu bilinen gruplar (her istekte yeniden yazma denemesin)
+const ensured = new Set<string>();
+
 export async function ensureDayCard(group: Group, now = new Date()) {
   const p = currentPeriod(now, group);
+  const key = `${group.id}:${p.dayKey}`;
+  if (ensured.has(key)) return false;
   const res = await getDb().message.createMany({
     data: [{ groupId: group.id, kind: "DAY", dayKey: p.dayKey, createdAt: p.start }],
     skipDuplicates: true,
   });
+  if (ensured.size > 5000) ensured.clear();
+  ensured.add(key);
   return res.count > 0;
 }
 

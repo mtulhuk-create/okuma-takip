@@ -9,8 +9,11 @@ export default async function Home() {
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-8 px-6 py-12">
       <div className="text-center">
+        {/* Amblem: açık ve koyu temaya göre */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/icons/icon-192.png" alt="Okuma Takip" width={96} height={96} className="mx-auto mb-4 rounded-3xl shadow-lg" />
+        <img src="/brand/logo-light.png" alt="Okuma Takip" width={160} height={86} className="mx-auto mb-4 h-auto w-40 dark:hidden" />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/brand/logo-dark.png" alt="" aria-hidden width={160} height={86} className="mx-auto mb-4 hidden h-auto w-40 dark:block" />
         <h1 className="font-serif text-4xl font-bold">Okuma Takip</h1>
         <p className="mt-3 text-foreground/80">
           Arkadaşlarınla okuma grubu kur. Her gün sayfanı bildir. Hedefin altında kalırsan <b>ceza</b> öde!
