@@ -20,4 +20,5 @@
   <color name="okuma_none_dark">#BE123C</color>
   <color name="okuma_kefaret_dark">#115E59</color>
   <color name="okuma_divider">#EFE9E5</color>
+  <color name="okuma_box_bg">#FAF8F6</color>
 </resources>

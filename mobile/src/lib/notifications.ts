@@ -8,7 +8,7 @@ import { API_URL } from "./config";
 import { enqueue } from "./offline";
 import { LITE } from "./variant";
 import type { DayCard } from "./types";
-import { dayCardNotificationAvailable, hideDayCardNotification, showDayCardNotification, type DayCardPayload } from "../../modules/day-card-notification";
+import { dayCardNotificationAvailable, hideDayCardNotification, scheduleDayCardNotificationsJson, showDayCardNotification, type DayCardPayload } from "../../modules/day-card-notification";
 
 export const REPORT_CATEGORY = "REPORT";
 // Tam sürüm: son 10 dakikada her dakika. Lite: telefonu yormasın, yalnızca 10 ve 1 dakika kala
@@ -116,6 +116,7 @@ export async function setStickyPref(on: boolean) {
 // Kilit ekranı kartının içeriği için uygulamadaki gün kartları (me verisinden)
 let dayCards: Record<string, { name: string; card: DayCard }> = {};
 let lastSchedule: Schedule | null = null;
+let lastNativePlan = "";
 
 /** Gün kartları değişince (okuma bildirildi, kefaret vb.) kilit ekranı kartı da güncellensin */
 export function setDayCards(groups: { group: { id: string; name: string }; card: DayCard }[]) {
@@ -123,16 +124,31 @@ export function setDayCards(groups: { group: { id: string; name: string }; card:
   if (lastSchedule) showTodaySticky(lastSchedule).catch(() => {});
 }
 
-/** Uygulamadaki gün kartının özü: başlık, kalan süre, ilerleme, kefaret ve renkli butonlar + çentikler */
+/**
+ * Uygulamadaki gün kartının özü: başlık, kalan süre, ilerleme, kefaret ve eser butonları + çentikler.
+ * Gelecek günler için (gün başı alarmı) eserler bugünkü karttan, okuma bilgisi boş olarak alınır.
+ */
 function dayCardPayload(g: Schedule["groups"][number], p: Schedule["groups"][number]["periods"][number]): DayCardPayload {
   const entry = dayCards[g.groupId];
-  const card = entry?.card.dayKey === p.dayKey ? entry.card : null;
+  const today = entry?.card.dayKey === p.dayKey;
+  const card = today ? entry.card : null;
+  const base = entry?.card.me ?? null;
   const me = card?.me ?? null;
-  const target = me?.target ?? g.dailyPages;
-  const min = me?.min ?? g.minPages ?? 0;
-  const plan = me?.plan ?? null;
+  const target = base?.target ?? g.dailyPages;
+  const min = base?.min ?? g.minPages ?? 0;
+  // Gelecek günde kefaret yalnızca plan bitmeyecekse sürer
+  const plan = today ? (me?.plan ?? null) : base?.plan && base.plan.doneDays + (base.kefaret ? 1 : 0) < base.plan.days ? base.plan : null;
   const total = card ? card.read.length + card.min.length + card.none.length + card.pending.length : 0;
-  const list = me?.books?.length ? me.books : [{ id: "genel", title: "Günlük okuma", target, min, pages: me?.pages ?? null }];
+  // Üstteki bölümlü çubuk: kefaret, okudu, alt sınır, okumadı, bekleyen (gelecek günde herkes bekliyor)
+  const kefCount = card ? card.read.filter((x) => x.kefaret).length : 0;
+  const all = entry ? entry.card.read.length + entry.card.min.length + entry.card.none.length + entry.card.pending.length : 0;
+  const seg = card
+    ? { kef: kefCount, read: card.read.length - kefCount, min: card.min.length, none: card.none.length, pending: card.pending.length }
+    : { kef: 0, read: 0, min: 0, none: 0, pending: all };
+  // Eser kimliği bilinmiyorsa (uygulama verisi yok) boş kimlik: butonlar tüm eserler için gönderilir
+  const list = base?.books?.length
+    ? base.books.map((b) => ({ ...b, pages: today ? b.pages : null }))
+    : [{ id: "", title: g.books?.length === 1 ? g.books[0] : "Günlük okuma", target, min, pages: null }];
   // Kefaret okumasında her esere düşen sayfa (sunucudaki dağıtımla aynı: hedefleri oranında)
   const sum = list.reduce((n, b) => n + b.target, 0) || 1;
   let left = plan?.dailyExtra ?? 0;
@@ -151,11 +167,14 @@ function dayCardPayload(g: Schedule["groups"][number], p: Schedule["groups"][num
     deadline: new Date(p.deadline).getTime(),
     done: card ? card.read.length + card.min.length : 0,
     total,
-    kefCount: card ? card.read.filter((x) => x.kefaret).length : 0,
+    kefCount,
+    seg,
     books,
     plan: !!plan,
     kefaretOn: !!me?.kefaret,
-    kefaretLine: plan ? `Kefaret ${plan.doneDays}${me?.kefaret ? "+1" : ""}/${plan.days} gün · ${plan.earned}/${plan.discountTotal} TL silindi` : null,
+    fineMin: base?.fine?.min ?? 0,
+    fineNone: base?.fine?.none ?? 0,
+    kefaretLine: plan ? `Kefaret ${plan.doneDays}${today && me?.kefaret ? "+1" : !today && base?.kefaret ? "+1" : ""}/${plan.days} gün · ${plan.earned}/${plan.discountTotal} TL silindi` : null,
   };
 }
 
@@ -179,6 +198,16 @@ export async function showTodaySticky(data: Schedule) {
       }
       if (on && p) showDayCardNotification(dayCardPayload(g, p));
       else hideDayCardNotification(g.groupId);
+    }
+    // Sonraki günlerin kartları gün başında sistem alarmıyla, uygulama açılmadan gösterilir
+    const next = on
+      ? data.groups.flatMap((g) => g.periods.filter((x) => new Date(x.start).getTime() > now).map((x) => ({ ...dayCardPayload(g, x), start: new Date(x.start).getTime() })))
+      : [];
+    // Plan değişmediyse alarmlara dokunulmaz (eski cihazlarda gereksiz sistem çağrısı olmasın)
+    const json = JSON.stringify(next);
+    if (json !== lastNativePlan) {
+      lastNativePlan = json;
+      scheduleDayCardNotificationsJson(json);
     }
     return;
   }
@@ -232,12 +261,16 @@ const COUNTDOWN_PERIODS = LITE ? 1 : 2;
 /** Planlanması gereken bildirimler (her biri sabit kimlikli; aynı plan tekrar kurulmaz) */
 function buildPlan(data: Schedule, sticky: boolean, now: number): Planned[] {
   const out: Planned[] = [];
+  // Kilit ekranı kartı (yerel) açıksa: gün başı kartını sistem alarmı gösterir; hatırlatmalardaki butonlar
+  // uygulama kapalıyken JS başlamadan çalışmadığından kaldırılır, okuma karttaki butonlarla bildirilir
+  const native = dayCardNotificationAvailable && sticky;
+  const category = native ? {} : { categoryIdentifier: REPORT_CATEGORY };
   // Not: "alarmClock" teslimi kullanılmaz. Android 10 ve öncesinde her bildirim çalar saat alarmı olarak
   // kurulup durum çubuğu/kilit ekranındaki "sonraki alarm"ı sürekli değiştiriyor, eski Samsung'larda
   // (One UI 2) sistem arayüzünü kilitliyordu. Varsayılan tam zamanlı alarm yeterli.
   const at = (t: number, channelId: string) => ({ type: Notifications.SchedulableTriggerInputTypes.DATE, date: t, channelId }) as const;
   const add = (identifier: string, t: number, content: Notifications.NotificationContentInput, channelId: string) =>
-    out.push({ identifier, key: `${t}|${channelId}|${content.title}|${content.body}|${content.sticky ? 1 : 0}`, request: { identifier, content, trigger: at(t, channelId) } });
+    out.push({ identifier, key: `${t}|${channelId}|${content.title}|${content.body}|${content.sticky ? 1 : 0}|${content.categoryIdentifier ?? ""}`, request: { identifier, content, trigger: at(t, channelId) } });
   for (const g of data.groups) {
     let countdownPeriods = 0;
     for (const p of g.periods) {
@@ -246,13 +279,13 @@ function buildPlan(data: Schedule, sticky: boolean, now: number): Planned[] {
       if (p.reported) continue;
       const payload: ReportData = { token: p.token, groupId: g.groupId, dayKey: p.dayKey };
       // Gün başlarken gün kartı bildirimi
-      if (start > now) add(`day-${g.groupId}-${p.dayKey}`, start, { ...dayCardContent(g, deadline, p.dayKey), categoryIdentifier: REPORT_CATEGORY, data: { ...payload, sticky }, sticky, autoDismiss: false }, "today");
+      if (start > now && !native) add(`day-${g.groupId}-${p.dayKey}`, start, { ...dayCardContent(g, deadline, p.dayKey), categoryIdentifier: REPORT_CATEGORY, data: { ...payload, sticky }, sticky, autoDismiss: false }, "today");
       const remindAt = deadline.getTime() - g.reminderHours * 3_600_000;
       if (g.reminderHours > 0 && remindAt > now && remindAt >= start) {
         add(
           `rem-${g.groupId}-${p.dayKey}`,
           remindAt,
-          { title: `📚 ${g.name}: okuma hatırlatması`, body: `Bugünkü ${g.dailyPages} sayfanı henüz bildirmedin. Son bildirim saati ${hhmm(deadline)}.`, categoryIdentifier: REPORT_CATEGORY, data: payload },
+          { title: `📚 ${g.name}: okuma hatırlatması`, body: `Bugünkü ${g.dailyPages} sayfanı henüz bildirmedin. Son bildirim saati ${hhmm(deadline)}.`, ...category, data: payload },
           "reminders",
         );
       }
@@ -263,7 +296,7 @@ function buildPlan(data: Schedule, sticky: boolean, now: number): Planned[] {
         add(
           `cd-${g.groupId}-${p.dayKey}-${m}`,
           t,
-          { title: `⏳ ${m} dakika kaldı · ${g.name}`, body: `Son bildirim ${hhmm(deadline)}. Okuduysan hemen bildir, yoksa ceza yazılacak!`, categoryIdentifier: REPORT_CATEGORY, data: payload },
+          { title: `⏳ ${m} dakika kaldı · ${g.name}`, body: `Son bildirim ${hhmm(deadline)}. Okuduysan hemen bildir, yoksa ceza yazılacak!`, ...category, data: payload },
           "countdown",
         );
       }

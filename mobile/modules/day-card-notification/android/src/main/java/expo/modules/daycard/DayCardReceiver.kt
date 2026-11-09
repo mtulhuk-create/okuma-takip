@@ -14,7 +14,7 @@ import java.net.URL
 class DayCardReceiver : BroadcastReceiver() {
   companion object {
     const val ACTION = "expo.modules.daycard.ACTION"
-    private val LABEL = mapOf("kefaret" to "Kefaret okuması", "read" to "Okudum", "min" to "Alt sınır", "none" to "Okumadım")
+    private val LABEL = mapOf("kefaret" to "Kefaret okuması", "read" to "Okudum", "all" to "Okudum", "min" to "Alt sınır", "none" to "Okumadım")
   }
 
   override fun onReceive(context: Context, intent: Intent) {
@@ -24,6 +24,11 @@ class DayCardReceiver : BroadcastReceiver() {
     val bookChoice = intent.getStringExtra("bookChoice")
     val p = DayCardRenderer.load(context, id) ?: return
     val pending = goAsync()
+    // Basılan buton hemen seçili görünsün; sunucu yanıtı gelince kesinleşir, hata olursa eski hâline döner
+    val before = JSONObject(p.toString())
+    val was = myCategory(p)
+    optimistic(p, choice, bookId, bookChoice)
+    moveMe(p, was, myCategory(p))
     DayCardRenderer.render(context, p, "Gönderiliyor…", silent = true)
     Thread {
       try {
@@ -31,13 +36,50 @@ class DayCardReceiver : BroadcastReceiver() {
         if (ok && res != null) apply(p, res)
         val label = LABEL[bookChoice ?: choice] ?: "Bildirim"
         val undone = ok && res?.optInt("pages", -1) == 0 && (res.optJSONArray("books")?.length() ?: 0) == 0
-        DayCardRenderer.render(context, p, if (ok) (if (undone) "Geri alındı · beklemede" else "$label kaydedildi ✓") else (res?.optString("error")?.takeIf { it.isNotEmpty() } ?: "Bildirilemedi"), silent = true)
+        if (ok) DayCardRenderer.render(context, p, if (undone) "Geri alındı · beklemede" else "$label kaydedildi ✓", silent = true)
+        else DayCardRenderer.render(context, before, res?.optString("error")?.takeIf { it.isNotEmpty() } ?: "Bildirilemedi", silent = true)
       } catch (_: Throwable) {
-        DayCardRenderer.render(context, p, "Gönderilemedi: internet yok", silent = true)
+        DayCardRenderer.render(context, before, "Gönderilemedi: internet yok", silent = true)
       } finally {
         pending.finish()
       }
     }.start()
+  }
+
+  /** Sunucudaki kuralın aynısı: aynı seçime tekrar basmak geri alır */
+  private fun optimistic(p: JSONObject, choice: String, bookId: String?, bookChoice: String?) {
+    val books = p.optJSONArray("books") ?: return
+    if (choice == "kefaret" && bookId == null) {
+      val on = !p.optBoolean("kefaretOn")
+      p.put("kefaretOn", on)
+      for (i in 0 until books.length()) {
+        val b = books.getJSONObject(i)
+        b.put("pages", if (on) (if (b.has("kefPages")) b.optInt("kefPages") else b.optInt("target")) else JSONObject.NULL)
+      }
+      return
+    }
+    p.put("kefaretOn", false)
+    if (bookId == null || bookChoice == null) {
+      // Tüm eserler için: hepsi zaten bu seçimdeyse geri alınır
+      val next = { b: JSONObject -> when (choice) { "all" -> b.optInt("target"); "min" -> b.optInt("min"); else -> 0 } }
+      val same = (0 until books.length()).all { val b = books.getJSONObject(it); !b.isNull("pages") && b.optInt("pages") == next(b) }
+      for (i in 0 until books.length()) {
+        val b = books.getJSONObject(i)
+        b.put("pages", if (same) JSONObject.NULL else next(b))
+      }
+      return
+    }
+    for (i in 0 until books.length()) {
+      val b = books.getJSONObject(i)
+      if (b.getString("id") != bookId) continue
+      val next = when (bookChoice) {
+        "read" -> b.optInt("target")
+        "min" -> b.optInt("min")
+        else -> 0
+      }
+      val cur = if (b.isNull("pages")) null else b.optInt("pages")
+      b.put("pages", if (cur == next) JSONObject.NULL else next)
+    }
   }
 
   /** Sunucunun döndürdüğü eser sayfalarını ve kefareti karta işler */
@@ -49,13 +91,56 @@ class DayCardReceiver : BroadcastReceiver() {
         pages[b.getString("id")] = if (b.isNull("pages")) null else b.optInt("pages")
       }
     }
-    p.optJSONArray("books")?.let { arr ->
+    val mine = p.optJSONArray("books")
+    val fromServer = res.optJSONArray("books")
+    // Kart eser kimlikleri bilinmeden kurulduysa (gün başı alarmı) sunucunun eser listesi alınır
+    val unknown = mine != null && (0 until mine.length()).any { mine.getJSONObject(it).optString("id").isEmpty() }
+    if (unknown && fromServer != null && fromServer.length() > 0) {
+      p.put("books", fromServer)
+    } else mine?.let { arr ->
       for (i in 0 until arr.length()) {
         val b = arr.getJSONObject(i)
         b.put("pages", pages[b.getString("id")] ?: JSONObject.NULL)
       }
     }
     p.put("kefaretOn", res.optInt("kefaret") > 0)
+    // Grubun güncel durumu (üstteki çubuk)
+    res.optJSONObject("day")?.let { p.put("seg", it) }
+  }
+
+  /** Kişinin çubuktaki yeri: bekliyor / kefaret / okudu / alt sınır / okumadı */
+  private fun myCategory(p: JSONObject): String {
+    if (p.optBoolean("kefaretOn")) return "kef"
+    val books = p.optJSONArray("books") ?: return "pending"
+    var pages = 0
+    var target = 0
+    var min = 0
+    var any = false
+    for (i in 0 until books.length()) {
+      val b = books.getJSONObject(i)
+      target += b.optInt("target")
+      min += b.optInt("min")
+      if (!b.isNull("pages")) {
+        any = true
+        pages += b.optInt("pages")
+      }
+    }
+    return when {
+      !any -> "pending"
+      pages >= target -> "read"
+      pages >= min -> "min"
+      else -> "none"
+    }
+  }
+
+  /** Basınca çubuk hemen güncellensin; sunucu yanıtı gelince kesin sayılar yazılır */
+  private fun moveMe(p: JSONObject, from: String, to: String) {
+    if (from == to) return
+    val seg = DayCardRenderer.segments(p)
+    if ((seg[from] ?: 0) <= 0) return
+    seg[from] = seg.getValue(from) - 1
+    seg[to] = (seg[to] ?: 0) + 1
+    p.put("seg", JSONObject(seg as Map<*, *>))
   }
 
   private fun post(apiUrl: String, token: String, choice: String, bookId: String?, bookChoice: String?): Pair<Boolean, JSONObject?> {

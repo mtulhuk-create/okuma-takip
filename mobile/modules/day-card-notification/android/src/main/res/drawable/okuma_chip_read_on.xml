@@ -4,14 +4,14 @@
     <shape android:shape="rectangle">
       <solid android:color="@color/okuma_read_dark" />
       <stroke android:width="1.5dp" android:color="@color/okuma_read_dark" />
-      <corners android:radius="7dp" />
+      <corners android:radius="8dp" />
     </shape>
   </item>
   <item>
     <shape android:shape="rectangle">
       <solid android:color="@color/okuma_read" />
-      <stroke android:width="1.5dp" android:color="@color/okuma_selected_border" />
-      <corners android:radius="7dp" />
+      <stroke android:width="2dp" android:color="@color/okuma_selected_border" />
+      <corners android:radius="8dp" />
     </shape>
   </item>
 </selector>

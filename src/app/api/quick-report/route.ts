@@ -1,3 +1,5 @@
+import { getDayCards } from "@/lib/day";
+import { getDb } from "@/lib/db";
 import { publish } from "@/lib/realtime";
 import { OFFLINE_GRACE_MS, submitReading, type ReportChoice } from "@/lib/reading";
 import { verifyQuickToken } from "@/lib/token";
@@ -27,9 +29,23 @@ export async function POST(req: Request) {
       t.dayKey,
     );
     await publish(t.groupId, { type: "refresh", reason: "day" });
-    // Kart güncellensin: eser bazında okunan sayfa ve kefaret
-    return Response.json({ ok: true, pages: log?.pages ?? 0, required: rules.targetPages, books: (log?.books as { id: string; pages: number | null }[] | null) ?? [], kefaret: log?.kefaret ?? 0 });
+    // Kart güncellensin: eser bazında okunan sayfa, kefaret ve grubun günlük durumu (üstteki çubuk)
+    const day = await dayCounts(t.groupId, t.dayKey, t.userId).catch(() => null);
+    return Response.json({ ok: true, pages: log?.pages ?? 0, required: rules.targetPages, books: (log?.books as { id: string; pages: number | null }[] | null) ?? [], kefaret: log?.kefaret ?? 0, ...(day ? { day } : {}) });
   } catch (e) {
     return Response.json({ error: (e as Error).message }, { status: 400 });
   }
+}
+
+/** Grubun o günkü durumu: kefaret / okudu / alt sınır / okumadı / bekleyen kişi sayısı */
+async function dayCounts(groupId: string, dayKey: string, userId: string) {
+  const group = await getDb().group.findUnique({
+    where: { id: groupId },
+    include: { teams: true, members: { where: { status: "ACTIVE" }, include: { user: { select: { id: true, name: true, imageUrl: true } } } } },
+  });
+  if (!group) return null;
+  const { members, ...g } = group;
+  const card = (await getDayCards(g, members, [dayKey], userId))[dayKey];
+  const kef = card.read.filter((p) => p.kefaret).length;
+  return { kef, read: card.read.length - kef, min: card.min.length, none: card.none.length, pending: card.pending.length };
 }

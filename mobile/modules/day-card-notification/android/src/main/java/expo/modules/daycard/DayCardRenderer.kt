@@ -6,10 +6,12 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.SystemClock
+import android.graphics.Color
 import android.view.View
 import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import org.json.JSONObject
 
 /**
@@ -87,15 +89,22 @@ object DayCardRenderer {
     v.setTextViewText(R.id.title, p.optString("title"))
     val subtitle = listOfNotNull(status, p.optString("subtitle").takeIf { it.isNotEmpty() }).joinToString(" · ")
     v.setTextViewText(R.id.subtitle, subtitle)
-    val done = p.optInt("done")
-    val total = p.optInt("total")
-    v.setTextViewText(R.id.count, "$done/$total")
     // Geri sayım: sistem kendisi saydığı için bildirim güncellenmeden kalan süre akar
     v.setChronometer(R.id.countdown, SystemClock.elapsedRealtime() + left, null, true)
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) v.setChronometerCountDown(R.id.countdown, true)
+    // Gün çubuğu uygulamadaki gibi bölümlü: kefaret, okudu, alt sınır, okumadı (katmanlar üst üste, birikimli)
+    val s = segments(p)
+    val total = maxOf(s.values.sum(), 1)
+    val kef = s.getValue("kef")
+    val read = s.getValue("read")
+    val atMin = s.getValue("min")
+    val none = s.getValue("none")
+    v.setTextViewText(R.id.count, "${kef + read + atMin}/${s.values.sum()}")
     // Yalnızca resmi RemoteViews API'si (desteklenmeyen çağrı bildirimi bozar)
-    v.setProgressBar(R.id.progress, maxOf(total, 1), done, false)
-    v.setProgressBar(R.id.progress_kef, maxOf(total, 1), p.optInt("kefCount"), false)
+    v.setProgressBar(R.id.bar_none, total, kef + read + atMin + none, false)
+    v.setProgressBar(R.id.bar_min, total, kef + read + atMin, false)
+    v.setProgressBar(R.id.bar_read, total, kef + read, false)
+    v.setProgressBar(R.id.bar_kef, total, kef, false)
     val line = p.optString("kefaretLine").takeIf { it.isNotEmpty() && it != "null" }
     v.setViewVisibility(R.id.kefaret_line, if (line != null) View.VISIBLE else View.GONE)
     if (line != null) v.setTextViewText(R.id.kefaret_line, line)
@@ -105,6 +114,8 @@ object DayCardRenderer {
     val books = p.optJSONArray("books") ?: return
     val plan = p.optBoolean("plan")
     val kefaretOn = p.optBoolean("kefaretOn")
+    // Ceza tek eserde butona yazılır (birden çok eserde günün cezası toplam okumaya göre çıkar)
+    val fines = if (books.length() == 1) mapOf("min" to p.optInt("fineMin"), "none" to p.optInt("fineNone")) else emptyMap()
     val count = if (big) books.length() else minOf(1, books.length())
     for (i in 0 until count) {
       val b = books.getJSONObject(i)
@@ -112,50 +123,98 @@ object DayCardRenderer {
       val bookId = b.getString("id")
       val target = b.optInt("target")
       val min = b.optInt("min")
+      val kefPages = if (b.has("kefPages")) b.optInt("kefPages") else target
       val pages = if (b.isNull("pages")) null else b.optInt("pages")
       row.setTextViewText(R.id.book_title, b.optString("title"))
       if (big) {
         val info = buildString {
-          append("Hedef $target · alt sınır $min")
-          if (pages != null) append(" · $pages sf")
-          if (plan && b.has("kefPages")) append(" · kefaret ${b.optInt("kefPages")}")
+          append("Hedef $target sf · alt sınır $min sf")
+          if (pages != null) append(" · okunan $pages sf")
         }
         row.setTextViewText(R.id.book_info, info)
       }
-      val state = when {
-        kefaretOn -> "kefaret"
-        pages == null -> null
-        pages >= target -> "read"
-        pages == 0 -> "none"
-        pages >= min -> "min"
-        else -> null
-      }
-      for ((k, viewName) in listOf("kefaret" to "b_kefaret", "read" to "b_read", "min" to "b_min", "none" to "b_none")) {
-        val vid = viewId(context, viewName)
-        if (k == "kefaret" && !plan) {
-          row.setViewVisibility(vid, View.GONE)
+      val state = stateOf(kefaretOn, pages, target, min)
+      for (btn in BUTTONS) {
+        if (btn.key == "kefaret" && !plan) {
+          row.setViewVisibility(btn.cell, View.GONE)
           continue
         }
-        val on = state == k || (k == "read" && state == "kefaret")
-        row.setInt(vid, "setBackgroundResource", drawableId(context, if (on) "okuma_chip_${k}_on" else "okuma_chip_$k"))
-        row.setImageViewResource(vid, drawableId(context, if (on) "okuma_ic_${k}_on" else "okuma_ic_$k"))
+        // Seçili buton dolu ve kenarlı; basılıyken koyulaşır (seçici arka plan)
+        val on = state == btn.key || (btn.key == "read" && state == "kefaret")
+        row.setInt(btn.button, "setBackgroundResource", if (on) btn.chipOn else btn.chip)
+        if (big) {
+          row.setImageViewResource(btn.icon, if (on) btn.iconOn else btn.iconOff)
+          // 4 buton varken ikon gizlenir, yazı sığsın
+          row.setViewVisibility(btn.icon, if (plan) View.GONE else View.VISIBLE)
+          row.setTextColor(btn.label, if (on) Color.WHITE else ContextCompat.getColor(context, btn.color))
+        } else {
+          row.setImageViewResource(btn.button, if (on) btn.iconOn else btn.iconOff)
+        }
+        // Uygulamadaki gün kartı gibi: sağ üst köşeden çıkan çentik sayfa, sağ alttan çıkan çentik ceza
+        val corner = when (btn.key) {
+          "kefaret" -> "$kefPages sf"
+          "read" -> "$target sf"
+          "min" -> "$min sf"
+          else -> null
+        }
+        if (btn.notch != 0) {
+          row.setViewVisibility(btn.notch, if (corner != null) View.VISIBLE else View.GONE)
+          if (corner != null) row.setTextViewText(btn.notch, corner)
+        }
+        if (btn.fine != 0) {
+          val fine = fines[btn.key] ?: 0
+          row.setViewVisibility(btn.fine, if (fine > 0) View.VISIBLE else View.GONE)
+          if (fine > 0) row.setTextViewText(btn.fine, "-$fine TL")
+        }
         val intent = Intent(context, DayCardReceiver::class.java).apply {
           action = DayCardReceiver.ACTION
           putExtra("id", id)
-          if (k == "kefaret") putExtra("choice", "kefaret") else {
-            putExtra("choice", "all")
-            putExtra("bookId", bookId)
-            putExtra("bookChoice", k)
+          when {
+            btn.key == "kefaret" -> putExtra("choice", "kefaret")
+            // Eser kimliği bilinmiyor (uygulama henüz açılmadı): seçim tüm eserler için gönderilir
+            bookId.isEmpty() -> putExtra("choice", if (btn.key == "read") "all" else btn.key)
+            else -> {
+              putExtra("choice", "all")
+              putExtra("bookId", bookId)
+              putExtra("bookChoice", btn.key)
+            }
           }
-          data = Uri.parse("okumatakip://daycard/$id/$bookId/$k")
+          data = Uri.parse("okumatakip://daycard/$id/$bookId/${btn.key}")
         }
-        val code = (id + bookId + k).hashCode()
-        row.setOnClickPendingIntent(vid, PendingIntent.getBroadcast(context, code, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
+        val code = (id + bookId + btn.key).hashCode()
+        row.setOnClickPendingIntent(btn.button, PendingIntent.getBroadcast(context, code, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
       }
       v.addView(R.id.books, row)
     }
   }
 
-  private fun viewId(context: Context, name: String) = context.resources.getIdentifier(name, "id", context.packageName)
-  private fun drawableId(context: Context, name: String) = context.resources.getIdentifier(name, "drawable", context.packageName)
+  /** Grubun günlük durumu; eski kartlarda (seg yok) okuyan sayısından çıkarılır */
+  fun segments(p: JSONObject): MutableMap<String, Int> {
+    val seg = p.optJSONObject("seg")
+    if (seg != null) return linkedMapOf("kef" to seg.optInt("kef"), "read" to seg.optInt("read"), "min" to seg.optInt("min"), "none" to seg.optInt("none"), "pending" to seg.optInt("pending"))
+    val kef = p.optInt("kefCount")
+    val read = maxOf(0, p.optInt("done") - kef)
+    return linkedMapOf("kef" to kef, "read" to read, "min" to 0, "none" to 0, "pending" to maxOf(0, p.optInt("total") - kef - read))
+  }
+
+  fun stateOf(kefaretOn: Boolean, pages: Int?, target: Int, min: Int): String? = when {
+    kefaretOn -> "kefaret"
+    pages == null -> null
+    pages >= target -> "read"
+    pages == 0 -> "none"
+    pages >= min -> "min"
+    else -> null
+  }
+
+  /**
+   * Kaynaklar doğrudan R ile anılır: yayın derlemesinde kaynak küçültme yalnızca adla aranan
+   * (getIdentifier) çizimleri siler; seçili butonun kaybolması bundandı.
+   */
+  private class Btn(val key: String, val cell: Int, val button: Int, val icon: Int, val label: Int, val notch: Int, val fine: Int, val chip: Int, val chipOn: Int, val iconOff: Int, val iconOn: Int, val color: Int)
+  private val BUTTONS = listOf(
+    Btn("kefaret", R.id.c_kefaret, R.id.b_kefaret, R.id.i_kefaret, R.id.l_kefaret, R.id.n_kefaret, 0, R.drawable.okuma_chip_kefaret, R.drawable.okuma_chip_kefaret_on, R.drawable.okuma_ic_kefaret, R.drawable.okuma_ic_kefaret_on, R.color.okuma_kefaret),
+    Btn("read", R.id.c_read, R.id.b_read, R.id.i_read, R.id.l_read, R.id.n_read, 0, R.drawable.okuma_chip_read, R.drawable.okuma_chip_read_on, R.drawable.okuma_ic_read, R.drawable.okuma_ic_read_on, R.color.okuma_read),
+    Btn("min", R.id.c_min, R.id.b_min, R.id.i_min, R.id.l_min, R.id.n_min, R.id.f_min, R.drawable.okuma_chip_min, R.drawable.okuma_chip_min_on, R.drawable.okuma_ic_min, R.drawable.okuma_ic_min_on, R.color.okuma_min),
+    Btn("none", R.id.c_none, R.id.b_none, R.id.i_none, R.id.l_none, 0, R.id.f_none, R.drawable.okuma_chip_none, R.drawable.okuma_chip_none_on, R.drawable.okuma_ic_none, R.drawable.okuma_ic_none_on, R.color.okuma_none),
+  )
 }

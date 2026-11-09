@@ -3,6 +3,7 @@ package expo.modules.daycard
 import androidx.core.app.NotificationManagerCompat
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
+import org.json.JSONArray
 import org.json.JSONObject
 
 class DayCardNotificationModule : Module() {
@@ -13,6 +14,11 @@ class DayCardNotificationModule : Module() {
 
     Function("show") { json: String ->
       DayCardRenderer.render(context, JSONObject(json))
+    }
+
+    // Sonraki okuma günlerinin kartları: gün başında uygulama açılmadan gösterilir
+    Function("schedule") { json: String ->
+      DayCardScheduler.schedule(context, JSONArray(json))
     }
 
     Function("hide") { id: String ->

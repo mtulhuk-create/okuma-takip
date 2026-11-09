@@ -15,20 +15,33 @@ export type DayCardPayload = {
   done: number;
   total: number;
   kefCount: number;
+  /** Gün çubuğu bölümleri (kişi sayısı) */
+  seg: { kef: number; read: number; min: number; none: number; pending: number };
   books: DayCardBook[];
   /** Süren kefaret okuması varsa kefaret butonu görünür */
   plan: boolean;
   /** Bugün kefaret okuması bildirildi */
   kefaretOn: boolean;
+  /** Butonların sağ alt çentiğinde yazılan ceza (TL; 0 ise gösterilmez) */
+  fineMin: number;
+  fineNone: number;
   kefaretLine: string | null;
 };
 
-type Native = { show(json: string): void; hide(id: string): void; hideAll(): void };
+type Native = { show(json: string): void; schedule?(json: string): void; hide(id: string): void; hideAll(): void };
 const native = requireOptionalNativeModule<Native>("DayCardNotification");
 
 export const dayCardNotificationAvailable = !!native;
 export function showDayCardNotification(p: DayCardPayload) {
   native?.show(JSON.stringify(p));
+}
+/** Sonraki okuma günlerinin kartları: gün başında sistem alarmıyla, uygulama açılmadan gösterilir */
+export function scheduleDayCardNotifications(items: (DayCardPayload & { start: number })[]) {
+  native?.schedule?.(JSON.stringify(items));
+}
+/** Aynı plan tekrar gönderilmesin diye dışarıdan JSON metniyle de çağrılabilir */
+export function scheduleDayCardNotificationsJson(json: string) {
+  native?.schedule?.(json);
 }
 export function hideDayCardNotification(id: string) {
   native?.hide(id);
