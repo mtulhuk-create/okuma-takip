@@ -1,12 +1,13 @@
 import { BookSuggestProvider, useBookSuggest } from "./book-match";
 import { AlarmClock, AtSign, BookOpen, ChevronDown, Globe, Landmark, Lock, PencilLine, Plus, ShieldCheck, Trash2, UserRound, Users, type LucideIcon } from "lucide-react-native";
 import { useState } from "react";
-import { Alert, Pressable, Switch, Text, View } from "react-native";
+import { Pressable, Switch, Text, View } from "react-native";
 import { fonts, useColors } from "@/lib/theme";
 import { booksOf, type Group, type Rules } from "@/lib/types";
 import { TimeField } from "./pickers";
 import { RulesEditor } from "./rules-editor";
 import { Button, Card, Input, Muted, Row, Segmented } from "./ui";
+import { showAlert } from "@/lib/dialog";
 
 export type GroupFormValues = Record<string, string | number>;
 type TeamDraft = Rules & { id?: string; name: string; key: string };
@@ -102,7 +103,7 @@ export function GroupForm({ group, onSubmit, submitting, submitLabel }: { group?
   // Rozetler açılmadan önce uyarı onayı
   const toggleBadges = (on: boolean) => {
     if (!on) return setBadgesEnabled(false);
-    Alert.alert(
+    showAlert(
       "Latife rozetleri",
       "Rozetler gruba latife olsun diye konulmuş bir özelliktir.\n\nÜyeler rozet adı önerirken aşırıya kaçabilir ya da rozet verilen kişi konulan lakaba alınabilir. Uygunsuz şıkları ve rozetleri yönetici olarak kaldırabilirsin.\n\nRozetleri açmak istiyor musun?",
       [

@@ -3,7 +3,7 @@ import { LITE } from "@/lib/variant";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ban, Check, ChevronDown, Crown, Receipt, Trash2, UserMinus, X } from "lucide-react-native";
 import { useState } from "react";
-import { Alert, Pressable, ScrollView, Text, View } from "react-native";
+import { Pressable, ScrollView, Text, View } from "react-native";
 import { GroupForm } from "@/components/group-form";
 import { DiscountControls, ExtendControls } from "@/components/due-admin";
 import { KefaretPanel } from "@/components/kefaret-panel";
@@ -16,6 +16,7 @@ import { useAction, useApi } from "@/lib/api";
 import { formatDateTime, formatDayKey, toLocalInput } from "@/lib/format";
 import { fonts, useColors } from "@/lib/theme";
 import { teamsActive, type AdminResponse, type DueStatus } from "@/lib/types";
+import { showAlert } from "@/lib/dialog";
 
 const DUE: Record<DueStatus, [string, Tone]> = {
   PENDING: ["Ödeme bekleniyor", "warning"],
@@ -120,7 +121,7 @@ function AdminScreen() {
                           variant="ghost"
                           textColor={c.destructive}
                           onPress={() =>
-                            Alert.alert("Üyeyi çıkar", `${m.user.name} gruptan çıkarılsın mı?`, [
+                            showAlert("Üyeyi çıkar", `${m.user.name} gruptan çıkarılsın mı?`, [
                               { text: "Vazgeç", style: "cancel" },
                               { text: "Çıkar", style: "destructive", onPress: () => run("removeMember", { memberId: m.id }) },
                             ])
@@ -236,7 +237,7 @@ function AdminScreen() {
                   variant="ghost"
                   textColor={c.destructive}
                   onPress={() =>
-                    Alert.alert("Gruptan çıkar", `${d.user?.name} gruptan çıkarılsın mı?`, [
+                    showAlert("Gruptan çıkar", `${d.user?.name} gruptan çıkarılsın mı?`, [
                       { text: "Vazgeç", style: "cancel" },
                       { text: "Çıkar", style: "destructive", onPress: () => run("kickOverdue", { dueId: d.id }) },
                     ])

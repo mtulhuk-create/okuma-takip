@@ -1,10 +1,11 @@
 import { Image } from "expo-image";
 import { Check } from "lucide-react-native";
 import { useState } from "react";
-import { Alert, Pressable, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { fonts, useColors } from "@/lib/theme";
 import { appIconAvailable, getAppIcon, setAppIcon, type AppIcon } from "../../modules/day-card-notification";
 import { Muted, Row } from "./ui";
+import { showAlert } from "@/lib/dialog";
 
 const OPTIONS: { key: AppIcon; label: string; src: number }[] = [
   { key: "light", label: "Açık", src: require("@/assets/images/app-icon-light.png") },
@@ -18,7 +19,7 @@ export function AppIconPicker() {
   if (!appIconAvailable) return null;
   const choose = (key: AppIcon) => {
     if (key === current) return;
-    Alert.alert("Uygulama simgesi değişsin mi?", "Ana ekrandaki simge birkaç saniye içinde değişir. Bazı telefonlarda uygulama bu sırada kapanabilir; yeniden açman yeterli.", [
+    showAlert("Uygulama simgesi değişsin mi?", "Ana ekrandaki simge birkaç saniye içinde değişir. Bazı telefonlarda uygulama bu sırada kapanabilir; yeniden açman yeterli.", [
       { text: "Vazgeç", style: "cancel" },
       {
         text: "Değiştir",

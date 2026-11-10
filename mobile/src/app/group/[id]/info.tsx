@@ -2,7 +2,7 @@ import * as Clipboard from "expo-clipboard";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { Copy, Crown, LogOut, Receipt, Shield, Wallet } from "lucide-react-native";
 import { useState } from "react";
-import { Alert, View } from "react-native";
+import { View } from "react-native";
 import { BadgeChip } from "@/components/badge-chip";
 import { StreakChip } from "@/components/history";
 import { DueBadge } from "@/components/due-badge";
@@ -13,6 +13,7 @@ import { toast, useAction, useApi } from "@/lib/api";
 import { formatDayKey, formatIban } from "@/lib/format";
 import { fonts, useColors } from "@/lib/theme";
 import { teamsActive, type GroupDetailResponse } from "@/lib/types";
+import { showAlert } from "@/lib/dialog";
 
 export default function GroupInfoScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -147,7 +148,7 @@ export default function GroupInfoScreen() {
         variant="ghost"
         textColor={c.destructive}
         onPress={() =>
-          Alert.alert("Gruptan ayrıl", "Gruptan ayrılmak istediğine emin misin?", [
+          showAlert("Gruptan ayrıl", "Gruptan ayrılmak istediğine emin misin?", [
             { text: "Vazgeç", style: "cancel" },
             { text: "Ayrıl", style: "destructive", onPress: () => action.mutate({ name: "leaveGroup", body: { groupId: id } }, { onSuccess: () => router.replace("/groups") }) },
           ])

@@ -1,11 +1,12 @@
 import { useAuth } from "@clerk/expo";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
-import { Alert, Platform, ToastAndroid } from "react-native";
+import { Platform, ToastAndroid } from "react-native";
 import { API_URL } from "./config";
 import { APP_VARIANT } from "./variant";
 import { enqueue, isNetworkError } from "./offline";
 import type { ActionResult } from "./types";
+import { showAlert } from "./dialog";
 
 /** Sıradaki işlem için kısa açıklama */
 export function reportLabel(body: Record<string, unknown>) {
@@ -46,7 +47,7 @@ export function useApi<T>(path: string, opts: { enabled?: boolean } = {}) {
 
 export function toast(message: string) {
   if (Platform.OS === "android") ToastAndroid.show(message, ToastAndroid.SHORT);
-  else Alert.alert(message);
+  else showAlert(message);
 }
 
 /** Web'deki server action'ların mobil karşılığı. Başarıda tüm verileri tazeler. */
@@ -71,6 +72,6 @@ export function useAction() {
       if (res.message) toast(res.message);
       qc.invalidateQueries();
     },
-    onError: (e) => Alert.alert("İşlem yapılamadı", e.message),
+    onError: (e) => showAlert("İşlem yapılamadı", e.message),
   });
 }

@@ -1,9 +1,10 @@
 import { BookHeart, Info, X } from "lucide-react-native";
 import { useState } from "react";
-import { Alert, Pressable, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { useAction, useApi } from "@/lib/api";
 import { fonts, KEFARET, useColors } from "@/lib/theme";
 import { Card, Muted, Row } from "./ui";
+import { showAlert } from "@/lib/dialog";
 
 type KRow = { userId: string; name: string; teamName: string | null; penaltyTotal: number; discountTotal: number; pages: number; target: number; dailyExtra: number; days: number; active: boolean };
 type KPlan = { id: string; name: string; status: "ACTIVE" | "DONE"; discountPercent: number; discountTotal: number; earned: number; dailyExtra: number; days: number; doneDays: number };
@@ -103,7 +104,7 @@ export function KefaretPanel({ groupId }: { groupId: string }) {
         <Pressable
           disabled={action.isPending}
           onPress={() =>
-            Alert.alert("Kefaret okuması", `${todo.length} kişiye %${discount} indirim için günlük hedefe %${raise} zamla kefaret okuması başlatılsın mı?`, [
+            showAlert("Kefaret okuması", `${todo.length} kişiye %${discount} indirim için günlük hedefe %${raise} zamla kefaret okuması başlatılsın mı?`, [
               { text: "Vazgeç", style: "cancel" },
               { text: "Başlat", onPress: () => action.mutate({ name: "startKefaret", body: { groupId, discount, raise } }) },
             ])
@@ -135,7 +136,7 @@ export function KefaretPanel({ groupId }: { groupId: string }) {
                 hitSlop={8}
                 accessibilityLabel="Durdur"
                 onPress={() =>
-                  Alert.alert("Durdurulsun mu?", `${p.name} için kefaret okuması durdurulsun mu? Kazanılan indirim geçerli kalır.`, [
+                  showAlert("Durdurulsun mu?", `${p.name} için kefaret okuması durdurulsun mu? Kazanılan indirim geçerli kalır.`, [
                     { text: "Vazgeç", style: "cancel" },
                     { text: "Durdur", style: "destructive", onPress: () => action.mutate({ name: "cancelKefaret", body: { planId: p.id } }) },
                   ])

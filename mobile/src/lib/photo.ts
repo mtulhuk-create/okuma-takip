@@ -1,7 +1,7 @@
 // Sohbet fotoğrafı: cihazda küçültülür ve doğrudan Cloudinary'ye yüklenir (dosya uygulamanın sunucusuna gelmez).
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
-import { Alert } from "react-native";
+import { showAlert } from "./dialog";
 
 export type Picked = { uri: string; w: number; h: number };
 export type Ticket = { url: string; fields: Record<string, string> };
@@ -12,7 +12,7 @@ export async function pickPhoto(source: "library" | "camera"): Promise<Picked | 
   if (source === "camera") {
     const perm = await ImagePicker.requestCameraPermissionsAsync();
     if (!perm.granted) {
-      Alert.alert("Kamera izni gerekli", "Fotoğraf çekebilmek için ayarlardan kamera iznini aç.");
+      showAlert("Kamera izni gerekli", "Fotoğraf çekebilmek için ayarlardan kamera iznini aç.");
       return null;
     }
   }

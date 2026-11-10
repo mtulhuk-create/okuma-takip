@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, Stack, useFocusEffect, useLocalSearchParams, useNavigation } from "expo-router";
 import { BarChart3, CalendarRange, ChevronDown, ImagePlus, Info, Landmark, Lock, SendHorizontal, Settings } from "lucide-react-native";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, AppState, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { AppState, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import Animated, { useAnimatedKeyboard, useAnimatedStyle } from "react-native-reanimated";
 import Svg, { Defs, Path, Pattern, Rect } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -24,6 +24,7 @@ import { setOpenChat } from "@/lib/inbox";
 import { compressPhoto, pickPhoto, uploadPhoto, type Picked, type Ticket } from "@/lib/photo";
 import { LITE } from "@/lib/variant";
 import type { ChatMessage, ChatResponse } from "@/lib/types";
+import { showAlert } from "@/lib/dialog";
 
 const trDay = (iso: string) => new Date(new Date(iso).getTime() + 3 * 3_600_000).toISOString().slice(0, 10);
 function dayLabel(day: string) {
@@ -250,8 +251,8 @@ export default function ChatScreen() {
     const go = (source: "library" | "camera") =>
       pickPhoto(source)
         .then((picked) => picked && setPhoto({ picked, draft, clear }))
-        .catch((e: Error) => Alert.alert("Fotoğraf açılamadı", e.message));
-    Alert.alert("Fotoğraf gönder", undefined, [
+        .catch((e: Error) => showAlert("Fotoğraf açılamadı", e.message));
+    showAlert("Fotoğraf gönder", undefined, [
       { text: "Vazgeç", style: "cancel" },
       { text: "Kamera", onPress: () => go("camera") },
       { text: "Galeri", onPress: () => go("library") },
@@ -296,7 +297,7 @@ export default function ChatScreen() {
       chat.refetch();
     } catch (e) {
       patch({ pending: false, failed: true });
-      Alert.alert("Fotoğraf gönderilemedi", e instanceof Error ? e.message : "Bir hata oluştu");
+      showAlert("Fotoğraf gönderilemedi", e instanceof Error ? e.message : "Bir hata oluştu");
     }
   }
 

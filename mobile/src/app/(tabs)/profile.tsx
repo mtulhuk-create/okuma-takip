@@ -2,7 +2,7 @@ import { useClerk } from "@clerk/expo";
 import * as Application from "expo-application";
 import * as Notifications from "expo-notifications";
 import { useEffect, useState } from "react";
-import { Alert, AppState, Linking, Platform, Switch, Text, View } from "react-native";
+import { AppState, Linking, Platform, Switch, Text, View } from "react-native";
 import { AppIconPicker } from "@/components/app-icon-picker";
 import { NameSheet } from "@/components/name-sheet";
 import { Avatar, Body, Button, Card, ErrorView, H1, Loading, Muted, Row, Screen, Segmented, Stat, Title } from "@/components/ui";
@@ -17,6 +17,7 @@ import { hideAllDayCardNotifications, hideKazaNotification, scheduleDayCardNotif
 import { Bell, BookOpen, CalendarCheck, LogOut, Monitor, Moon, Palette, Pencil, Sun, Users, Wallet } from "lucide-react-native";
 import { fonts, useColors } from "@/lib/theme";
 import type { ProfileResponse } from "@/lib/types";
+import { showAlert } from "@/lib/dialog";
 
 export default function ProfileScreen() {
   const { signOut } = useClerk();
@@ -66,7 +67,7 @@ export default function ProfileScreen() {
     if (!r.granted) {
       const asked = await Notifications.requestPermissionsAsync();
       if (!asked.granted) {
-        Alert.alert("Bildirim izni kapalı", "Telefon ayarlarında Okuma Takip için “Bildirimlere izin ver”i aç. Sonra uygulamaya geri dön.", [
+        showAlert("Bildirim izni kapalı", "Telefon ayarlarında Okuma Takip için “Bildirimlere izin ver”i aç. Sonra uygulamaya geri dön.", [
           { text: "Vazgeç", style: "cancel" },
           { text: "Ayarları aç", onPress: () => Linking.openSettings() },
         ]);
@@ -226,7 +227,7 @@ export default function ProfileScreen() {
         variant="ghost"
         textColor="#991b1b"
         onPress={() =>
-          Alert.alert("Çıkış yap", "Hesabından çıkmak istiyor musun?", [
+          showAlert("Çıkış yap", "Hesabından çıkmak istiyor musun?", [
             { text: "Vazgeç", style: "cancel" },
             {
               text: "Çıkış yap",

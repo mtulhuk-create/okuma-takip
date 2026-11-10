@@ -1,11 +1,12 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Minus, Plus, RotateCcw } from "lucide-react-native";
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { Alert, Pressable, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { useApi, useApiFetch } from "@/lib/api";
 import { KAZA, PRAYER_INFO, PRAYERS, syncKazaCard, type Counts, type KazaState, type Prayer } from "@/lib/kaza";
 import { fonts, useColors } from "@/lib/theme";
 import { Row } from "./ui";
+import { showAlert } from "@/lib/dialog";
 
 export const KAZA_PATH = "/api/m/kaza";
 export type KazaOp =
@@ -60,7 +61,7 @@ export function useKaza() {
     },
     onError: (e, _b, ctx) => {
       if (ctx?.prev) qc.setQueryData([KAZA_PATH], ctx.prev);
-      Alert.alert("İşlem yapılamadı", e.message);
+      showAlert("İşlem yapılamadı", e.message);
     },
     onSuccess: (s, body) => {
       // Token yalnızca GET'te gelir; korunur

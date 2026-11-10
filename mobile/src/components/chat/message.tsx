@@ -1,6 +1,6 @@
 import { memo, useState } from "react";
 import { Check, Copy, Trash2 } from "lucide-react-native";
-import { Alert, Modal, Pressable, Text, View } from "react-native";
+import { Modal, Pressable, Text, View } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { toast, useAction } from "@/lib/api";
 import { formatClock } from "@/lib/format";
@@ -10,6 +10,7 @@ import { BadgeChip } from "../badge-chip";
 import { StreakFlame } from "../day-card";
 import { Avatar } from "../ui";
 import { ChatPhoto } from "./photo";
+import { showAlert } from "@/lib/dialog";
 
 const NAME_COLORS = ["#be123c", "#b45309", "#047857", "#0369a1", "#6d28d9", "#c2410c", "#0f766e"];
 const nameColor = (id: string) => {
@@ -48,7 +49,7 @@ export const MessageBubble = memo(function MessageBubble({ m, mine, showAuthor, 
   };
   const remove = () => {
     setMenu(false);
-    Alert.alert("Mesajı sil", mine ? "Mesajın herkes için silinsin mi?" : `${m.user?.name ?? "Bu kişinin"} mesajı herkes için silinsin mi?`, [
+    showAlert("Mesajı sil", mine ? "Mesajın herkes için silinsin mi?" : `${m.user?.name ?? "Bu kişinin"} mesajı herkes için silinsin mi?`, [
       { text: "Vazgeç", style: "cancel" },
       { text: "Sil", style: "destructive", onPress: () => action.mutate({ name: "deleteMessage", body: { messageId: m.id } }) },
     ]);
@@ -152,7 +153,7 @@ export const MessageBubble = memo(function MessageBubble({ m, mine, showAuthor, 
             <Pressable
               key={r.emoji}
               onPress={() => canReact && react(r.emoji)}
-              onLongPress={() => Alert.alert(`${r.emoji} ${r.count}`, r.names.join("\n"))}
+              onLongPress={() => showAlert(`${r.emoji} ${r.count}`, r.names.join("\n"))}
               hitSlop={4}
               style={({ pressed }) => ({
                 flexDirection: "row",
