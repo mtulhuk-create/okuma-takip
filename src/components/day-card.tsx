@@ -439,10 +439,10 @@ function chipRows<T>(cats: T[], fitsHalf: (cat: T) => boolean) {
 }
 
 /** İsmin sağ üst köşesinde hafif eğik alev; içinde küçük gün sayısı (tam seri yeşil). Gün kartı ve sohbette aynı */
-export function StreakFlame({ s, className = "-right-1.5 -top-2" }: { s: { n: number; full: boolean } | null | undefined; className?: string }) {
+export function StreakFlame({ s, className = "absolute -right-1.5 -top-2 rotate-12" }: { s: { n: number; full: boolean } | null | undefined; className?: string }) {
   if (!s || s.n < 3) return null;
   return (
-    <span className={`pointer-events-none absolute flex size-4 rotate-12 items-center justify-center ${className}`} title={`${s.n} gün ${s.full ? "tam seri" : "seri"}`}>
+    <span className={`pointer-events-none flex size-4 shrink-0 items-center justify-center ${className}`} title={`${s.n} gün ${s.full ? "tam seri" : "seri"}`}>
       <Flame className={`absolute size-4 ${s.full ? "text-emerald-500" : "text-orange-500"}`} fill="currentColor" strokeWidth={1.5} />
       <span className="relative top-[2px] text-[6.5px] font-bold leading-none text-white">{s.n}</span>
     </span>

@@ -105,13 +105,11 @@ export const MessageBubble = memo(function MessageBubble({ m, mine, showAuthor, 
         )}
         {!mine && showAuthor && m.user && (
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 }}>
-            {/* Seri: gün kartındaki gibi ismin sağ üst köşesinde hafif eğik alev, içinde gün sayısı */}
-            <View style={{ flexShrink: 1, paddingRight: m.user.streak && m.user.streak.n >= 3 ? 9 : 0 }}>
-              <Text numberOfLines={1} style={{ fontFamily: fonts.bold, fontSize: 12, color: nameColor(m.user.id) }}>
-                {m.user.name}
-              </Text>
-              <StreakFlame s={m.user.streak} top={-6} right={-4} />
-            </View>
+            <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: fonts.bold, fontSize: 12, color: nameColor(m.user.id) }}>
+              {m.user.name}
+            </Text>
+            {/* Seri: ismin hemen sağında, aynı hizada dik alev; içinde gün sayısı */}
+            <StreakFlame s={m.user.streak} inline />
             {m.user.badge && <BadgeChip tag={m.user.badge} />}
           </View>
         )}

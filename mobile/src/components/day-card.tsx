@@ -383,10 +383,17 @@ const SIMPLE_CATS: Cat[] = [
   { key: "pending", label: "Bildirmedi", Icon: Clock, color: (c) => c.mutedForeground },
 ];
 
-/** İsmin sağ üst köşesinde hafif eğik alev; içinde küçük gün sayısı (tam seri yeşil). Gün kartı ve sohbette aynı */
-export function StreakFlame({ s, top = -9, right = -5 }: { s: { n: number; full: boolean } | null | undefined; top?: number; right?: number }) {
+/** İsmin sağ üst köşesinde hafif eğik alev; içinde küçük gün sayısı (tam seri yeşil). inline: ismin hemen sağında, dik */
+export function StreakFlame({ s, top = -9, right = -5, inline }: { s: { n: number; full: boolean } | null | undefined; top?: number; right?: number; inline?: boolean }) {
   if (!s || s.n < 3) return null;
   const color = s.full ? "#10b981" : "#f97316";
+  if (inline)
+    return (
+      <View pointerEvents="none" accessibilityLabel={`${s.n} gün ${s.full ? "tam seri" : "seri"}`} style={{ width: 16, height: 16, alignItems: "center", justifyContent: "center" }}>
+        <Flame size={16} color={color} fill={color} strokeWidth={1.5} />
+        <Text style={{ position: "absolute", top: 5, fontFamily: fonts.bold, fontSize: 6.5, lineHeight: 8, color: "#fff" }}>{s.n}</Text>
+      </View>
+    );
   return (
     <View pointerEvents="none" style={{ position: "absolute", top, right, width: 16, height: 16, alignItems: "center", justifyContent: "center", transform: [{ rotate: "12deg" }] }}>
       <Flame size={16} color={color} fill={color} strokeWidth={1.5} />

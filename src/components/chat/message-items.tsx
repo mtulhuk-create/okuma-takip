@@ -123,11 +123,9 @@ export function Bubble({
       >
         {!mine && showAuthor && m.user && (
           <p className={`mb-0.5 flex items-center gap-1.5 text-[13px] font-bold leading-tight ${nameColor(m.user.id)}`}>
-            {/* Seri: gün kartındaki gibi ismin sağ üst köşesinde hafif eğik alev, içinde gün sayısı */}
-            <span className={`relative min-w-0 ${m.user.streak && m.user.streak.n >= 3 ? "pr-2.5" : ""}`}>
-              <span className="block truncate">{m.user.name}</span>
-              <StreakFlame s={m.user.streak} className="-right-1 -top-1.5" />
-            </span>
+            <span className="truncate">{m.user.name}</span>
+            {/* Seri: ismin hemen sağında, aynı hizada dik alev; içinde gün sayısı */}
+            <StreakFlame s={m.user.streak} className="relative -ml-0.5" />
             {m.user.badge && <BadgeChip tag={m.user.badge} />}
           </p>
         )}
