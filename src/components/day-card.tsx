@@ -2,11 +2,13 @@
 
 import { BookHeart, BookOpen, Check, CheckCheck, ChevronRight, Clock, Link2, Lock, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { reportReading } from "@/app/actions";
 import type { DayCard as Card } from "@/lib/day";
 import { formatClock, formatDayLong } from "@/lib/schedule";
 import { AvatarStack } from "./avatar";
+import { StreakChip } from "./history-grid";
+import { CELL_FRAME } from "./tier";
 import { Countdown } from "./countdown";
 
 const CATS = [
@@ -381,12 +383,28 @@ function DeadlinePill({ card, withClock }: { card: Card; withClock?: boolean }) 
 }
 
 /** Kategori çipleri: üst üste profil resimleri + sayı; dokununca isimler açılır */
-/**
- * Kim okudu rozetleri: bir satırda en çok 2 rozet; satırda tek kalan rozet satırı doldurur ve daha çok avatar
- * gösterir (tek: 10, yan yana: 4–5). Avatarlarda ekip çerçevesi.
- */
+const CHIP_AVATAR = 24;
+
+/** Rozete sığan avatar sayısı: yuvayı doldurana kadar avatar, sonra "+N" */
+function chipCapacity(slot: number, label: string, count: number, interactive?: boolean) {
+  const step = CHIP_AVATAR - 8;
+  const text = 16 + (interactive ? label.length * 6.4 + 4 : 0) + String(count).length * 7 + 22;
+  return Math.max(1, Math.floor((slot - text - CHIP_AVATAR) / step) + 1);
+}
+
+/** Kim okudu rozetleri: satırda en çok 2 rozet, her biri kendi yuvasının ortasında; avatar eklendikçe genişler */
 function CategoryChips({ card, interactive }: { card: Card; interactive?: boolean }) {
   const [open, setOpen] = useState<CatKey | null>(null);
+  const ref = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(0);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([e]) => setWidth(e.contentRect.width));
+    ro.observe(el);
+    return () => ro.disconnect();
+    // Rozetler sonradan belirirse ölçüm yeniden kurulur
+  }, [card.read.length + card.min.length + card.none.length + card.pending.length > 0]);
   const simple = !!(card as { simple?: boolean }).simple;
   // Kefaret okuyanlar "Okudu"dan ayrı, kendi renginde gösterilir
   const lists: Record<CatKey, Card["read"]> = simple
@@ -394,51 +412,53 @@ function CategoryChips({ card, interactive }: { card: Card; interactive?: boolea
     : { kefaret: card.read.filter((p) => p.kefaret), read: card.read.filter((p) => !p.kefaret), min: card.min, none: card.none, pending: card.pending };
   const all = simple ? SIMPLE_CATS : CATS;
   const cats = all.filter((c) => lists[c.key].length);
-  if (!cats.length) return null;
   const sel = cats.find((c) => c.key === open);
+  if (!cats.length) return null;
   return (
     <div className="space-y-1.5">
-      <div className="grid grid-cols-2 gap-1.5">
+      <div ref={ref} className="grid grid-cols-2 gap-x-1.5 gap-y-1.5">
         {cats.map(({ key, label, Icon, tone, bg }, i) => {
           const people = lists[key];
-          // Satırda tek kalan (tek sayıda rozetin sonuncusu) tüm satırı kaplar
+          // Satırda tek kalan (tek sayıda rozetin sonuncusu) tüm satırı yuva alır
           const alone = cats.length % 2 === 1 && i === cats.length - 1;
+          const slot = width ? (alone ? width : (width - 6) / 2) : 0;
+          const cap = slot ? chipCapacity(slot, label, people.length, interactive) : 4;
+          const max = people.length > cap ? Math.max(1, cap - 1) : people.length;
           const body = (
             <>
-              <span className="min-w-0 overflow-hidden">
-                <AvatarStack people={people} size={24} max={alone ? 10 : interactive ? 4 : 5} />
-              </span>
-              <span className={`ml-auto flex shrink-0 items-center gap-0.5 text-[11px] font-bold ${tone}`}>
+              <AvatarStack people={people} size={CHIP_AVATAR} max={max} />
+              <span className={`flex shrink-0 items-center gap-0.5 text-[11px] font-bold ${tone}`}>
                 <Icon className="size-3.5" strokeWidth={2.5} />
                 {interactive && <span className="font-semibold">{label}</span>}
                 {people.length}
               </span>
             </>
           );
-          const cls = `flex items-center gap-1.5 rounded-full py-0.5 pl-0.5 pr-2.5 ${alone ? "col-span-2" : ""} ${bg}`;
-          return interactive ? (
-            <button
-              key={key}
-              onClick={() => setOpen((o) => (o === key ? null : key))}
-              aria-expanded={open === key}
-              className={`${cls} transition-colors ${open === key ? "ring-1 ring-inset ring-current " + tone : "hover:brightness-95"}`}
-            >
-              {body}
-            </button>
-          ) : (
-            <span key={key} title={label} className={cls}>
-              {body}
-            </span>
+          const cls = `inline-flex max-w-full items-center gap-1.5 rounded-full py-px pl-0.5 pr-2.5 ${bg}`;
+          return (
+            <div key={key} className={`flex justify-center ${alone ? "col-span-2" : ""}`}>
+              {interactive ? (
+                <button onClick={() => setOpen((o) => (o === key ? null : key))} aria-expanded={open === key} className={`${cls} transition-colors ${open === key ? "ring-1 ring-inset ring-current " + tone : "hover:brightness-95"}`}>
+                  {body}
+                </button>
+              ) : (
+                <span title={label} className={cls}>
+                  {body}
+                </span>
+              )}
+            </div>
           );
         })}
       </div>
       {sel && (
-        <div className={`flex flex-wrap gap-1 rounded-lg p-1.5 ${sel.bg}`}>
+        // İsimler ortadan dizilir; ekip çerçevesi kenarda, seri ismin yanında
+        <div className={`flex flex-wrap justify-center gap-1 rounded-lg p-1.5 ${sel.bg}`}>
           {lists[sel.key].map((p) => (
-            <span key={p.id} className={`inline-flex items-center gap-1 rounded-full bg-card/70 px-2 py-0.5 text-[11px] font-semibold ${sel.tone}`}>
+            <span key={p.id} className={`inline-flex items-center gap-1 rounded-full bg-card/70 px-2 py-0.5 text-[11px] font-semibold ${sel.tone} ${p.tier ? CELL_FRAME[p.tier] : ""}`}>
               {p.name}
               {p.kefaret ? <BookHeart className="size-3 text-teal-600 dark:text-teal-400" aria-label="Kefaret okuması" /> : null}
               {p.pages != null && p.pages > 0 && <span className="opacity-70">· {p.pages}</span>}
+              <StreakChip s={p.streak} />
             </span>
           ))}
         </div>
