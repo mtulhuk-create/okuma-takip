@@ -479,14 +479,14 @@ function CategoryChips({ card, interactive }: { card: Card; interactive?: boolea
         })}
       </div>
       {sel && (
-        // İsimler ortadan dizilir; ekip çerçevesi üst kenarda, seri sağ üst köşede alev
+        // İsimler ortadan dizilir; ekip çerçevesi ince kenar, seri sağ üst köşede alev
         <div className={`flex flex-wrap justify-center gap-x-1 gap-y-2.5 rounded-lg px-1.5 pb-1.5 pt-2.5 ${sel.bg}`}>
           {lists[sel.key].map((p) => (
-            // Ekip çerçevesi: yalnızca üst kenar ince ve hafif saydam altın / gümüş / bronz
+            // Ekip çerçevesi: tüm kenar ince ve hafif saydam altın / gümüş / bronz
             <span
               key={p.id}
-              className={`relative inline-flex items-center gap-1 rounded-full border border-border bg-card/70 px-2 py-0.5 text-[11px] font-semibold ${sel.tone}`}
-              style={p.tier ? { borderTopColor: TIER_COLOR[p.tier] + "cc" } : undefined}
+              className={`relative inline-flex items-center gap-1 rounded-full border bg-card/70 px-2 py-0.5 text-[11px] font-semibold ${p.tier ? "border-[0.75px]" : "border-border"} ${sel.tone}`}
+              style={p.tier ? { borderColor: TIER_COLOR[p.tier] + "cc" } : undefined}
             >
               {p.name}
               {p.kefaret ? <BookHeart className="size-3 text-teal-600 dark:text-teal-400" aria-label="Kefaret okuması" /> : null}

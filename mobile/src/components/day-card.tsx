@@ -468,13 +468,13 @@ function CategoryChips({ card, interactive }: { card: Card; interactive?: boolea
         })}
       </View>
       {sel && (
-        // İsimler ortadan dizilir; ekip çerçevesi üst kenarda, seri sağ üst köşede alev
+        // İsimler ortadan dizilir; ekip çerçevesi ince kenar, seri sağ üst köşede alev
         <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", columnGap: 5, rowGap: 10, backgroundColor: sel.color(c) + "14", borderRadius: 10, paddingHorizontal: 6, paddingTop: 10, paddingBottom: 6 }}>
           {lists[sel.key].map((p) => (
-            // Ekip çerçevesi: yalnızca üst kenar ince ve hafif saydam altın / gümüş / bronz
+            // Ekip çerçevesi: tüm kenar ince ve hafif saydam altın / gümüş / bronz
             <View
               key={p.id}
-              style={{ flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: c.card, borderRadius: 99, paddingHorizontal: 9, paddingVertical: 2, borderWidth: 1, borderColor: c.border, borderTopColor: p.tier ? TIER_COLORS[p.tier] + "cc" : c.border }}
+              style={{ flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: c.card, borderRadius: 99, paddingHorizontal: 9, paddingVertical: 2, borderWidth: p.tier ? 0.75 : 1, borderColor: p.tier ? TIER_COLORS[p.tier] + "cc" : c.border }}
             >
               <Text style={{ fontFamily: fonts.semibold, fontSize: 11, color: sel.color(c) }}>{p.name}</Text>
               {p.kefaret ? <BookHeart size={11} color={KEFARET} /> : null}

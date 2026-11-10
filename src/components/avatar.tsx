@@ -33,7 +33,7 @@ export function Avatar(props: { name: string; src?: string | null; size?: number
   const { frame, size = 36 } = props;
   if (!frame) return <AvatarCore {...props} />;
   // Halka üzerinde küçük baklava çıkıntılar (altın 4, gümüş 2, bronz yok)
-  const d = Math.max(4, Math.round(size * 0.17));
+  const d = Math.max(3, Math.round(size * 0.12));
   const pos = { top: { left: "50%", top: 0 }, bottom: { left: "50%", top: "100%" }, left: { left: 0, top: "50%" }, right: { left: "100%", top: "50%" } } as const;
   return (
     <span className="relative inline-flex shrink-0">
@@ -42,7 +42,7 @@ export function Avatar(props: { name: string; src?: string | null; size?: number
         <span
           key={p}
           aria-hidden
-          className="pointer-events-none absolute rotate-45 rounded-[1px] border border-card"
+          className="pointer-events-none absolute rotate-45 rounded-[0.5px] border-[0.75px] border-card"
           style={{ ...pos[p], width: d, height: d, marginLeft: -d / 2, marginTop: -d / 2, backgroundColor: TIER_COLOR[frame] }}
         />
       ))}

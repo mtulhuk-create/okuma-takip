@@ -6,11 +6,11 @@ export const TIER_LABEL: Record<Tier, string> = { gold: "Altın ekip", silver: "
 
 export const TIER_COLOR: Record<Tier, string> = { gold: "#d4a017", silver: "#a7b1bc", bronze: "#b07040" };
 
-/** Avatar çevresindeki halka (tüm çerçevelerde aynı, orta kalınlık) */
+/** Avatar çevresindeki halka (tüm çerçevelerde aynı, ince) */
 export const AVATAR_FRAME: Record<Tier, string> = {
-  gold: "ring-[1.75px] ring-[#d4a017]",
-  silver: "ring-[1.75px] ring-[#a7b1bc]",
-  bronze: "ring-[1.75px] ring-[#b07040]",
+  gold: "ring-[1.25px] ring-[#d4a017]",
+  silver: "ring-[1.25px] ring-[#a7b1bc]",
+  bronze: "ring-[1.25px] ring-[#b07040]",
 };
 
 /** Halkadaki çıkıntılar (üst, alt, sol, sağ) */

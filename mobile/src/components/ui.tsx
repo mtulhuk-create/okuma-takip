@@ -262,10 +262,10 @@ export function Avatar({ name, uri, size = 36, initial, seed, frame }: { name: s
   const inner = <AvatarCore name={name} uri={uri} size={size} initial={initial} seed={seed} />;
   if (!frame) return inner;
   // Halka avatarın üstüne çizilir (boyut değişmez, dairenin tam çevresine oturur); çıkıntılar halkanın üzerinde
-  // Tüm çerçevelerde aynı, orta kalınlık
-  const bw = 1.75;
+  // Tüm çerçevelerde aynı, ince halka; çıkıntılar küçük (göze batmasın)
+  const bw = 1.25;
   const R = size + bw * 2;
-  const d = Math.max(4, Math.round(size * 0.17));
+  const d = Math.max(3, Math.round(size * 0.12));
   const color = TIER_COLORS[frame];
   const mid = size / 2 - d / 2;
   const at = { top: { left: mid, top: -bw / 2 - d / 2 }, bottom: { left: mid, top: size + bw / 2 - d / 2 }, left: { left: -bw / 2 - d / 2, top: mid }, right: { left: size + bw / 2 - d / 2, top: mid } };
@@ -274,7 +274,7 @@ export function Avatar({ name, uri, size = 36, initial, seed, frame }: { name: s
       {inner}
       <View pointerEvents="none" style={{ position: "absolute", left: -bw, top: -bw, width: R, height: R, borderRadius: R / 2, borderWidth: bw, borderColor: color }} />
       {TIER_NOTCHES[frame].map((p) => (
-        <View key={p} pointerEvents="none" style={{ position: "absolute", ...at[p], width: d, height: d, backgroundColor: color, borderWidth: 1, borderColor: c.card, transform: [{ rotate: "45deg" }], borderRadius: 1 }} />
+        <View key={p} pointerEvents="none" style={{ position: "absolute", ...at[p], width: d, height: d, backgroundColor: color, borderWidth: 0.75, borderColor: c.card, transform: [{ rotate: "45deg" }], borderRadius: 0.5 }} />
       ))}
     </View>
   );
