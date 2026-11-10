@@ -236,6 +236,8 @@ export type ChatMessage = {
   day: DayCard | null;
   poll: PollView | null;
   badge?: BadgeView | null;
+  /** İfadeler: ifade başına sayı, benim mi, kimler (eski sunucuda yok) */
+  reactions?: { emoji: string; count: number; mine: boolean; names: string[] }[];
   pending?: boolean;
   failed?: boolean;
 };

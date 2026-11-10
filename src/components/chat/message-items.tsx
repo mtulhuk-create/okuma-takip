@@ -1,8 +1,8 @@
 "use client";
 
-import { Check, Trash2 } from "lucide-react";
-import { useTransition } from "react";
-import { deleteMessage, votePoll } from "@/app/actions";
+import { Check, SmilePlus, Trash2 } from "lucide-react";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { deleteMessage, reactMessage, votePoll } from "@/app/actions";
 import type { ChatMessage } from "@/lib/chat";
 import { formatClock } from "@/lib/schedule";
 import { Avatar } from "../avatar";
@@ -40,6 +40,21 @@ function DeleteButton({ id, onDone }: { id: string; onDone: () => void }) {
   );
 }
 
+/** Mesajlara bırakılabilen ifadeler (sunucudakiyle aynı) */
+const REACTIONS = ["👍", "❤️", "🤲", "😂", "😮", "🔥"];
+type Reaction = ChatMessage["reactions"][number];
+
+/** Benim ifademi değiştirir: aynısıysa kaldırır, farklıysa yerine koyar (anında görünsün diye) */
+function toggleReaction(list: Reaction[], emoji: string): Reaction[] {
+  const had = list.find((r) => r.mine)?.emoji;
+  let out = list.map((r) => (r.mine ? { ...r, count: r.count - 1, mine: false, names: r.names.filter((n) => n !== "Sen") } : r)).filter((r) => r.count > 0);
+  if (had !== emoji) {
+    const hit = out.find((r) => r.emoji === emoji);
+    out = hit ? out.map((r) => (r.emoji === emoji ? { ...r, count: r.count + 1, mine: true, names: [...r.names, "Sen"] } : r)) : [...out, { emoji, count: 1, mine: true, names: ["Sen"] }];
+  }
+  return out.sort((a, b) => b.count - a.count);
+}
+
 /** Metin ve anket mesajları için balon çerçevesi (grubun ilk mesajında kuyruklu) */
 export function Bubble({
   m,
@@ -56,11 +71,53 @@ export function Bubble({
   onChanged: () => void;
   children: React.ReactNode;
 }) {
+  const [picker, setPicker] = useState(false);
+  const [, start] = useTransition();
+  // Sunucudan yeni veri gelene kadar benim ifadem anında görünür
+  const [over, setOver] = useState<{ base: Reaction[] | undefined; value: Reaction[] } | null>(null);
+  const reactions = over && over.base === m.reactions ? over.value : (m.reactions ?? []);
+  const canReact = !m.pending && !m.failed && (m.kind === "TEXT" || m.kind === "POLL");
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!picker) return;
+    const close = (e: MouseEvent) => box.current && !box.current.contains(e.target as Node) && setPicker(false);
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [picker]);
+  const react = (emoji: string) => {
+    setPicker(false);
+    setOver({ base: m.reactions, value: toggleReaction(reactions, emoji) });
+    start(async () => {
+      const fd = new FormData();
+      fd.set("messageId", m.id);
+      fd.set("emoji", emoji);
+      const res = await reactMessage(null, fd);
+      if (res?.error) setOver(null);
+      onChanged();
+    });
+  };
   return (
     <div className={`group flex items-end gap-1.5 ${mine ? "flex-row-reverse" : ""} ${showAuthor ? "mt-2.5" : "mt-0.5"}`}>
       {!mine && <div className="w-8 shrink-0 self-start">{showAuthor && m.user && <Avatar name={m.user.name} src={m.user.imageUrl} initial={m.user.initial} seed={m.user.id} size={32} frame={m.user.tier} />}</div>}
+      <div ref={box} className={`relative flex max-w-[80%] flex-col sm:max-w-[65%] ${mine ? "items-end" : "items-start"}`}>
+      {/* İfade seçici: balonun üstünde */}
+      {picker && (
+        <div className={`absolute -top-11 z-20 flex gap-0.5 rounded-full border border-border bg-card p-1 shadow-lg ${mine ? "right-0" : "left-0"}`}>
+          {REACTIONS.map((e) => (
+            <button
+              key={e}
+              type="button"
+              aria-label={`${e} ifadesini bırak`}
+              onClick={() => react(e)}
+              className={`flex size-8 items-center justify-center rounded-full text-lg transition-transform hover:scale-125 ${reactions.some((r) => r.mine && r.emoji === e) ? "bg-primary/15" : "hover:bg-muted"}`}
+            >
+              {e}
+            </button>
+          ))}
+        </div>
+      )}
       <div
-        className={`relative max-w-[80%] rounded-xl px-2.5 pb-1 pt-1.5 shadow-[0_1px_0.5px_rgb(0_0_0/0.13)] sm:max-w-[65%] ${
+        className={`relative max-w-full rounded-xl px-2.5 pb-1 pt-1.5 shadow-[0_1px_0.5px_rgb(0_0_0/0.13)] sm:max-w-[65%] ${
           mine ? `bg-[var(--chat-mine)] text-[var(--chat-mine-fg)] ${showAuthor ? "bubble-tail-out rounded-tr-none" : ""}` : `bg-card ${showAuthor ? "bubble-tail-in rounded-tl-none" : ""}`
         } ${m.pending ? "opacity-70" : ""} ${m.failed ? "ring-2 ring-destructive" : ""}`}
       >
@@ -77,6 +134,35 @@ export function Bubble({
           {mine && !m.pending && !m.failed && <Check className="size-3" strokeWidth={2.5} />}
         </p>
       </div>
+      {/* İfadeler: baloncuğun altına hafif biner; tıkla: ekle/kaldır, üstüne gel: kimler */}
+      {reactions.length > 0 && (
+        <div className={`-mt-1.5 flex flex-wrap gap-1 px-1.5 ${mine ? "justify-end" : ""}`}>
+          {reactions.map((r) => (
+            <button
+              key={r.emoji}
+              type="button"
+              disabled={!canReact}
+              title={r.names.join(", ")}
+              onClick={() => react(r.emoji)}
+              className={`inline-flex items-center gap-0.5 rounded-full border px-1.5 text-xs leading-5 shadow-sm transition-colors ${r.mine ? "border-primary/50 bg-primary/15" : "border-border bg-card hover:bg-muted"}`}
+            >
+              {r.emoji}
+              {r.count > 1 && <span className="text-[10.5px] font-semibold text-muted-foreground">{r.count}</span>}
+            </button>
+          ))}
+        </div>
+      )}
+      </div>
+      {canReact && (
+        <button
+          type="button"
+          className="btn-icon size-7 opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100 [@media(hover:none)]:opacity-60 [&_svg]:size-3.5"
+          aria-label="İfade bırak"
+          onClick={() => setPicker((v) => !v)}
+        >
+          <SmilePlus />
+        </button>
+      )}
       {canDelete && !m.pending && <DeleteButton id={m.id} onDone={onChanged} />}
     </div>
   );

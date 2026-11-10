@@ -734,6 +734,28 @@ export async function deleteMessage(_: Prev, fd: FormData) {
   });
 }
 
+/** Mesajlara bırakılabilen ifadeler */
+const REACTIONS = ["👍", "❤️", "🤲", "😂", "😮", "🔥"];
+
+/**
+ * Mesaja ifade bırakır: kişi başına mesajda bir ifade; aynısına tekrar basınca kalkar, farklısı yerine geçer.
+ * Yalnızca yöneticilerin yazabildiği gruplarda da üyeler ifade bırakabilir.
+ */
+export async function reactMessage(_: Prev, fd: FormData) {
+  return run(async () => {
+    const db = getDb();
+    const emoji = str(fd, "emoji", 16);
+    if (!REACTIONS.includes(emoji)) throw new Error("Bu ifade kullanılamaz");
+    const msg = await db.message.findUniqueOrThrow({ where: { id: str(fd, "messageId") }, select: { id: true, groupId: true, kind: true } });
+    if (msg.kind !== "TEXT" && msg.kind !== "POLL") throw new Error("Bu karta ifade bırakılamaz");
+    const { user } = await chatMember(msg.groupId, false);
+    const cur = await db.messageReaction.findUnique({ where: { messageId_userId: { messageId: msg.id, userId: user.id } } });
+    if (cur?.emoji === emoji) await db.messageReaction.delete({ where: { id: cur.id } });
+    else await db.messageReaction.upsert({ where: { messageId_userId: { messageId: msg.id, userId: user.id } }, create: { messageId: msg.id, userId: user.id, emoji }, update: { emoji } });
+    await publish(msg.groupId, { type: "refresh", reason: "reaction" });
+  });
+}
+
 /** Gruba yazılan mesaj diğer üyelere bildirim olarak gider (yanıttan sonra, arka planda) */
 function notifyChat(group: { id: string; name: string }, authorId: string, title: string, body: string) {
   after(async () => {

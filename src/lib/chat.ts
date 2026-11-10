@@ -67,6 +67,7 @@ export async function getChatPage(groupId: string, userId: string, before?: Date
       user: publicUser,
       poll: { include: { options: { orderBy: { position: "asc" }, include: { votes: { include: { user: { select: { id: true, name: true, accountName: true } } } } } } } },
       badge: { include: { user: publicUser, options: { orderBy: { createdAt: "asc" }, include: { votes: { select: { userId: true } } } } } },
+      reactions: { orderBy: { createdAt: "asc" }, select: { emoji: true, userId: true, user: { select: { name: true, accountName: true } } } },
     },
   });
   const hasMore = rows.length > PAGE;
@@ -100,6 +101,7 @@ export async function getChatPage(groupId: string, userId: string, before?: Date
         }
       : null,
     badge: m.kind === "BADGE" && m.badge ? badgeView(m.badge, m.text, userId, me.role === "ADMIN", group) : null,
+    reactions: reactionView(m.reactions, userId, group.nameDisplay),
   }));
 
   const lastEvent = await db.groupEvent.findFirst({ where: { groupId }, orderBy: { id: "desc" }, select: { id: true } });
@@ -184,3 +186,16 @@ export async function getGroupCash(group: Pick<Group, "id" | "iban" | "ibanName"
 
 export type ChatPage = NonNullable<Awaited<ReturnType<typeof getChatPage>>>;
 export type ChatMessage = NonNullable<ChatPage["messages"]>[number];
+
+/** Mesajdaki ifadeler: ifade başına sayı, benim mi, kimler (çoktan aza) */
+function reactionView(list: { emoji: string; userId: string; user: { name: string; accountName: string | null } }[], userId: string, nameDisplay: Group["nameDisplay"]) {
+  const map = new Map<string, { emoji: string; count: number; mine: boolean; names: string[] }>();
+  for (const r of list) {
+    const e = map.get(r.emoji) ?? { emoji: r.emoji, count: 0, mine: false, names: [] };
+    e.count++;
+    if (r.userId === userId) e.mine = true;
+    e.names.push(shownName(r.user, nameDisplay));
+    map.set(r.emoji, e);
+  }
+  return [...map.values()].sort((a, b) => b.count - a.count);
+}
