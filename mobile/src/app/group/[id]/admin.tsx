@@ -280,23 +280,11 @@ function AdminScreen() {
                 <Text style={{ fontFamily: fonts.bold, color: c.destructive }}>{unpaidPenalties.reduce((s, p) => s + p.amount, 0)} TL</Text>
               </Row>
               <DiscountControls groupId={id} title="Toplu indirim (tüm grubun ödenmemiş cezaları)" />
-              {unpaidPenalties.map((p) => (
-                <View key={p.id} style={{ gap: 4, borderTopWidth: 1, borderTopColor: c.border, paddingTop: 8 }}>
-                  <Row>
-                    <Body numberOfLines={1} style={{ flex: 1 }}>
-                      {p.user?.name} · {formatDayKey(p.dayKey)}
-                      {p.status === "IN_DUE" ? " · vadede" : ""}
-                    </Body>
-                    {p.originalAmount != null && p.originalAmount !== p.amount && <Text style={{ fontFamily: fonts.regular, fontSize: 12, color: c.mutedForeground, textDecorationLine: "line-through" }}>{p.originalAmount}</Text>}
-                    <Body style={{ fontFamily: fonts.bold }}>{p.amount} TL</Body>
-                  </Row>
-                  <Row gap={6}>
-                    <DiscountControls groupId={id} penaltyId={p.id} compact />
-                    {p.status === "UNPAID" && <Button title="Affet" small variant="ghost" onPress={() => run("waivePenalty", { penaltyId: p.id })} />}
-                  </Row>
-                </View>
+              {/* Kişi bazında toplam; günler dokununca açılır */}
+              {penaltyGroups(unpaidPenalties).map((g) => (
+                <PenaltyPerson key={g.userId} g={g} groupId={id} onWaive={(penaltyId) => run("waivePenalty", { penaltyId })} />
               ))}
-              <Muted>Bir kişinin tüm cezalarına indirim ya da vade için Üyeler sekmesinde kişiye dokun.</Muted>
+              <Muted>Kişinin satırındaki indirim, o kişinin tüm ödenmemiş cezalarına uygulanır. Vade için Üyeler sekmesinde kişiye dokun.</Muted>
             </Card>
           )}
           {dues.some((d) => ["CONFIRMED", "EXPIRED", "CANCELLED"].includes(d.status)) && (
@@ -334,5 +322,66 @@ function AdminScreen() {
         </>
       )}
     </Screen>
+  );
+}
+
+type UnpaidPenalty = AdminResponse["unpaidPenalties"][number];
+type PenaltyGroup = { userId: string; name: string; items: UnpaidPenalty[]; total: number; original: number; inDue: number };
+
+/** Ödenmemiş cezalar kişi kişi: toplam, ilk tutar (indirim varsa) ve vadedeki kısım */
+function penaltyGroups(list: UnpaidPenalty[]): PenaltyGroup[] {
+  const map = new Map<string, PenaltyGroup>();
+  for (const p of list) {
+    const g = map.get(p.userId) ?? { userId: p.userId, name: p.user?.name ?? "Üye", items: [], total: 0, original: 0, inDue: 0 };
+    g.items.push(p);
+    g.total += p.amount;
+    g.original += p.originalAmount ?? p.amount;
+    if (p.status === "IN_DUE") g.inDue += p.amount;
+    map.set(p.userId, g);
+  }
+  return [...map.values()].sort((a, b) => b.total - a.total);
+}
+
+function PenaltyPerson({ g, groupId, onWaive }: { g: PenaltyGroup; groupId: string; onWaive: (penaltyId: string) => void }) {
+  const c = useColors();
+  const [open, setOpen] = useState(false);
+  return (
+    <View style={{ gap: 6, borderTopWidth: 1, borderTopColor: c.border, paddingTop: 8 }}>
+      <Pressable onPress={() => setOpen((v) => !v)} hitSlop={4}>
+        <Row>
+          <View style={{ flex: 1 }}>
+            <Body numberOfLines={1} style={{ fontFamily: fonts.semibold }}>
+              {g.name}
+            </Body>
+            <Muted>
+              {g.items.length} gün ceza{g.inDue ? ` · ${g.inDue} TL vadede` : ""}
+            </Muted>
+          </View>
+          {g.original !== g.total && <Text style={{ fontFamily: fonts.regular, fontSize: 12, color: c.mutedForeground, textDecorationLine: "line-through", marginRight: 4 }}>{g.original}</Text>}
+          <Body style={{ fontFamily: fonts.bold, color: c.destructive }}>{g.total} TL</Body>
+          <ChevronDown size={16} color={c.mutedForeground} style={{ marginLeft: 4, transform: [{ rotate: open ? "180deg" : "0deg" }] }} />
+        </Row>
+      </Pressable>
+      <DiscountControls groupId={groupId} userId={g.userId} compact />
+      {open && (
+        <View style={{ gap: 4, backgroundColor: c.muted, borderRadius: 8, padding: 8 }}>
+          {g.items.map((p) => (
+            <Row key={p.id} gap={6}>
+              <Text style={{ flex: 1, fontFamily: fonts.regular, fontSize: 12, color: c.foreground }}>
+                {formatDayKey(p.dayKey)}
+                {p.status === "IN_DUE" ? " · vadede" : ""}
+              </Text>
+              {p.originalAmount != null && p.originalAmount !== p.amount && <Text style={{ fontFamily: fonts.regular, fontSize: 11, color: c.mutedForeground, textDecorationLine: "line-through" }}>{p.originalAmount}</Text>}
+              <Text style={{ fontFamily: fonts.semibold, fontSize: 12, color: c.foreground }}>{p.amount} TL</Text>
+              {p.status === "UNPAID" && (
+                <Pressable hitSlop={6} onPress={() => onWaive(p.id)}>
+                  <Text style={{ fontFamily: fonts.semibold, fontSize: 11, color: c.primary }}>Affet</Text>
+                </Pressable>
+              )}
+            </Row>
+          ))}
+        </View>
+      )}
+    </View>
   );
 }

@@ -1,4 +1,6 @@
 /** initial: avatar harfi (hesap adının baş harfi; eski sunucuda yok) */
+/** Ekip hiyerarşisi çerçevesi (gruba özel): altın en üst ekip */
+export type Tier = "gold" | "silver" | "bronze";
 export type PublicUser = { id: string; name: string; username: string | null; imageUrl: string | null; initial?: string };
 export type Me = PublicUser & { nameConfirmed: boolean };
 export type Period = { dayKey: string; start: string; deadline: string; nextStart: string };
@@ -35,6 +37,10 @@ export type Group = Rules & {
   kickOnExpire?: boolean;
   nameDisplay?: "ENTERED" | "ACCOUNT" | "BOTH";
   badgesEnabled?: boolean;
+  /** Görünüm ayarları (eski sunucuda yok) */
+  streaksEnabled?: boolean;
+  framesEnabled?: boolean;
+  dayDetails?: boolean;
   tzOffset: number;
 };
 
@@ -49,11 +55,12 @@ export type Member = {
   /** Gruba özel etkin rozet (yalnızca üyelere gelir) */
   badge?: BadgeTag | null;
   streak?: StreakTag | null;
+  tier?: Tier | null;
 };
 
 export type ReadingLog = { userId: string; dayKey: string; pages: number; requiredPages: number; minPages: number };
 
-export type DayPerson = { id: string; name: string; imageUrl: string | null; initial?: string; pages: number | null; required: number; kefaret?: number };
+export type DayPerson = { id: string; name: string; imageUrl: string | null; initial?: string; pages: number | null; required: number; kefaret?: number; tier?: Tier };
 /** Süren kefaret okuması: hedefin üstüne ek sayfa, her gün indirimin bir payını kazandırır */
 export type DayKefaret = {
   planId: string;
@@ -92,6 +99,8 @@ export type DayCard = {
   /** O günün toplam cezası (eski sunucuda yok) */
   penaltyTotal?: number;
   penaltyFinal?: boolean;
+  /** Ayrıntı kapalı: read = bildirenler, pending = bildirmeyenler */
+  simple?: boolean;
 };
 
 export type Stats = { read: number; min: number; none: number; pages: number };
@@ -99,10 +108,10 @@ export type HistoryRow = { start: string; cells: string; stats: Stats };
 export type HistoryRange = "7d" | "1m" | "3m" | "1y" | "all";
 /** streak: bugünden geriye kesintisiz okunan gün sayısı */
 /** fullStreak: üst üste tam (hedef) okunan gün; eski sunucuda yok */
-export type MyHistory = { all: (HistoryRow & { streak?: number; fullStreak?: number }) | null; groups: (HistoryRow & { streak?: number; fullStreak?: number; group: { id: string; name: string } })[] };
+export type MyHistory = { all: (HistoryRow & { streak?: number; fullStreak?: number }) | null; groups: (HistoryRow & { streak?: number; fullStreak?: number; tier?: Tier | null; group: { id: string; name: string } })[] };
 /** Okuma serisi (3 gün ve üstü); full: tam okuma serisi */
 export type StreakTag = { n: number; full: boolean };
-export type GroupHistory = { limited: boolean; rows: (HistoryRow & { user: PublicUser; me: boolean })[] };
+export type GroupHistory = { limited: boolean; rows: (HistoryRow & { user: PublicUser; me: boolean; streak?: StreakTag | null; tier?: Tier | null })[] };
 export type PenaltyStatus = "UNPAID" | "IN_DUE" | "PAID" | "WAIVED";
 export type Penalty = { id: string; userId: string; dayKey: string; amount: number; originalAmount?: number | null; pagesRead: number; requiredPages: number; status: PenaltyStatus; user?: PublicUser };
 export type DueStatus = "PENDING" | "SUBMITTED" | "OVERDUE" | "CONFIRMED" | "EXPIRED" | "CANCELLED";
@@ -223,7 +232,7 @@ export type ChatMessage = {
   kind: "TEXT" | "DAY" | "POLL" | "BADGE";
   text: string | null;
   createdAt: string;
-  user: { id: string; name: string; imageUrl: string | null; initial?: string; badge?: BadgeTag | null; streak?: StreakTag | null } | null;
+  user: { id: string; name: string; imageUrl: string | null; initial?: string; badge?: BadgeTag | null; streak?: StreakTag | null; tier?: Tier | null } | null;
   day: DayCard | null;
   poll: PollView | null;
   badge?: BadgeView | null;

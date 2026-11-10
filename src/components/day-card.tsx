@@ -16,6 +16,12 @@ const CATS = [
   { key: "none", label: "Okumadı", Icon: X, tone: "text-rose-700 dark:text-rose-400", bg: "bg-rose-500/10" },
   { key: "pending", label: "Bekleniyor", Icon: Clock, tone: "text-muted-foreground", bg: "bg-muted" },
 ] as const;
+type CatKey = (typeof CATS)[number]["key"];
+/** Gün kartında ayrıntı kapalıysa (grup ayarı): yalnızca bildirdi / bildirmedi */
+const SIMPLE_CATS = [
+  { key: "read", label: "Bildirdi", Icon: Check, tone: "text-emerald-700 dark:text-emerald-400", bg: "bg-emerald-500/10" },
+  { key: "pending", label: "Bildirmedi", Icon: Clock, tone: "text-muted-foreground", bg: "bg-muted" },
+] as const;
 
 type Choice = "all" | "min" | "none";
 type BookChoice = "read" | "min" | "none";
@@ -375,45 +381,52 @@ function DeadlinePill({ card, withClock }: { card: Card; withClock?: boolean }) 
 }
 
 /** Kategori çipleri: üst üste profil resimleri + sayı; dokununca isimler açılır */
+/**
+ * Kim okudu rozetleri: bir satırda en çok 2 rozet; satırda tek kalan rozet satırı doldurur ve daha çok avatar
+ * gösterir (tek: 10, yan yana: 4–5). Avatarlarda ekip çerçevesi.
+ */
 function CategoryChips({ card, interactive }: { card: Card; interactive?: boolean }) {
-  const [open, setOpen] = useState<(typeof CATS)[number]["key"] | null>(null);
+  const [open, setOpen] = useState<CatKey | null>(null);
+  const simple = !!(card as { simple?: boolean }).simple;
   // Kefaret okuyanlar "Okudu"dan ayrı, kendi renginde gösterilir
-  const lists = {
-    kefaret: card.read.filter((p) => p.kefaret),
-    read: card.read.filter((p) => !p.kefaret),
-    min: card.min,
-    none: card.none,
-    pending: card.pending,
-  };
-  const cats = CATS.filter((c) => lists[c.key].length);
+  const lists: Record<CatKey, Card["read"]> = simple
+    ? { kefaret: [], read: card.read, min: [], none: [], pending: card.pending }
+    : { kefaret: card.read.filter((p) => p.kefaret), read: card.read.filter((p) => !p.kefaret), min: card.min, none: card.none, pending: card.pending };
+  const all = simple ? SIMPLE_CATS : CATS;
+  const cats = all.filter((c) => lists[c.key].length);
   if (!cats.length) return null;
-  const sel = CATS.find((c) => c.key === open && lists[c.key].length);
+  const sel = cats.find((c) => c.key === open);
   return (
     <div className="space-y-1.5">
-      <div className="flex flex-wrap gap-1.5">
-        {cats.map(({ key, label, Icon, tone, bg }) => {
+      <div className="grid grid-cols-2 gap-1.5">
+        {cats.map(({ key, label, Icon, tone, bg }, i) => {
           const people = lists[key];
+          // Satırda tek kalan (tek sayıda rozetin sonuncusu) tüm satırı kaplar
+          const alone = cats.length % 2 === 1 && i === cats.length - 1;
           const body = (
             <>
-              <AvatarStack people={people} size={20} max={3} />
-              <span className={`flex items-center gap-0.5 text-[11px] font-bold ${tone}`}>
+              <span className="min-w-0 overflow-hidden">
+                <AvatarStack people={people} size={24} max={alone ? 10 : interactive ? 4 : 5} />
+              </span>
+              <span className={`ml-auto flex shrink-0 items-center gap-0.5 text-[11px] font-bold ${tone}`}>
                 <Icon className="size-3.5" strokeWidth={2.5} />
                 {interactive && <span className="font-semibold">{label}</span>}
                 {people.length}
               </span>
             </>
           );
+          const cls = `flex items-center gap-1.5 rounded-full py-0.5 pl-0.5 pr-2.5 ${alone ? "col-span-2" : ""} ${bg}`;
           return interactive ? (
             <button
               key={key}
               onClick={() => setOpen((o) => (o === key ? null : key))}
               aria-expanded={open === key}
-              className={`flex items-center gap-1.5 rounded-full py-0.5 pl-0.5 pr-2 transition-colors ${bg} ${open === key ? "ring-1 ring-inset ring-current " + tone : "hover:brightness-95"}`}
+              className={`${cls} transition-colors ${open === key ? "ring-1 ring-inset ring-current " + tone : "hover:brightness-95"}`}
             >
               {body}
             </button>
           ) : (
-            <span key={key} title={label} className={`flex items-center gap-1.5 rounded-full py-0.5 pl-0.5 pr-2 ${bg}`}>
+            <span key={key} title={label} className={cls}>
               {body}
             </span>
           );

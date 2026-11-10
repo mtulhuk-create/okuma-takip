@@ -75,7 +75,9 @@ export async function processDues(now = new Date()) {
   }
 
   // 1) Vadesi dolanlar → yönetici kararı bekleniyor
-  const expired = await db.paymentDue.findMany({ where: { status: { in: ["PENDING", "SUBMITTED"] }, dueAt: { lte: now } }, include: { group: true, user: true } });
+  // "Ödedim" bildirilmiş (SUBMITTED) vade yöneticinin onayını bekler: üye, yönetici geç onayladı diye
+  // gecikmiş sayılmaz ve gruptan çıkarılmaz. Yalnızca hiç ödeme bildirilmeyen (PENDING) vade dolar.
+  const expired = await db.paymentDue.findMany({ where: { status: "PENDING", dueAt: { lte: now } }, include: { group: true, user: true } });
   for (const d of expired) {
     const claim = await db.paymentDue.updateMany({
       where: { id: d.id, status: d.status },

@@ -19,14 +19,14 @@ const CATS: Cat[] = [
   { key: "pending", label: "Bekleniyor", Icon: Clock, color: (c) => c.mutedForeground },
 ];
 
-export function AvatarStack({ people, size = 26, max = 5 }: { people: { id: string; name: string; imageUrl: string | null; initial?: string }[]; size?: number; max?: number }) {
+export function AvatarStack({ people, size = 26, max = 5 }: { people: { id: string; name: string; imageUrl: string | null; initial?: string; tier?: "gold" | "silver" | "bronze" }[]; size?: number; max?: number }) {
   const c = useColors();
   const rest = people.length - max;
   return (
     <View style={{ flexDirection: "row" }}>
       {people.slice(0, max).map((p, i) => (
         <View key={p.id} style={{ marginLeft: i ? -8 : 0, borderWidth: 2, borderColor: c.card, borderRadius: size }}>
-          <Avatar name={p.name} uri={p.imageUrl} initial={p.initial} seed={p.id} size={size} />
+          <Avatar name={p.name} uri={p.imageUrl} initial={p.initial} seed={p.id} size={size} frame={p.tier} />
         </View>
       ))}
       {rest > 0 && (
@@ -377,36 +377,61 @@ function DeadlinePill({ card, withClock }: { card: Card; withClock?: boolean }) 
 }
 
 /** Kategori çipleri: üst üste profil resimleri + sayı; dokununca isimler açılır */
+/** Gün kartında ayrıntı kapalıysa (grup ayarı): yalnızca bildirdi / bildirmedi */
+const SIMPLE_CATS: Cat[] = [
+  { key: "read", label: "Bildirdi", Icon: Check, color: () => STATE.read },
+  { key: "pending", label: "Bildirmedi", Icon: Clock, color: (c) => c.mutedForeground },
+];
+
+/**
+ * Kim okudu rozetleri: bir satırda en çok 2 rozet; satırda tek kalan rozet satırı doldurur ve daha çok avatar
+ * gösterir (tek: 10, yan yana: 4–5). Avatarlarda ekip çerçevesi.
+ */
 function CategoryChips({ card, interactive }: { card: Card; interactive?: boolean }) {
   const c = useColors();
   const [open, setOpen] = useState<Cat["key"] | null>(null);
+  const simple = !!card.simple;
   // Kefaret okuyanlar "Okudu"dan ayrı, kendi renginde
-  const lists = {
-    kefaret: card.read.filter((p) => p.kefaret),
-    read: card.read.filter((p) => !p.kefaret),
-    min: card.min,
-    none: card.none,
-    pending: card.pending,
-  };
-  const cats = CATS.filter((cat) => lists[cat.key].length);
+  const lists: Record<Cat["key"], Card["read"]> = simple
+    ? { kefaret: [], read: card.read, min: [], none: [], pending: card.pending }
+    : { kefaret: card.read.filter((p) => p.kefaret), read: card.read.filter((p) => !p.kefaret), min: card.min, none: card.none, pending: card.pending };
+  const cats = (simple ? SIMPLE_CATS : CATS).filter((cat) => lists[cat.key].length);
   if (!cats.length) return null;
   const sel = cats.find((cat) => cat.key === open);
   return (
     <View style={{ gap: 6 }}>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-        {cats.map((cat) => {
+        {cats.map((cat, i) => {
           const color = cat.color(c);
           const people = lists[cat.key];
           const on = open === cat.key;
+          // Satırda tek kalan (tek sayıda rozetin sonuncusu) tüm satırı kaplar
+          const alone = cats.length % 2 === 1 && i === cats.length - 1;
           const body = (
             <>
-              <AvatarStack people={people} size={18} max={3} />
-              <cat.Icon size={12} color={color} strokeWidth={2.6} />
+              <View style={{ flexShrink: 1, overflow: "hidden" }}>
+                <AvatarStack people={people} size={22} max={alone ? 10 : interactive ? 4 : 5} />
+              </View>
+              <View style={{ flex: 1 }} />
+              <cat.Icon size={13} color={color} strokeWidth={2.6} />
               {interactive && <Text style={{ fontFamily: fonts.semibold, fontSize: 11, color }}>{cat.label}</Text>}
-              <Text style={{ fontFamily: fonts.bold, fontSize: 11, color }}>{people.length}</Text>
+              <Text style={{ fontFamily: fonts.bold, fontSize: 12, color }}>{people.length}</Text>
             </>
           );
-          const style = { flexDirection: "row" as const, alignItems: "center" as const, gap: 3, backgroundColor: color + "1f", borderRadius: 99, paddingLeft: 2, paddingRight: 8, paddingVertical: 2, borderWidth: 1, borderColor: on ? color : "transparent" };
+          const style = {
+            flexDirection: "row" as const,
+            alignItems: "center" as const,
+            gap: 4,
+            flexGrow: 1,
+            flexBasis: "45%" as const,
+            backgroundColor: color + "1f",
+            borderRadius: 99,
+            paddingLeft: 3,
+            paddingRight: 10,
+            paddingVertical: 3,
+            borderWidth: 1,
+            borderColor: on ? color : "transparent",
+          };
           return interactive ? (
             <Pressable key={cat.key} onPress={() => setOpen((o) => (o === cat.key ? null : cat.key))} style={({ pressed }) => [style, { opacity: pressed ? 0.7 : 1 }]}>
               {body}

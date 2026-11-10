@@ -6,7 +6,7 @@ import { memberStreaks, streakTag } from "./history";
 import { maintainLater } from "./maintenance";
 import { dueView } from "./due-view";
 import { withShownName } from "./names";
-import { describePenalty, rulesFor } from "./rules";
+import { describePenalty, rulesFor, teamTiers } from "./rules";
 import { getDb } from "./db";
 
 // Diğer kullanıcılar hakkında dışarıya yalnızca bu alanlar verilir
@@ -97,7 +97,11 @@ export async function getGroupDetail(id: string, userId: string) {
   const isMember = raw.members.some((m) => m.userId === userId);
   const [tags, streaks] = isMember ? await Promise.all([activeBadges(raw), memberStreaks(raw, raw.members)]) : [new Map<string, BadgeTag>(), new Map<string, { n: number; full: number }>()];
   // Rozet ve okuma serisi (3 gün ve üstü) yalnızca grup üyelerine gösterilir
-  const group = { ...raw, members: raw.members.map((m) => ({ ...m, user: withShownName(m.user, raw.nameDisplay), badge: tags.get(m.userId) ?? null, streak: streakTag(streaks.get(m.userId)) })) };
+  const tiers = teamTiers(raw);
+  const group = {
+    ...raw,
+    members: raw.members.map((m) => ({ ...m, user: withShownName(m.user, raw.nameDisplay), badge: tags.get(m.userId) ?? null, streak: streakTag(streaks.get(m.userId), raw.streaksEnabled), tier: (m.teamId && tiers.get(m.teamId)) || null })),
+  };
   const me = group.members.find((m) => m.userId === userId) ?? null;
   const myRules = me ? rulesFor(group, me) : null;
   if (!me) {

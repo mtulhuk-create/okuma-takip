@@ -3,9 +3,10 @@
 import { Layers } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
+import type { Tier } from "./tier";
 import { HistoryGrid, MenuPicker, RangePicker, StatsLine, STREAK_MIN, StreakBadge, useHistory, type Stats } from "./history-grid";
 
-type Row = { start: string; cells: string; stats: Stats; streak: number; fullStreak?: number };
+type Row = { start: string; cells: string; stats: Stats; streak: number; fullStreak?: number; tier?: Tier | null };
 type Data = { all: Row | null; groups: (Row & { group: { id: string; name: string } })[] };
 
 /** Bugün sayfası: kendi okuma geçmişin. Varsayılan tüm gruplar; menüden tek grup seçilebilir. */
@@ -21,8 +22,9 @@ export function MyHistory({ initial }: { initial: Data }) {
   return (
     <section className={`card relative space-y-2 p-3 transition-opacity ${loading ? "opacity-60" : ""}`}>
       {/* Seri rozeti: kartın sağ üst kenarında, hafif eğik */}
-      {/* Tam seri (üst üste hedef) öncelikli; yoksa alt sınır dahil seri */}
-      {(row.fullStreak ?? 0) >= STREAK_MIN ? <StreakBadge n={row.fullStreak!} full size="xs" sticker /> : <StreakBadge n={row.streak ?? 0} size="xs" sticker />}
+      {/* Seri ve ekip çerçevesi gruba özel: yalnızca tek grup gösterilirken (tüm gruplar birleşiminde yok).
+          Tam seri (üst üste hedef) öncelikli; yoksa alt sınır dahil seri */}
+      {shownGroup && ((row.fullStreak ?? 0) >= STREAK_MIN ? <StreakBadge n={row.fullStreak!} full size="xs" sticker /> : <StreakBadge n={row.streak ?? 0} size="xs" sticker />)}
       <div className="flex items-center gap-1.5">
         <RangePicker value={range} onChange={setRange} />
         <div className="min-w-0 flex-1">
@@ -40,7 +42,7 @@ export function MyHistory({ initial }: { initial: Data }) {
           )}
         </div>
       </div>
-      <HistoryGrid start={row.start} cells={row.cells} />
+      <HistoryGrid start={row.start} cells={row.cells} frame={shownGroup ? row.tier : null} />
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5">
         <StatsLine stats={row.stats} />
         <span className="text-[10px] text-muted-foreground">

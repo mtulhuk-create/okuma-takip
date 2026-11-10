@@ -124,8 +124,11 @@ export function defaultDueAt(g: { tzOffset: number; dueOffsetDays: number }, now
   return new Date(now.getTime() + 30 * DAY);
 }
 
-/** "Ay sonu", "Ay sonundan 3 gün önce" ... */
+/** "Her ayın son günü", "Ertesi ayın 5'i" (eski ayarlarda: "Ay sonundan 3 gün önce") */
 export function describeDueOffset(days: number) {
   if (!days) return "Her ayın son günü";
-  return days < 0 ? `Ay sonundan ${-days} gün önce` : `Ay sonundan ${days} gün sonra`;
+  if (days < 0) return `Ay sonundan ${-days} gün önce`;
+  const last = days % 10;
+  const suf = last ? { 1: "i", 2: "si", 3: "ü", 4: "ü", 5: "i", 6: "sı", 7: "si", 8: "i", 9: "u" }[last] : ({ 10: "u", 20: "si", 30: "u" } as Record<number, string>)[days] ?? "i";
+  return `Ertesi ayın ${days}'${suf}`;
 }

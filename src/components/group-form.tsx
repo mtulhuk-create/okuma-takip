@@ -118,7 +118,14 @@ function TeamCard({ team, index, canRemove, onChange, onRemove }: { team: TeamDr
   );
 }
 
-const dueOffsetText = (d: number) => (d === 0 ? "Her ayın son günü" : d < 0 ? `Ay sonundan ${-d} gün önce` : `Ay sonundan ${d} gün sonra`);
+/** Türkçe belirtme eki: 1'i, 2'si, 6'sı, 9'u, 10'u, 20'si */
+function dayWithSuffix(n: number) {
+  const last = n % 10;
+  const s = last ? { 1: "i", 2: "si", 3: "ü", 4: "ü", 5: "i", 6: "sı", 7: "si", 8: "i", 9: "u" }[last] : { 10: "u", 20: "si", 30: "u" }[n] ?? "i";
+  return `${n}'${s}`;
+}
+/** Varsayılan vade: 0 ayın son günü, 1–28 ertesi ayın o günü (eski ayarlarda negatif: ay sonundan önce) */
+const dueOffsetText = (d: number) => (d === 0 ? "Her ayın son günü" : d < 0 ? `Ay sonundan ${-d} gün önce` : `Ertesi ayın ${dayWithSuffix(d)}`);
 
 const BADGE_WARNING =
   "Rozetler gruba latife olsun diye konulmuş bir özelliktir.\n\nÜyeler rozet adı önerirken aşırıya kaçabilir ya da rozet verilen kişi konulan lakaba alınabilir. Uygunsuz şıkları ve rozetleri yönetici olarak kaldırabilirsin.\n\nRozetleri açmak istiyor musun?";
@@ -140,9 +147,12 @@ export function GroupForm({ group }: { group?: Group & { teams?: Team[] } }) {
   const [kickOnExpire, setKickOnExpire] = useState(group?.kickOnExpire ?? true);
   const [nameDisplay, setNameDisplay] = useState<"ENTERED" | "ACCOUNT" | "BOTH">(group?.nameDisplay ?? "ENTERED");
   const [badgesEnabled, setBadgesEnabled] = useState(group?.badgesEnabled ?? false);
+  const [streaksEnabled, setStreaksEnabled] = useState(group?.streaksEnabled ?? true);
+  const [framesEnabled, setFramesEnabled] = useState(group?.framesEnabled ?? true);
+  const [dayDetails, setDayDetails] = useState(group?.dayDetails ?? true);
   const edit = !!group;
   // Kaydedilmemiş değişiklik: seçimlerin ilk halinden farkı ya da metin alanlarına yazılması
-  const snapshot = JSON.stringify([visibility, chatPolicy, shareProgress, rules, teamsEnabled, teams, start, deadline, reminderHours, iban, dueOffset, kickOnExpire, nameDisplay, badgesEnabled]);
+  const snapshot = JSON.stringify([visibility, chatPolicy, shareProgress, rules, teamsEnabled, teams, start, deadline, reminderHours, iban, dueOffset, kickOnExpire, nameDisplay, badgesEnabled, streaksEnabled, framesEnabled, dayDetails]);
   const [saved, setSaved] = useState(snapshot);
   const [typed, setTyped] = useState(false);
   const dirty = typed || snapshot !== saved;
@@ -189,6 +199,9 @@ export function GroupForm({ group }: { group?: Group & { teams?: Team[] } }) {
       <input type="hidden" name="kickOnExpire" value={kickOnExpire ? "1" : "0"} />
       <input type="hidden" name="nameDisplay" value={nameDisplay} />
       <input type="hidden" name="badgesEnabled" value={badgesEnabled ? "1" : "0"} />
+      <input type="hidden" name="streaksEnabled" value={streaksEnabled ? "1" : "0"} />
+      <input type="hidden" name="framesEnabled" value={framesEnabled ? "1" : "0"} />
+      <input type="hidden" name="dayDetails" value={dayDetails ? "1" : "0"} />
 
       <Section Icon={PencilLine} title="Genel" summary={`${group?.name ?? ""} · ${visibility === "PUBLIC" ? "Herkese açık" : "Özel"}`} collapsible={edit}>
         <div>
@@ -326,6 +339,14 @@ export function GroupForm({ group }: { group?: Group & { teams?: Team[] } }) {
           title="Latife rozetleri"
           desc="7 gün üst üste tam okuyana Maşallah rozeti; 7 gün tam okuyamayana adını üyelerin oyladığı rozet. 2 gün içinde durum değişirse kalkar."
         />
+        <Toggle checked={streaksEnabled} onChange={setStreaksEnabled} title="Seri rozetleri" desc="3 gün ve üstü üst üste okuyana seri, hedefi tam okuyana yeşil tam seri rozeti. Yalnızca bu grupta görünür." />
+        <Toggle checked={framesEnabled} onChange={setFramesEnabled} title="Ekip çerçeveleri" desc="Ekipler arasında günlük toplam sayfası en çok olan altın, sonraki gümüş ve bronz çerçeve alır (avatar ve okuma geçmişi)." />
+        <Toggle
+          checked={dayDetails}
+          onChange={setDayDetails}
+          title="Gün kartında okuma ayrıntısı"
+          desc="Açıkken kim okudu, alt sınırda kaldı, okumadı görünür. Kapalıyken yalnızca kimin bildirdiği (yeşil) ve bildirmediği (gri) görünür."
+        />
       </Section>
 
       <Section
@@ -351,18 +372,31 @@ export function GroupForm({ group }: { group?: Group & { teams?: Team[] } }) {
         </div>
         <div>
           <label className="label">Varsayılan ödeme vadesi</label>
-          <div className="flex items-center gap-2">
-            <button type="button" className="btn-ghost size-10 p-0 text-lg" onClick={() => setDueOffset((d) => Math.max(-25, d - 1))} aria-label="Bir gün öne al">
-              −
-            </button>
-            <div className="flex-1 rounded-lg border border-border bg-card px-3 py-2 text-center">
-              <p className="text-sm font-semibold">{dueOffsetText(dueOffset)}</p>
-              <p className="text-[11px] text-muted-foreground">Vade verirken bu tarih önerilir, istersen değiştirirsin</p>
-            </div>
-            <button type="button" className="btn-ghost size-10 p-0 text-lg" onClick={() => setDueOffset((d) => Math.min(25, d + 1))} aria-label="Bir gün ertele">
-              +
-            </button>
+          {/* Ay sonu ya da ertesi ayın bir günü (ay sonundan önce/sonra gün saymak kafa karıştırıyordu) */}
+          <div className="grid grid-cols-2 gap-1.5">
+            {[
+              { on: dueOffset <= 0, label: "Ayın son günü", set: () => setDueOffset(0) },
+              { on: dueOffset > 0, label: "Ertesi ayın bir günü", set: () => setDueOffset((d) => (d > 0 ? d : 5)) },
+            ].map((o) => (
+              <button key={o.label} type="button" onClick={o.set} className={`h-9 rounded-lg border text-xs font-semibold ${o.on ? "border-primary bg-primary text-primary-foreground" : "border-border hover:bg-muted"}`}>
+                {o.label}
+              </button>
+            ))}
           </div>
+          {dueOffset > 0 && (
+            <div className="mt-2 flex items-center gap-2">
+              <button type="button" className="btn-ghost size-9 p-0 text-lg" onClick={() => setDueOffset((d) => Math.max(1, d - 1))} aria-label="Bir gün öne al">
+                −
+              </button>
+              <p className="flex-1 rounded-lg border border-border bg-card py-1.5 text-center text-sm font-semibold">Ertesi ayın {dayWithSuffix(dueOffset)}</p>
+              <button type="button" className="btn-ghost size-9 p-0 text-lg" onClick={() => setDueOffset((d) => Math.min(28, d + 1))} aria-label="Bir gün ertele">
+                +
+              </button>
+            </div>
+          )}
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            {dueOffsetText(dueOffset)} · vade verirken bu tarih önerilir, istersen değiştirirsin. Ayın cezaları bu tarihe kadar ödenir.
+          </p>
         </div>
         <Toggle
           checked={kickOnExpire}

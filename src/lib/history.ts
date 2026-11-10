@@ -1,7 +1,7 @@
 import "server-only";
 import { getDb } from "./db";
 import { withShownName } from "./names";
-import { categoryOf } from "./rules";
+import { teamTiers, categoryOf } from "./rules";
 import { currentPeriod, periodFor, shiftDayKey } from "./schedule";
 
 export type HistoryRange = "7d" | "1m" | "3m" | "1y" | "all";
@@ -66,9 +66,9 @@ export async function memberStreaks(g: G, members: { userId: string; joinedAt: D
   return data;
 }
 
-/** Gösterilecek seri: tam seri öncelikli; 3 günden azsa yok */
-export function streakTag(s: { n: number; full: number } | undefined) {
-  if (!s) return null;
+/** Gösterilecek seri: tam seri öncelikli; 3 günden azsa ya da grupta seriler kapalıysa yok */
+export function streakTag(s: { n: number; full: number } | undefined, enabled = true) {
+  if (!s || !enabled) return null;
   if (s.full >= STREAK_MIN) return { n: s.full, full: true };
   if (s.n >= STREAK_MIN) return { n: s.n, full: false };
   return null;
@@ -130,7 +130,7 @@ function startFor(range: HistoryRange, endKey: string, since: Date, g: G) {
 /** Kullanıcının yalnızca kendi geçmişi: tüm gruplar ve grup grup (+ seçilen aralıktan bağımsız okuma serisi) */
 export async function getMyHistory(userId: string, range: HistoryRange) {
   const db = getDb();
-  const memberships = await db.groupMember.findMany({ where: { userId, status: "ACTIVE" }, include: { group: true }, orderBy: { joinedAt: "asc" } });
+  const memberships = await db.groupMember.findMany({ where: { userId, status: "ACTIVE" }, include: { group: { include: { teams: true } } }, orderBy: { joinedAt: "asc" } });
   const now = new Date();
   const plans = memberships.map((m) => {
     const endKey = currentPeriod(now, m.group).dayKey;
@@ -146,7 +146,11 @@ export async function getMyHistory(userId: string, range: HistoryRange) {
     const mine = new Map(logs.filter((l) => l.groupId === m.groupId).map((l) => [l.dayKey, l]));
     const long = row(m.group, m.joinedAt, streakKey, endKey, mine, now);
     full.push(long);
-    return { group: { id: m.group.id, name: m.group.name }, ...row(m.group, m.joinedAt, startKey, endKey, mine, now), streak: streakOf(long.cells), fullStreak: fullStreakOf(long.cells) };
+    // Ekip çerçevesi gruba özel: yalnızca o grup seçiliyken gösterilir
+    const tier = (m.teamId && teamTiers(m.group).get(m.teamId)) || null;
+    // Grupta seriler kapalıysa seri gösterilmez
+    const on = m.group.streaksEnabled;
+    return { group: { id: m.group.id, name: m.group.name }, ...row(m.group, m.joinedAt, startKey, endKey, mine, now), streak: on ? streakOf(long.cells) : 0, fullStreak: on ? fullStreakOf(long.cells) : 0, tier };
   });
 
   const allCells = groups.length ? combine(full).cells : "";
@@ -159,7 +163,7 @@ export async function getGroupHistory(groupId: string, userId: string, range: Hi
   const db = getDb();
   const group = await db.group.findUnique({
     where: { id: groupId },
-    include: { members: { where: { status: "ACTIVE" }, include: { user: { select: { id: true, name: true, accountName: true, imageUrl: true } } }, orderBy: { joinedAt: "asc" } } },
+    include: { teams: true, members: { where: { status: "ACTIVE" }, include: { user: { select: { id: true, name: true, accountName: true, imageUrl: true } } }, orderBy: { joinedAt: "asc" } } },
   });
   const me = group?.members.find((m) => m.userId === userId);
   if (!group || !me) return null;
@@ -169,9 +173,17 @@ export async function getGroupHistory(groupId: string, userId: string, range: Hi
   const endKey = currentPeriod(now, group).dayKey;
   const startKey = startFor(range, endKey, group.createdAt, group);
   const logs = await db.readingLog.findMany({ where: { groupId, userId: { in: members.map((m) => m.userId) }, dayKey: { gte: startKey } } });
+  // Seri ve ekip çerçevesi yalnızca bu gruptaki okumalardan
+  const [streaks, tiers] = [await memberStreaks(group, group.members), teamTiers(group)];
   const rows = members.map((m) => {
     const mine = new Map(logs.filter((l) => l.userId === m.userId).map((l) => [l.dayKey, l]));
-    return { user: withShownName(m.user, group.nameDisplay), me: m.userId === userId, ...row(group, m.joinedAt, startKey, endKey, mine, now) };
+    return {
+      user: withShownName(m.user, group.nameDisplay),
+      me: m.userId === userId,
+      ...row(group, m.joinedAt, startKey, endKey, mine, now),
+      streak: streakTag(streaks.get(m.userId), group.streaksEnabled),
+      tier: (m.teamId && tiers.get(m.teamId)) || null,
+    };
   });
   return { range, limited: !full, shareProgress: group.shareProgress, rows };
 }

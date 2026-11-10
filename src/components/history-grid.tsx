@@ -1,5 +1,7 @@
 "use client";
 
+import { CELL_FRAME, type Tier } from "./tier";
+
 import { BookHeart, BookOpen, Check, CheckCheck, ChevronDown, Flame, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
@@ -37,7 +39,9 @@ function weeksOf(start: string, cells: string) {
 }
 
 /** Gün durumları kartın genişliğini boşluksuz doldurur: 7 gün şerit, 1 ay takvim, daha uzun aralık haftalık ısı haritası */
-export function HistoryGrid({ start, cells }: { start: string; cells: string }) {
+/** frame: ekip çerçevesi (altın / gümüş / bronz) kutucukların çevresinde; gruba özel */
+export function HistoryGrid({ start, cells, frame }: { start: string; cells: string; frame?: Tier | null }) {
+  const fr = frame ? CELL_FRAME[frame] : "";
   if (cells.length <= 14) {
     return (
       <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${cells.length}, minmax(0, 1fr))` }}>
@@ -47,7 +51,7 @@ export function HistoryGrid({ start, cells }: { start: string; cells: string }) 
           return (
             <div key={key} className="flex flex-col items-center gap-0.5" title={`${fmt(key)} · ${TITLE[c]}`}>
               <span className={`text-[10px] font-semibold leading-none ${today ? "text-primary" : "text-muted-foreground"}`}>{DOW[new Date(Date.parse(key)).getUTCDay()]}</span>
-              <span className={`flex h-7 w-full items-center justify-center rounded-md ${COLOR[c]} ${today ? "outline-2 outline-offset-1 outline-primary/60" : ""}`}>
+              <span className={`flex h-7 w-full items-center justify-center rounded-md ${COLOR[c]} ${c !== "-" ? fr : ""} ${today ? "outline-2 outline-offset-1 outline-primary/60" : ""}`}>
                 {c === "r" && <CheckCheck className="size-3.5 text-white" strokeWidth={3} />}
                 {c === "k" && <BookHeart className="size-3.5 text-white" strokeWidth={2.5} />}
                 {c === "m" && <Check className="size-3.5 text-white" strokeWidth={3} />}
@@ -77,7 +81,7 @@ export function HistoryGrid({ start, cells }: { start: string; cells: string }) 
           <span
             key={key}
             title={`${fmt(key)} · ${TITLE[c]}`}
-            className={`flex h-6 items-center justify-center rounded-md text-[11px] font-semibold ${COLOR[c]} ${TEXT[c]} ${today ? "outline-2 outline-offset-1 outline-primary/60" : ""}`}
+            className={`flex h-6 items-center justify-center rounded-md text-[11px] font-semibold ${COLOR[c]} ${TEXT[c]} ${c !== "-" && c !== "x" ? fr : ""} ${today ? "outline-2 outline-offset-1 outline-primary/60" : ""}`}
           >
             {Number(key.slice(8))}
           </span>
@@ -108,7 +112,7 @@ export function HistoryGrid({ start, cells }: { start: string; cells: string }) 
             {months[w]}
           </span>,
           ...days.slice(w * 7, w * 7 + 7).map(({ key, c, today }) => (
-            <span key={key} title={`${fmt(key)} · ${TITLE[c]}`} className={`aspect-square max-h-5 w-full rounded-[3px] ${COLOR[c]} ${today ? "outline-2 outline-offset-1 outline-primary/60" : ""}`} />
+            <span key={key} title={`${fmt(key)} · ${TITLE[c]}`} className={`aspect-square max-h-5 w-full rounded-[3px] ${COLOR[c]} ${frame && c !== "-" && c !== "x" ? { gold: "ring-1 ring-[#d4a017]", silver: "ring-1 ring-[#a7b1bc]", bronze: "ring-1 ring-[#b07040]/70" }[frame] : ""} ${today ? "outline-2 outline-offset-1 outline-primary/60" : ""}`} />
           )),
         ])}
       </div>

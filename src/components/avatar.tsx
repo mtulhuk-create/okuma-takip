@@ -1,4 +1,5 @@
 /* eslint-disable @next/next/no-img-element */
+import { AVATAR_FRAME, TIER_COLOR, TIER_LABEL, TIER_NOTCHES, type Tier } from "./tier";
 // Her kişiye sabit bir renk: açık modda açık, koyu modda koyu tonlar
 const COLORS = [
   "bg-rose-100 text-rose-800 dark:bg-rose-900/80 dark:text-rose-100",
@@ -28,27 +29,49 @@ export function isRealPhoto(src?: string | null): src is string {
  * Profil resmi: mail hesabından gelen fotoğraf varsa o; yoksa kişiye özel renkte,
  * hesap (mail) adının baş harfiyle sistem avatarı.
  */
-export function Avatar({ name, src, size = 36, ring = false, initial, seed }: { name: string; src?: string | null; size?: number; ring?: boolean; initial?: string; seed?: string }) {
+export function Avatar(props: { name: string; src?: string | null; size?: number; ring?: boolean; initial?: string; seed?: string; frame?: Tier | null }) {
+  const { frame, size = 36 } = props;
+  if (!frame) return <AvatarCore {...props} />;
+  // Halka üzerinde küçük baklava çıkıntılar (altın 4, gümüş 2, bronz yok)
+  const d = Math.max(4, Math.round(size * 0.17));
+  const pos = { top: { left: "50%", top: 0 }, bottom: { left: "50%", top: "100%" }, left: { left: 0, top: "50%" }, right: { left: "100%", top: "50%" } } as const;
+  return (
+    <span className="relative inline-flex shrink-0">
+      <AvatarCore {...props} />
+      {TIER_NOTCHES[frame].map((p) => (
+        <span
+          key={p}
+          aria-hidden
+          className="pointer-events-none absolute rotate-45 rounded-[1px] border border-card"
+          style={{ ...pos[p], width: d, height: d, marginLeft: -d / 2, marginTop: -d / 2, backgroundColor: TIER_COLOR[frame] }}
+        />
+      ))}
+    </span>
+  );
+}
+
+function AvatarCore({ name, src, size = 36, ring = false, initial, seed, frame }: { name: string; src?: string | null; size?: number; ring?: boolean; initial?: string; seed?: string; frame?: Tier | null }) {
   const letter = (initial || name.trim().match(/\p{L}|\d/u)?.[0] || "?").toLocaleUpperCase("tr-TR");
-  const cls = `shrink-0 rounded-full ${ring ? "ring-2 ring-card" : ""}`;
+  // Ekip çerçevesi (altın / gümüş / bronz) üst üste dizilimdeki ayırıcı halkanın yerine geçer
+  const cls = `shrink-0 rounded-full ${frame ? AVATAR_FRAME[frame] : ring ? "ring-2 ring-card" : ""}`;
   return isRealPhoto(src) ? (
-    <img src={src} alt={name} width={size} height={size} loading="lazy" className={`${cls} object-cover`} style={{ width: size, height: size }} />
+    <img src={src} alt={name} title={frame ? TIER_LABEL[frame] : undefined} width={size} height={size} loading="lazy" className={`${cls} object-cover`} style={{ width: size, height: size }} />
   ) : (
-    <span className={`${cls} inline-flex items-center justify-center font-serif font-bold ${colorFor(seed || name)}`} style={{ width: size, height: size, fontSize: size * 0.44 }} aria-label={name}>
+    <span className={`${cls} inline-flex items-center justify-center font-serif font-bold ${colorFor(seed || name)}`} style={{ width: size, height: size, fontSize: size * 0.44 }} aria-label={name} title={frame ? TIER_LABEL[frame] : undefined}>
       {letter}
     </span>
   );
 }
 
 /** Üst üste binmiş profil resimleri */
-export function AvatarStack({ people, size = 28, max = 5 }: { people: { id: string; name: string; imageUrl: string | null; initial?: string }[]; size?: number; max?: number }) {
+export function AvatarStack({ people, size = 28, max = 5 }: { people: { id: string; name: string; imageUrl: string | null; initial?: string; tier?: Tier }[]; size?: number; max?: number }) {
   const shown = people.slice(0, max);
   const rest = people.length - shown.length;
   return (
     <span className="flex items-center">
       {shown.map((p, i) => (
         <span key={p.id} className={i > 0 ? "-ml-2" : ""}>
-          <Avatar name={p.name} src={p.imageUrl} initial={p.initial} seed={p.id} size={size} ring />
+          <Avatar name={p.name} src={p.imageUrl} initial={p.initial} seed={p.id} size={size} ring frame={p.tier} />
         </span>
       ))}
       {rest > 0 && (
