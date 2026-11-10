@@ -103,7 +103,7 @@ export function PushToggle({ compact = false }: { compact?: boolean }) {
       {state === "off" && (
         <div className="flex items-center justify-between gap-3">
           <p className="flex items-center gap-2 text-sm">
-            <BellRing className="size-4 shrink-0 text-primary" /> Gün kartı, hatırlatma ve geri sayım bildirimlerini aç
+            <BellRing className="size-4 shrink-0 text-primary" /> Gün kartı, hatırlatma ve grup mesajı bildirimlerini aç
           </p>
           <button className="btn-primary btn-sm" onClick={enable} disabled={busy}>
             {busy ? "Açılıyor…" : "Aç"}

@@ -1,12 +1,13 @@
 import { Check, Plus, Tag, X } from "lucide-react-native";
 import { memo, useState } from "react";
-import { Alert, Pressable, Text, TextInput, View } from "react-native";
+import { Pressable, Text, TextInput, View } from "react-native";
 import { useAction } from "@/lib/api";
 import { fonts, useColors } from "@/lib/theme";
 import { LITE } from "@/lib/variant";
 import type { BadgeView } from "@/lib/types";
 import { BadgeChip } from "../badge-chip";
 import { Countdown } from "../countdown";
+import { showAlert } from "@/lib/dialog";
 
 const ORANGE = "#f97316";
 
@@ -16,7 +17,7 @@ export const BadgeCard = memo(function BadgeCard({ b }: { b: BadgeView }) {
 });
 
 function confirmThen(title: string, onOk: () => void) {
-  Alert.alert(title, undefined, [
+  showAlert(title, undefined, [
     { text: "Vazgeç", style: "cancel" },
     { text: "Evet", style: "destructive", onPress: onOk },
   ]);

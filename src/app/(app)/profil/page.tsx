@@ -61,7 +61,7 @@ export default async function ProfilePage() {
             <Bell className="size-4 text-primary" /> Bildirimler
           </p>
           <PushToggle />
-          <p className="mt-2 text-xs text-muted-foreground">Uyarı grubun belirlediği saatte, geri sayım son 10 dakikada gelir. Butonlarla uygulamayı açmadan bildirebilirsin.</p>
+          <p className="mt-2 text-xs text-muted-foreground">Yalnızca gün kartı, okuma hatırlatmaları (grubun belirlediği saatte ve son 10 dakikada) ve grup mesajları bildirilir. Butonlarla uygulamayı açmadan bildirebilirsin.</p>
         </div>
       </section>
 

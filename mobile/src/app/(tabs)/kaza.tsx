@@ -1,6 +1,6 @@
 import { Bell, Calculator, Check, ChevronRight, Flame, MoonStar, Target, X } from "lucide-react-native";
 import { useEffect, useState } from "react";
-import { Alert, Modal, Pressable, ScrollView, Switch, Text, View } from "react-native";
+import { Modal, Pressable, ScrollView, Switch, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { fmt, PrayerGrid, StatsTable, UndoBar, useKaza } from "@/components/kaza";
 import { Button, Card, ErrorView, H1, Input, Label, Loading, Muted, Row, Screen, Segmented } from "@/components/ui";
@@ -9,6 +9,7 @@ import { calcKaza, getKazaStickyPref, KAZA, parseDate, PRAYER_INFO, PRAYERS, set
 import { fonts, useColors } from "@/lib/theme";
 import { LITE } from "@/lib/variant";
 import { kazaNotificationAvailable } from "../../../modules/day-card-notification";
+import { showAlert } from "@/lib/dialog";
 
 const fmtDate = (d: Date) => `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.${d.getFullYear()}`;
 
@@ -222,7 +223,7 @@ function Settings({ s, onGoal, onCalc, onDisable }: { s: KazaState; onGoal: (g: 
       )}
       <Pressable
         onPress={() =>
-          Alert.alert("Kaza takibi kapatılsın mı?", "Sayıların silinmez; istediğinde yeniden açabilirsin.", [
+          showAlert("Kaza takibi kapatılsın mı?", "Sayıların silinmez; istediğinde yeniden açabilirsin.", [
             { text: "Vazgeç", style: "cancel" },
             { text: "Kapat", style: "destructive", onPress: onDisable },
           ])
@@ -353,7 +354,7 @@ function Calc({ onApply }: { onApply: (counts: Counts, mode: "replace" | "add") 
               style={{ flex: 1, backgroundColor: KAZA, borderColor: KAZA }}
               disabled={!r.total}
               onPress={() =>
-                Alert.alert("Kalan kazaların değişsin mi?", `Her vakit için ${fmt(r.perPrayer)} kaza yazılacak. Kılınan sayıların korunur.`, [
+                showAlert("Kalan kazaların değişsin mi?", `Her vakit için ${fmt(r.perPrayer)} kaza yazılacak. Kılınan sayıların korunur.`, [
                   { text: "Vazgeç", style: "cancel" },
                   { text: "Evet", onPress: () => onApply(r.counts, "replace") },
                 ])

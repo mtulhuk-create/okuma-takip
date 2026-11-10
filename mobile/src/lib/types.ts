@@ -229,7 +229,7 @@ export type BadgeView = {
 };
 export type ChatMessage = {
   id: string;
-  kind: "TEXT" | "DAY" | "POLL" | "BADGE";
+  kind: "TEXT" | "DAY" | "POLL" | "BADGE" | "IMAGE";
   text: string | null;
   createdAt: string;
   user: { id: string; name: string; imageUrl: string | null; initial?: string; badge?: BadgeTag | null; streak?: StreakTag | null; tier?: Tier | null } | null;
@@ -238,8 +238,12 @@ export type ChatMessage = {
   badge?: BadgeView | null;
   /** İfadeler: ifade başına sayı, benim mi, kimler (eski sunucuda yok) */
   reactions?: { emoji: string; count: number; mine: boolean; names: string[] }[];
+  /** Fotoğraf: küçük ve büyük sürüm adresi, gerçek boyut (oran için) */
+  image?: { thumb: string; full: string; w: number; h: number } | null;
   pending?: boolean;
   failed?: boolean;
+  /** Fotoğraf yüklenirken ilerleme (0-1) */
+  progress?: number;
 };
 export type Debt = { group: { id: string; name: string; iban: string; ibanName: string }; amount: number; due: (DueInfo & { id: string; amount: number }) | null };
 export type GroupCash = {
@@ -260,7 +264,7 @@ export type ChatResponse = {
   group: { id: string; name: string; chatPolicy: "ALL" | "ADMINS"; memberCount: number; deadlineMinute: number; today?: string };
   kasa?: GroupCash | null;
   todayCard?: DayCard | null;
-  me: { userId: string; role: Member["role"]; canPost: boolean };
+  me: { userId: string; role: Member["role"]; canPost: boolean; canPhoto?: boolean };
   messages: ChatMessage[];
   hasMore: boolean;
 };

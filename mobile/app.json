@@ -2,7 +2,7 @@
   "expo": {
     "name": "Okuma Takip",
     "slug": "okuma-takip",
-    "version": "2.6.0",
+    "version": "2.7.2",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "okumatakip",
@@ -14,7 +14,7 @@
     },
     "android": {
       "package": "com.okumatakip.app",
-      "versionCode": 46,
+      "versionCode": 49,
       "adaptiveIcon": {
         "backgroundColor": "#FAF7F5",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -54,6 +54,14 @@
       ],
       "@clerk/expo",
       "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Gruba fotoğraf göndermek için galerine erişim gerekiyor.",
+          "cameraPermission": "Gruba fotoğraf çekip göndermek için kamera izni gerekiyor.",
+          "microphonePermission": false
+        }
+      ],
       "@react-native-community/datetimepicker",
       "./plugins/with-release-signing",
       "./plugins/with-crash-log",
@@ -71,7 +79,8 @@
             ]
           }
         }
-      ]
+      ],
+      "expo-background-task"
     ],
     "experiments": {
       "typedRoutes": false,

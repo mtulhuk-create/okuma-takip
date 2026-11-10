@@ -291,7 +291,7 @@ export function GroupForm({ group }: { group?: Group & { teams?: Team[] } }) {
         <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
           Her gün <b className="text-foreground">{minuteToTime(start)}</b>&apos;de başlar, {nextDay ? "ertesi gün " : ""}
           <b className="text-foreground">{minuteToTime(deadline)}</b>&apos;de kapanır.
-          {reminderHours > 0 && ` ${reminderHours} saat önce uyarı,`} son 10 dakikada geri sayım bildirimi gelir.
+          {reminderHours > 0 && ` ${reminderHours} saat önce uyarı,`} son 10 dakika kala son çağrı gelir.
         </p>
       </Section>
 

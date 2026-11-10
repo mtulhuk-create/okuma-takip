@@ -2,7 +2,7 @@ import { useClerk } from "@clerk/expo";
 import * as Application from "expo-application";
 import * as Notifications from "expo-notifications";
 import { useEffect, useState } from "react";
-import { Alert, AppState, Linking, Platform, Switch, Text, View } from "react-native";
+import { AppState, Linking, Platform, Switch, Text, View } from "react-native";
 import { AppIconPicker } from "@/components/app-icon-picker";
 import { NameSheet } from "@/components/name-sheet";
 import { Avatar, Body, Button, Card, ErrorView, H1, Loading, Muted, Row, Screen, Segmented, Stat, Title } from "@/components/ui";
@@ -11,10 +11,13 @@ import { LITE } from "@/lib/variant";
 import { exactAlarmsAllowed, getLastSync, getStickyPref, requestExactAlarms, scheduledSummary, sendTestNotification, setStickyPref, setupNotifications, syncSchedule, SCHEDULE_PATH } from "@/lib/notifications";
 import { useThemePref } from "@/lib/theme-pref";
 import { setKazaStickyPref } from "@/lib/kaza";
+import { getMessagePref, markInboxSeen, setMessagePref } from "@/lib/inbox";
+import { setInboxTask } from "@/lib/inbox-task";
 import { hideAllDayCardNotifications, hideKazaNotification, scheduleDayCardNotificationsJson } from "../../../modules/day-card-notification";
 import { Bell, BookOpen, CalendarCheck, LogOut, Monitor, Moon, Palette, Pencil, Sun, Users, Wallet } from "lucide-react-native";
 import { fonts, useColors } from "@/lib/theme";
 import type { ProfileResponse } from "@/lib/types";
+import { showAlert } from "@/lib/dialog";
 
 export default function ProfileScreen() {
   const { signOut } = useClerk();
@@ -23,6 +26,7 @@ export default function ProfileScreen() {
   const { pref, setPref } = useThemePref();
   const [editName, setEditName] = useState(false);
   const [sticky, setSticky] = useState(false);
+  const [msgNotify, setMsgNotify] = useState(true);
   const [status, setStatus] = useState<{ count: number; next: Date | null; error: string | null } | null>(null);
   const c = useColors();
 
@@ -40,6 +44,7 @@ export default function ProfileScreen() {
     };
     check();
     getStickyPref().then((v) => alive && setSticky(v));
+    getMessagePref().then((v) => alive && setMsgNotify(v));
     refreshStatus();
     // Telefon ayarlarından dönünce izinleri yeniden kontrol et
     const sub = AppState.addEventListener("change", (st) => st === "active" && check());
@@ -62,7 +67,7 @@ export default function ProfileScreen() {
     if (!r.granted) {
       const asked = await Notifications.requestPermissionsAsync();
       if (!asked.granted) {
-        Alert.alert("Bildirim izni kapalı", "Telefon ayarlarında Okuma Takip için “Bildirimlere izin ver”i aç. Sonra uygulamaya geri dön.", [
+        showAlert("Bildirim izni kapalı", "Telefon ayarlarında Okuma Takip için “Bildirimlere izin ver”i aç. Sonra uygulamaya geri dön.", [
           { text: "Vazgeç", style: "cancel" },
           { text: "Ayarları aç", onPress: () => Linking.openSettings() },
         ]);
@@ -120,7 +125,7 @@ export default function ProfileScreen() {
           <Title>Bildirimler</Title>
         </Row>
         <Body>
-          Her okuma günü başlarken gün kartı bildirimi gelir; uyarı grubun belirlediği saatte, geri sayım son 10 dakikada başlar. Bildirimdeki Okudum / Alt sınır / Okumadım butonlarıyla uygulamayı açmadan bildirebilirsin.
+          Telefonuna yalnızca üç tür bildirim gelir: kilit ekranındaki sabit gün/kaza kartı, okuma hatırlatmaları (grubun belirlediği saatte ve son 10 dakikada) ve gruplara yazılan mesajlar.
         </Body>
         {perm && !perm.notif && <Button title="Bildirimleri aç" onPress={enableNotifications} />}
         {perm && perm.notif && !perm.exact && (
@@ -147,6 +152,25 @@ export default function ProfileScreen() {
                 await setStickyPref(v);
                 await setupNotifications().catch(() => {});
                 await refreshStatus(true);
+              }}
+              trackColor={{ true: c.primary, false: c.muted }}
+              thumbColor="#fff"
+            />
+          </Row>
+        )}
+        {perm?.notif && (
+          <Row style={{ justifyContent: "space-between", borderTopWidth: 1, borderTopColor: c.border, paddingTop: 10 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontFamily: fonts.semibold, fontSize: 14, color: c.foreground }}>Grup mesajları</Text>
+              <Muted>Okuyucuların grup sohbetine yazdığı mesajlar, fotoğraflar ve anketler bildirim olarak gelir. Uygulama kapalıyken telefon izin verdikçe (yaklaşık 15 dakikada bir) kontrol edilir.</Muted>
+            </View>
+            <Switch
+              value={msgNotify}
+              onValueChange={async (v) => {
+                setMsgNotify(v);
+                await setMessagePref(v);
+                await setInboxTask(v);
+                if (v) markInboxSeen();
               }}
               trackColor={{ true: c.primary, false: c.muted }}
               thumbColor="#fff"
@@ -203,7 +227,7 @@ export default function ProfileScreen() {
         variant="ghost"
         textColor="#991b1b"
         onPress={() =>
-          Alert.alert("Çıkış yap", "Hesabından çıkmak istiyor musun?", [
+          showAlert("Çıkış yap", "Hesabından çıkmak istiyor musun?", [
             { text: "Vazgeç", style: "cancel" },
             {
               text: "Çıkış yap",

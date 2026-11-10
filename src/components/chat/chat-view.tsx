@@ -1,9 +1,10 @@
 "use client";
 
-import { ArrowDown, ArrowLeft, BarChart3, CalendarRange, ChevronDown, Info, Landmark, Lock, SendHorizontal, Settings } from "lucide-react";
+import { ArrowDown, ArrowLeft, BarChart3, CalendarRange, ChevronDown, ImagePlus, Info, Landmark, Lock, SendHorizontal, Settings, X } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { sendMessage } from "@/app/actions";
+import { mediaTicket, sendImage, sendMessage } from "@/app/actions";
+import { compressImage, uploadImage } from "@/lib/image-upload";
 import type { ChatPage } from "@/lib/chat";
 import { formatDayLong } from "@/lib/schedule";
 import { DayCardFull, DayShortcut } from "../day-card";
@@ -11,7 +12,7 @@ import { Countdown } from "../countdown";
 import { DueBadge } from "../due-badge";
 import { PaySheet } from "../pay-sheet";
 import { BadgeCard } from "./badge-card";
-import { Bubble, PollBody, type UiMessage } from "./message-items";
+import { Bubble, ChatImage, PollBody, type UiMessage } from "./message-items";
 import { GroupHistory } from "./group-history";
 import { PollDialog } from "./poll-dialog";
 
@@ -41,6 +42,9 @@ export function ChatView({ initial }: { initial: Page }) {
   const [me, setMe] = useState(initial.me!);
   const [text, setText] = useState("");
   const [pollOpen, setPollOpen] = useState(false);
+  const [photo, setPhoto] = useState<{ file: File; preview: string } | null>(null);
+  const [caption, setCaption] = useState("");
+  const fileInput = useRef<HTMLInputElement>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [atBottom, setAtBottom] = useState(true);
   const [live, setLive] = useState(false);
@@ -153,7 +157,7 @@ export function ChatView({ initial }: { initial: Page }) {
       if (ev.type === "message") {
         setMessages((prev) => {
           if (prev.some((m) => m.id === ev.message.id)) return prev;
-          const tmp = prev.find((m) => m.pending && m.text === ev.message.text && m.user?.id === ev.message.user.id);
+          const tmp = prev.find((m) => m.pending && m.kind === ev.message.kind && m.text === ev.message.text && m.user?.id === ev.message.user.id);
           return tmp ? prev.map((m) => (m === tmp ? ev.message : m)) : [...prev, ev.message];
         });
       } else scheduleRefresh();
@@ -182,6 +186,7 @@ export function ChatView({ initial }: { initial: Page }) {
       day: null,
       poll: null,
       badge: null,
+      image: null,
       reactions: [],
       pending: true,
     };
@@ -193,6 +198,54 @@ export function ChatView({ initial }: { initial: Page }) {
     setMessages((prev) =>
       prev.map((m) => (m.id === tmp.id ? (res?.ok ? { ...m, id: res.id ?? m.id, pending: false } : { ...m, pending: false, failed: true }) : m)),
     );
+  }
+
+  /** Fotoğraf: tarayıcıda küçültülür, doğrudan Cloudinary'ye yüklenir; sunucuya yalnızca adresi gider */
+  async function sendPhoto() {
+    if (!photo) return;
+    const { file, preview } = photo;
+    const note = caption.trim() || null;
+    setPhoto(null);
+    setCaption("");
+    stickBottom.current = true;
+    const id = `tmp-${Date.now()}`;
+    const patch = (p: Partial<UiMessage>) => setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, ...p } : m)));
+    setMessages((prev) => [
+      ...prev,
+      {
+        id,
+        kind: "IMAGE",
+        text: note,
+        createdAt: new Date().toISOString(),
+        user: { id: me.userId, name: "", imageUrl: null, initial: "", badge: null, streak: null, tier: null },
+        mine: true,
+        day: null,
+        poll: null,
+        badge: null,
+        image: { thumb: preview, full: preview, w: 4, h: 3 },
+        reactions: [],
+        pending: true,
+        progress: 0,
+      },
+    ]);
+    try {
+      const { blob, w, h } = await compressImage(file);
+      patch({ image: { thumb: preview, full: preview, w, h } });
+      const ticket = await mediaTicket(groupId);
+      const url = await uploadImage(ticket, blob, (progress) => patch({ progress }));
+      const fd = new FormData();
+      fd.set("groupId", groupId);
+      fd.set("url", url);
+      fd.set("w", String(w));
+      fd.set("h", String(h));
+      if (note) fd.set("text", note);
+      const res = await sendImage(null, fd);
+      if (!res?.ok) throw new Error(res?.error ?? "Fotoğraf gönderilemedi");
+      patch({ id: res.id ?? id, pending: false });
+    } catch (e) {
+      patch({ pending: false, failed: true });
+      alert(e instanceof Error ? e.message : "Fotoğraf gönderilemedi");
+    }
   }
 
   const isAdmin = me.role === "ADMIN";
@@ -344,6 +397,8 @@ export function ChatView({ initial }: { initial: Page }) {
                 <Bubble m={m} mine={mine} showAuthor={!!showAuthor} canDelete={canDelete} onChanged={refresh}>
                   {m.kind === "POLL" && m.poll ? (
                     <PollBody m={m} mine={mine} onChanged={refresh} />
+                  ) : m.kind === "IMAGE" ? (
+                    <ChatImage m={m} />
                   ) : (
                     <p className="whitespace-pre-wrap break-words text-[15px] leading-snug">
                       {m.text}
@@ -378,6 +433,26 @@ export function ChatView({ initial }: { initial: Page }) {
                 <button type="button" className="btn-icon size-10 shrink-0 rounded-full" onClick={() => setPollOpen(true)} aria-label="Anket oluştur" title="Anket">
                   <BarChart3 />
                 </button>
+                {me.canPhoto && (
+                  <button type="button" className="btn-icon -ml-1 size-10 shrink-0 rounded-full" onClick={() => fileInput.current?.click()} aria-label="Fotoğraf gönder" title="Fotoğraf">
+                    <ImagePlus />
+                  </button>
+                )}
+                <input
+                  ref={fileInput}
+                  type="file"
+                  accept="image/*"
+                  hidden
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = "";
+                    if (!file) return;
+                    if (!file.type.startsWith("image/")) return alert("Yalnızca fotoğraf gönderilebilir");
+                    if (file.size > 25 * 1024 * 1024) return alert("Fotoğraf çok büyük (en fazla 25 MB)");
+                    setCaption(text.trim());
+                    setPhoto({ file, preview: URL.createObjectURL(file) });
+                  }}
+                />
                 <textarea
                   value={text}
                   onChange={(e) => setText(e.target.value)}
@@ -405,6 +480,46 @@ export function ChatView({ initial }: { initial: Page }) {
         </div>
       </footer>
 
+      {photo && (
+        <div className="fixed inset-0 z-[60] flex flex-col bg-black/90" role="dialog" aria-label="Fotoğraf gönder">
+          <div className="flex items-center justify-end p-2">
+            <button
+              className="btn-icon text-white hover:bg-white/10"
+              aria-label="Vazgeç"
+              onClick={() => {
+                URL.revokeObjectURL(photo.preview);
+                setPhoto(null);
+              }}
+            >
+              <X />
+            </button>
+          </div>
+          <div className="flex min-h-0 flex-1 items-center justify-center p-3">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={photo.preview} alt="" className="max-h-full max-w-full rounded object-contain" />
+          </div>
+          <form
+            className="pb-safe mx-auto flex w-full max-w-3xl items-end gap-1.5 p-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (caption.trim() === text.trim()) setText("");
+              sendPhoto();
+            }}
+          >
+            <input
+              value={caption}
+              onChange={(e) => setCaption(e.target.value)}
+              maxLength={1000}
+              placeholder="Açıklama ekle (isteğe bağlı)"
+              className="h-11 min-w-0 flex-1 rounded-full bg-card px-4 text-[15px] outline-none placeholder:text-muted-foreground"
+              autoFocus
+            />
+            <button type="submit" className="btn-primary size-11 shrink-0 rounded-full p-0 shadow-md [&_svg]:size-5" aria-label="Gönder">
+              <SendHorizontal />
+            </button>
+          </form>
+        </div>
+      )}
       {pollOpen && <PollDialog groupId={groupId} onClose={() => setPollOpen(false)} onCreated={refresh} />}
       {historyOpen && <GroupHistory groupId={groupId} onClose={() => setHistoryOpen(false)} />}
       {payOpen && <PaySheet title="Borcunu öde" items={payItems} onClose={() => setPayOpen(false)} />}

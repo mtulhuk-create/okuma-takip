@@ -1,14 +1,16 @@
 import { memo, useState } from "react";
 import { Check, Copy, Trash2 } from "lucide-react-native";
-import { Alert, Modal, Pressable, Text, View } from "react-native";
+import { Modal, Pressable, Text, View } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { toast, useAction } from "@/lib/api";
 import { formatClock } from "@/lib/format";
 import { fonts, useColors } from "@/lib/theme";
 import type { ChatMessage } from "@/lib/types";
 import { BadgeChip } from "../badge-chip";
-import { StreakChip } from "../history";
+import { StreakFlame } from "../day-card";
 import { Avatar } from "../ui";
+import { ChatPhoto } from "./photo";
+import { showAlert } from "@/lib/dialog";
 
 const NAME_COLORS = ["#be123c", "#b45309", "#047857", "#0369a1", "#6d28d9", "#c2410c", "#0f766e"];
 const nameColor = (id: string) => {
@@ -39,7 +41,7 @@ export const MessageBubble = memo(function MessageBubble({ m, mine, showAuthor, 
   // Sunucudan yeni veri gelene kadar benim ifadem anında görünür
   const [over, setOver] = useState<{ base: ChatMessage["reactions"]; value: Reaction[] } | null>(null);
   const reactions = over && over.base === m.reactions ? over.value : (m.reactions ?? []);
-  const canReact = !m.pending && !m.failed && (m.kind === "TEXT" || m.kind === "POLL");
+  const canReact = !m.pending && !m.failed && (m.kind === "TEXT" || m.kind === "POLL" || m.kind === "IMAGE");
   const react = (emoji: string) => {
     setMenu(false);
     setOver({ base: m.reactions, value: toggleReaction(reactions, emoji) });
@@ -47,7 +49,7 @@ export const MessageBubble = memo(function MessageBubble({ m, mine, showAuthor, 
   };
   const remove = () => {
     setMenu(false);
-    Alert.alert("Mesajı sil", mine ? "Mesajın herkes için silinsin mi?" : `${m.user?.name ?? "Bu kişinin"} mesajı herkes için silinsin mi?`, [
+    showAlert("Mesajı sil", mine ? "Mesajın herkes için silinsin mi?" : `${m.user?.name ?? "Bu kişinin"} mesajı herkes için silinsin mi?`, [
       { text: "Vazgeç", style: "cancel" },
       { text: "Sil", style: "destructive", onPress: () => action.mutate({ name: "deleteMessage", body: { messageId: m.id } }) },
     ]);
@@ -107,8 +109,9 @@ export const MessageBubble = memo(function MessageBubble({ m, mine, showAuthor, 
             <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: fonts.bold, fontSize: 12, color: nameColor(m.user.id) }}>
               {m.user.name}
             </Text>
+            {/* Seri: ismin hemen sağında, aynı hizada dik alev; içinde gün sayısı */}
+            <StreakFlame s={m.user.streak} inline />
             {m.user.badge && <BadgeChip tag={m.user.badge} />}
-            <StreakChip s={m.user.streak} />
           </View>
         )}
         {poll ? (
@@ -133,11 +136,13 @@ export const MessageBubble = memo(function MessageBubble({ m, mine, showAuthor, 
             ))}
             <Text style={{ fontFamily: fonts.regular, fontSize: 11, color: sub }}>{poll.voters} kişi oy verdi</Text>
           </View>
+        ) : m.kind === "IMAGE" && m.image ? (
+          <ChatPhoto m={m} color={fg} />
         ) : (
           <Text style={{ fontFamily: fonts.regular, fontSize: 15, lineHeight: 20, color: fg }}>{m.text}</Text>
         )}
         <View style={{ flexDirection: "row", alignItems: "center", gap: 2, alignSelf: "flex-end", marginTop: 1 }}>
-          <Text style={{ fontFamily: fonts.regular, fontSize: 10, color: sub }}>{m.failed ? "Gönderilemedi" : m.pending ? "Gönderiliyor…" : formatClock(m.createdAt)}</Text>
+          <Text style={{ fontFamily: fonts.regular, fontSize: 10, color: sub }}>{m.failed ? "Gönderilemedi" : m.pending ? (m.kind === "IMAGE" ? "Yükleniyor…" : "Gönderiliyor…") : formatClock(m.createdAt)}</Text>
           {mine && !m.pending && !m.failed && <Check size={11} color={sub} strokeWidth={2.5} />}
         </View>
       </Pressable>
@@ -148,7 +153,7 @@ export const MessageBubble = memo(function MessageBubble({ m, mine, showAuthor, 
             <Pressable
               key={r.emoji}
               onPress={() => canReact && react(r.emoji)}
-              onLongPress={() => Alert.alert(`${r.emoji} ${r.count}`, r.names.join("\n"))}
+              onLongPress={() => showAlert(`${r.emoji} ${r.count}`, r.names.join("\n"))}
               hitSlop={4}
               style={({ pressed }) => ({
                 flexDirection: "row",

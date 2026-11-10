@@ -13,13 +13,14 @@ import * as Clipboard from "expo-clipboard";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
-import { Alert, Pressable, ScrollView, Text, useColorScheme, View } from "react-native";
+import { Pressable, ScrollView, Text, useColorScheme, View } from "react-native";
 import { installCrashLogger, takeLastCrash } from "@/lib/crash";
 import { NotificationBridge } from "@/components/notification-bridge";
 import { OfflineSync } from "@/components/offline-sync";
 import { CLERK_PUBLISHABLE_KEY } from "@/lib/config";
 import { fonts, useColors } from "@/lib/theme";
 import { loadThemePref } from "@/lib/theme-pref";
+import { DialogHost, showAlert } from "@/lib/dialog";
 
 installCrashLogger();
 SplashScreen.preventAutoHideAsync();
@@ -75,6 +76,7 @@ export default function RootLayout() {
     <ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY} tokenCache={tokenCache} __experimental_resourceCache={resourceCache}>
       <PersistQueryClientProvider client={queryClient} persistOptions={{ persister, maxAge: WEEK, buster: "1", dehydrateOptions: { shouldDehydrateQuery: shouldPersist } }}>
         {fontsLoaded && <Navigation />}
+        {fontsLoaded && <DialogHost />}
       </PersistQueryClientProvider>
     </ClerkProvider>
   );
@@ -93,7 +95,7 @@ function Navigation() {
     takeLastCrash().then((crash) => {
       if (!crash) return;
       const text = `${crash.msg}\n\n${crash.stack.slice(0, 1500)}`;
-      Alert.alert("Uygulama son kullanımda hata verdi", `${text}\n\nBu mesajın ekran görüntüsünü paylaşırsan sorunu çözebiliriz.`, [
+      showAlert("Uygulama son kullanımda hata verdi", `${text}\n\nBu mesajın ekran görüntüsünü paylaşırsan sorunu çözebiliriz.`, [
         { text: "Kopyala", onPress: () => Clipboard.setStringAsync(text) },
         { text: "Tamam" },
       ]);

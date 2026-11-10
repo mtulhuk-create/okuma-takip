@@ -20,7 +20,7 @@ export async function GET(req: Request) {
   if (!memberships.length) return Response.json({ now: new Date().toISOString(), messages: [] });
   const groups = new Map(memberships.map((m) => [m.groupId, m.group]));
   const rows = await db.message.findMany({
-    where: { groupId: { in: [...groups.keys()] }, kind: { in: ["TEXT", "POLL"] }, userId: { not: userId }, createdAt: { gt: after } },
+    where: { groupId: { in: [...groups.keys()] }, kind: { in: ["TEXT", "POLL", "IMAGE"] }, userId: { not: userId }, createdAt: { gt: after } },
     orderBy: { createdAt: "asc" },
     take: 50,
     select: { id: true, groupId: true, kind: true, text: true, createdAt: true, user: { select: { name: true, accountName: true } }, poll: { select: { question: true } } },
@@ -34,7 +34,7 @@ export async function GET(req: Request) {
         groupId: m.groupId,
         groupName: g.name,
         author: m.user ? shownName(m.user, g.nameDisplay) : "",
-        text: m.kind === "POLL" ? `📊 ${m.poll?.question ?? "Anket"}` : (m.text ?? "").slice(0, 200),
+        text: m.kind === "POLL" ? `📊 ${m.poll?.question ?? "Anket"}` : m.kind === "IMAGE" ? `📷 ${m.text ?? "Fotoğraf"}`.slice(0, 200) : (m.text ?? "").slice(0, 200),
         createdAt: m.createdAt.toISOString(),
       };
     }),

@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, Stack, useFocusEffect, useLocalSearchParams, useNavigation } from "expo-router";
-import { BarChart3, CalendarRange, ChevronDown, Info, Landmark, Lock, SendHorizontal, Settings } from "lucide-react-native";
+import { BarChart3, CalendarRange, ChevronDown, ImagePlus, Info, Landmark, Lock, SendHorizontal, Settings } from "lucide-react-native";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppState, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import Animated, { useAnimatedKeyboard, useAnimatedStyle } from "react-native-reanimated";
@@ -8,6 +8,7 @@ import Svg, { Defs, Path, Pattern, Rect } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BadgeCard } from "@/components/chat/badge-card";
 import { MessageBubble } from "@/components/chat/message";
+import { PhotoSendSheet } from "@/components/chat/photo";
 import { PollModal } from "@/components/chat/poll-modal";
 import { DayCardFull, DayShortcut } from "@/components/day-card";
 import { Countdown } from "@/components/countdown";
@@ -19,8 +20,11 @@ import { ErrorView, Loading, Row } from "@/components/ui";
 import { ApiError, useAction, useApiFetch } from "@/lib/api";
 import { formatDayLong } from "@/lib/format";
 import { fonts, useColors } from "@/lib/theme";
+import { setOpenChat } from "@/lib/inbox";
+import { compressPhoto, pickPhoto, uploadPhoto, type Picked, type Ticket } from "@/lib/photo";
 import { LITE } from "@/lib/variant";
 import type { ChatMessage, ChatResponse } from "@/lib/types";
+import { showAlert } from "@/lib/dialog";
 
 const trDay = (iso: string) => new Date(new Date(iso).getTime() + 3 * 3_600_000).toISOString().slice(0, 10);
 function dayLabel(day: string) {
@@ -55,7 +59,7 @@ const DaySeparator = memo(function DaySeparator({ dayKey }: { dayKey: string }) 
 });
 
 /** Mesaj yazma alanı: yazılan metin yalnızca burada tutulur, sohbet listesi her harfte yeniden çizilmez */
-function Composer({ canPost, onSend, onPoll }: { canPost: boolean; onSend: (text: string) => void; onPoll: () => void }) {
+function Composer({ canPost, onSend, onPoll, onPhoto }: { canPost: boolean; onSend: (text: string) => void; onPoll: () => void; onPhoto?: (draft: string, clear: () => void) => void }) {
   const c = useColors();
   const insets = useSafeAreaInsets();
   const [text, setText] = useState("");
@@ -78,6 +82,11 @@ function Composer({ canPost, onSend, onPoll }: { canPost: boolean; onSend: (text
             <Pressable onPress={onPoll} hitSlop={6} accessibilityLabel="Anket oluştur" style={{ width: 40, height: 46, alignItems: "center", justifyContent: "center" }}>
               <BarChart3 size={21} color={c.mutedForeground} />
             </Pressable>
+            {onPhoto && (
+              <Pressable onPress={() => onPhoto(text.trim(), () => setText(""))} hitSlop={6} accessibilityLabel="Fotoğraf gönder" style={{ width: 36, height: 46, marginLeft: -4, alignItems: "center", justifyContent: "center" }}>
+                <ImagePlus size={21} color={c.mutedForeground} />
+              </Pressable>
+            )}
             <TextInput
               value={text}
               onChangeText={setText}
@@ -112,6 +121,7 @@ export default function ChatScreen() {
   const [pending, setPending] = useState<ChatMessage[]>([]);
   const [hasMoreOlder, setHasMoreOlder] = useState<boolean | null>(null);
   const [pollOpen, setPollOpen] = useState(false);
+  const [photo, setPhoto] = useState<{ picked: Picked; draft: string; clear: () => void } | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [payOpen, setPayOpen] = useState(false);
   const [kasaOpen, setKasaOpen] = useState(false);
@@ -138,6 +148,14 @@ export default function ChatScreen() {
   useEffect(() => {
     if (chat.data && !cursor.current) cursor.current = chat.data.cursor;
   }, [chat.data]);
+
+  // Bu sohbet açıkken mesajları bildirim olarak gelmez; bildirimi varsa kalkar
+  useFocusEffect(
+    useCallback(() => {
+      setOpenChat(id);
+      return () => setOpenChat(null);
+    }, [id]),
+  );
 
   // Gerçek zamanlı: ekran açıkken 2 saniyede bir yeni olay var mı bak
   useFocusEffect(
@@ -177,7 +195,7 @@ export default function ChatScreen() {
     if (!latest) return [...older, ...pending];
     const first = latest[0]?.createdAt;
     const old = first ? older.filter((m) => m.createdAt < first) : older;
-    const stillPending = pending.filter((p) => !latest.some((m) => m.text === p.text && m.user?.id === p.user?.id && m.createdAt >= p.createdAt));
+    const stillPending = pending.filter((p) => !latest.some((m) => m.kind === p.kind && m.text === p.text && m.user?.id === p.user?.id && m.createdAt >= p.createdAt));
     return [...old, ...latest, ...stillPending];
   }, [latest, older, pending]);
   const reversed = useMemo(() => [...messages].reverse(), [messages]);
@@ -226,6 +244,61 @@ export default function ChatScreen() {
       { name: "sendMessage", body: { groupId: id, text: body } },
       { onError: () => setPending((p) => p.map((m) => (m.id === tmp.id ? { ...m, pending: false, failed: true } : m))) },
     );
+  }
+
+  /** Galeri ya da kamera: fotoğraf seçilince önizleme açılır */
+  function choosePhoto(draft: string, clear: () => void) {
+    const go = (source: "library" | "camera") =>
+      pickPhoto(source)
+        .then((picked) => picked && setPhoto({ picked, draft, clear }))
+        .catch((e: Error) => showAlert("Fotoğraf açılamadı", e.message));
+    showAlert("Fotoğraf gönder", undefined, [
+      { text: "Vazgeç", style: "cancel" },
+      { text: "Kamera", onPress: () => go("camera") },
+      { text: "Galeri", onPress: () => go("library") },
+    ]);
+  }
+
+  /** Fotoğraf cihazda küçültülür, doğrudan Cloudinary'ye yüklenir; sunucuya yalnızca adresi gider */
+  async function sendPhoto(caption: string) {
+    if (!photo || !chat.data) return;
+    const { picked, draft, clear } = photo;
+    setPhoto(null);
+    if (caption && caption === draft) clear();
+    const tmpId = `tmp-${Date.now()}`;
+    const patch = (p: Partial<ChatMessage>) => setPending((all) => all.map((m) => (m.id === tmpId ? { ...m, ...p } : m)));
+    const tmp: ChatMessage = {
+      id: tmpId,
+      kind: "IMAGE",
+      text: caption || null,
+      createdAt: new Date().toISOString(),
+      user: { id: chat.data.me.userId, name: "", imageUrl: null },
+      day: null,
+      poll: null,
+      image: { thumb: picked.uri, full: picked.uri, w: picked.w, h: picked.h },
+      pending: true,
+      progress: 0,
+    };
+    setPending((p) => [...p, tmp]);
+    list.current?.scrollToOffset({ offset: 0, animated: true });
+    try {
+      const small = await compressPhoto(picked);
+      const ticket = await fetcher<Ticket>("/api/m/media-ticket", { method: "POST", body: JSON.stringify({ groupId: id }) });
+      // İlerleme %10'luk adımlarla güncellenir (liste her baytta yeniden çizilmesin)
+      let shown = 0;
+      const url = await uploadPhoto(ticket, small.uri, (p) => {
+        const step = Math.floor(p * 10) / 10;
+        if (step > shown) {
+          shown = step;
+          patch({ progress: step });
+        }
+      });
+      await fetcher("/api/m/action/sendImage", { method: "POST", body: JSON.stringify({ groupId: id, url, w: small.w, h: small.h, text: caption }) });
+      chat.refetch();
+    } catch (e) {
+      patch({ pending: false, failed: true });
+      showAlert("Fotoğraf gönderilemedi", e instanceof Error ? e.message : "Bir hata oluştu");
+    }
   }
 
   const meId = chat.data?.me.userId;
@@ -371,7 +444,8 @@ export default function ChatScreen() {
       />
       )}
       </View>
-      <Composer canPost={data.me.canPost} onSend={send} onPoll={() => setPollOpen(true)} />
+      <Composer canPost={data.me.canPost} onSend={send} onPoll={() => setPollOpen(true)} onPhoto={data.me.canPhoto ? choosePhoto : undefined} />
+      <PhotoSendSheet photo={photo?.picked ?? null} initialCaption={photo?.draft ?? ""} onClose={() => setPhoto(null)} onSend={sendPhoto} />
       <PollModal groupId={id} visible={pollOpen} onClose={() => setPollOpen(false)} />
       <GroupHistoryModal groupId={id} visible={historyOpen} onClose={() => setHistoryOpen(false)} />
       {kasa && (
