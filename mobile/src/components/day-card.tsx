@@ -1,6 +1,6 @@
 import { router } from "expo-router";
-import { BookHeart, BookOpen, Check, CheckCheck, ChevronRight, Clock, CloudOff, Link2, Lock, X, type LucideIcon } from "lucide-react-native";
-import { memo, useState } from "react";
+import { BookHeart, BookOpen, Flame, Check, CheckCheck, ChevronRight, Clock, CloudOff, Link2, Lock, X, type LucideIcon } from "lucide-react-native";
+import { memo, useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, Text, View, Platform, Vibration, Animated, useColorScheme, type StyleProp, type ViewStyle } from "react-native";
 import { useAction } from "@/lib/api";
 import { useOfflineQueue } from "@/lib/offline";
@@ -8,7 +8,6 @@ import { formatDayLong, formatClock } from "@/lib/format";
 import { fonts, KEFARET, radius, STATE, useColors } from "@/lib/theme";
 import type { DayCard as Card } from "@/lib/types";
 import { Countdown } from "./countdown";
-import { StreakChip } from "./history";
 import { Avatar, Row, TIER_COLORS } from "./ui";
 
 type Cat = { key: "kefaret" | "read" | "min" | "none" | "pending"; label: string; Icon: LucideIcon; color: (c: ReturnType<typeof useColors>) => string };
@@ -384,6 +383,18 @@ const SIMPLE_CATS: Cat[] = [
   { key: "pending", label: "Bildirmedi", Icon: Clock, color: (c) => c.mutedForeground },
 ];
 
+/** İsim rozetinin sağ üst köşesinde hafif eğik alev; içinde küçük gün sayısı (tam seri yeşil) */
+function StreakFlame({ s }: { s: { n: number; full: boolean } }) {
+  if (s.n < 3) return null;
+  const color = s.full ? "#10b981" : "#f97316";
+  return (
+    <View pointerEvents="none" style={{ position: "absolute", top: -9, right: -5, width: 16, height: 16, alignItems: "center", justifyContent: "center", transform: [{ rotate: "12deg" }] }}>
+      <Flame size={16} color={color} fill={color} strokeWidth={1.5} />
+      <Text style={{ position: "absolute", top: 5, fontFamily: fonts.bold, fontSize: 6.5, lineHeight: 8, color: "#fff" }}>{s.n}</Text>
+    </View>
+  );
+}
+
 const CHIP_AVATAR = 22;
 
 /**
@@ -457,17 +468,18 @@ function CategoryChips({ card, interactive }: { card: Card; interactive?: boolea
         })}
       </View>
       {sel && (
-        // İsimler ortadan dizilir; ekip çerçevesi kenarda, seri ismin yanında
-        <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 5, backgroundColor: sel.color(c) + "14", borderRadius: 10, padding: 6 }}>
+        // İsimler ortadan dizilir; ekip çerçevesi üst kenarda, seri sağ üst köşede alev
+        <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", columnGap: 5, rowGap: 10, backgroundColor: sel.color(c) + "14", borderRadius: 10, paddingHorizontal: 6, paddingTop: 10, paddingBottom: 6 }}>
           {lists[sel.key].map((p) => (
+            // Ekip çerçevesi: yalnızca üst kenar ince ve hafif saydam altın / gümüş / bronz
             <View
               key={p.id}
-              style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: c.card, borderRadius: 99, paddingHorizontal: 8, paddingVertical: 2, borderWidth: p.tier ? (p.tier === "bronze" ? 1 : 1.5) : 0, borderColor: p.tier ? TIER_COLORS[p.tier] : "transparent" }}
+              style={{ flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: c.card, borderRadius: 99, paddingHorizontal: 9, paddingVertical: 2, borderWidth: 1, borderColor: c.border, borderTopColor: p.tier ? TIER_COLORS[p.tier] + "cc" : c.border }}
             >
               <Text style={{ fontFamily: fonts.semibold, fontSize: 11, color: sel.color(c) }}>{p.name}</Text>
               {p.kefaret ? <BookHeart size={11} color={KEFARET} /> : null}
               {p.pages ? <Text style={{ fontFamily: fonts.semibold, fontSize: 11, color: sel.color(c) }}>· {p.pages}</Text> : null}
-              <StreakChip s={p.streak} />
+              {p.streak && <StreakFlame s={p.streak} />}
             </View>
           ))}
         </View>
@@ -476,9 +488,52 @@ function CategoryChips({ card, interactive }: { card: Card; interactive?: boolea
   );
 }
 
+/** Gün kapanmadan önceki son 1 dakika (bildirim süresi) */
+function useLastMinute(deadline: string, open: boolean) {
+  const [urgent, setUrgent] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const end = Date.parse(deadline);
+    const tick = () => {
+      const left = end - Date.now();
+      setUrgent(left > 0 && left <= 60_000);
+    };
+    const t0 = setTimeout(tick, 0);
+    const t1 = setTimeout(tick, Math.max(0, end - 60_000 - Date.now()));
+    const t2 = setTimeout(tick, Math.max(0, end - Date.now() + 50));
+    return () => {
+      clearTimeout(t0);
+      clearTimeout(t1);
+      clearTimeout(t2);
+      setUrgent(false);
+    };
+  }, [deadline, open]);
+  return urgent;
+}
+
+/** Son dakikada kartın kırmızı kenarı yanıp söner */
+function BlinkBorder({ on, radius }: { on: boolean; radius: number }) {
+  const c = useColors();
+  const [v] = useState(() => new Animated.Value(1));
+  useEffect(() => {
+    if (!on) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(v, { toValue: 0.15, duration: 450, useNativeDriver: true }),
+        Animated.timing(v, { toValue: 1, duration: 450, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [on, v]);
+  if (!on) return null;
+  return <Animated.View pointerEvents="none" style={{ position: "absolute", top: -1, left: -1, right: -1, bottom: -1, borderRadius: radius + 1, borderWidth: 2, borderColor: c.primary, opacity: v }} />;
+}
+
 /** Sohbetin ortasındaki gün kartı */
 export const DayCardFull = memo(function DayCardFull({ card, groupId, onReported, highlight }: { card: Card; groupId: string; onReported?: () => void; highlight?: boolean }) {
   const c = useColors();
+  const urgent = useLastMinute(card.deadline, card.open);
   return (
     <View
       style={{
@@ -500,6 +555,7 @@ export const DayCardFull = memo(function DayCardFull({ card, groupId, onReported
         shadowOffset: { width: 0, height: 2 },
       }}
     >
+      <BlinkBorder on={urgent} radius={16} />
       <RevenueTab card={card} />
       <Row style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
         <View style={{ flex: 1 }}>
@@ -531,11 +587,13 @@ export const DayCardFull = memo(function DayCardFull({ card, groupId, onReported
 /** Bugün ekranındaki sade kart; dokununca grubun sohbetinde bu güne gider */
 export function DayCardMini({ card, groupId, groupName }: { card: Card; groupId: string; groupName: string }) {
   const c = useColors();
+  const urgent = useLastMinute(card.deadline, card.open);
   return (
     <Pressable
       onPress={() => router.push({ pathname: "/group/[id]", params: { id: groupId, day: card.dayKey } })}
       style={({ pressed }) => [{ backgroundColor: c.card, borderColor: c.border, borderWidth: 1, borderRadius: radius + 6, padding: 12, paddingTop: 14, marginTop: 8, gap: 8, opacity: pressed ? 0.85 : 1 }]}
     >
+      <BlinkBorder on={urgent} radius={radius + 6} />
       <RevenueTab card={card} />
       <Row style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
         <View style={{ flex: 1 }}>

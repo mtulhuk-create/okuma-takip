@@ -1,14 +1,13 @@
 "use client";
 
-import { BookHeart, BookOpen, Check, CheckCheck, ChevronRight, Clock, Link2, Lock, X } from "lucide-react";
+import { BookHeart, BookOpen, Check, Flame, CheckCheck, ChevronRight, Clock, Link2, Lock, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { reportReading } from "@/app/actions";
 import type { DayCard as Card } from "@/lib/day";
 import { formatClock, formatDayLong } from "@/lib/schedule";
 import { AvatarStack } from "./avatar";
-import { StreakChip } from "./history-grid";
-import { CELL_FRAME } from "./tier";
+import { TIER_COLOR } from "./tier";
 import { Countdown } from "./countdown";
 
 const CATS = [
@@ -383,6 +382,35 @@ function DeadlinePill({ card, withClock }: { card: Card; withClock?: boolean }) 
 }
 
 /** Kategori çipleri: üst üste profil resimleri + sayı; dokununca isimler açılır */
+/** Gün kapanmadan önceki son 1 dakika (bildirim süresi) */
+function useLastMinute(deadline: string, open: boolean) {
+  const [urgent, setUrgent] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const end = Date.parse(deadline);
+    const tick = () => {
+      const left = end - Date.now();
+      setUrgent(left > 0 && left <= 60_000);
+    };
+    const t0 = setTimeout(tick, 0);
+    const t1 = setTimeout(tick, Math.max(0, end - 60_000 - Date.now()));
+    const t2 = setTimeout(tick, Math.max(0, end - Date.now() + 50));
+    return () => {
+      clearTimeout(t0);
+      clearTimeout(t1);
+      clearTimeout(t2);
+      setUrgent(false);
+    };
+  }, [deadline, open]);
+  return urgent;
+}
+
+/** Son dakikada kartın kırmızı kenarı yanıp söner */
+function BlinkBorder({ on }: { on: boolean }) {
+  if (!on) return null;
+  return <span aria-hidden className="border-blink pointer-events-none absolute -inset-px rounded-[inherit] border-2 border-primary" />;
+}
+
 const CHIP_AVATAR = 24;
 
 /** Rozete sığan avatar sayısı: yuvayı doldurana kadar avatar, sonra "+N" */
@@ -451,14 +479,24 @@ function CategoryChips({ card, interactive }: { card: Card; interactive?: boolea
         })}
       </div>
       {sel && (
-        // İsimler ortadan dizilir; ekip çerçevesi kenarda, seri ismin yanında
-        <div className={`flex flex-wrap justify-center gap-1 rounded-lg p-1.5 ${sel.bg}`}>
+        // İsimler ortadan dizilir; ekip çerçevesi üst kenarda, seri sağ üst köşede alev
+        <div className={`flex flex-wrap justify-center gap-x-1 gap-y-2.5 rounded-lg px-1.5 pb-1.5 pt-2.5 ${sel.bg}`}>
           {lists[sel.key].map((p) => (
-            <span key={p.id} className={`inline-flex items-center gap-1 rounded-full bg-card/70 px-2 py-0.5 text-[11px] font-semibold ${sel.tone} ${p.tier ? CELL_FRAME[p.tier] : ""}`}>
+            // Ekip çerçevesi: yalnızca üst kenar ince ve hafif saydam altın / gümüş / bronz
+            <span
+              key={p.id}
+              className={`relative inline-flex items-center gap-1 rounded-full border border-border bg-card/70 px-2 py-0.5 text-[11px] font-semibold ${sel.tone}`}
+              style={p.tier ? { borderTopColor: TIER_COLOR[p.tier] + "cc" } : undefined}
+            >
               {p.name}
               {p.kefaret ? <BookHeart className="size-3 text-teal-600 dark:text-teal-400" aria-label="Kefaret okuması" /> : null}
               {p.pages != null && p.pages > 0 && <span className="opacity-70">· {p.pages}</span>}
-              <StreakChip s={p.streak} />
+              {p.streak && p.streak.n >= 3 && (
+                <span className="pointer-events-none absolute -right-1.5 -top-2.5 flex size-4 rotate-12 items-center justify-center" title={`${p.streak.n} gün ${p.streak.full ? "tam seri" : "seri"}`}>
+                  <Flame className={`absolute size-4 ${p.streak.full ? "text-emerald-500" : "text-orange-500"}`} fill="currentColor" strokeWidth={1.5} />
+                  <span className="relative top-[2px] text-[6.5px] font-bold leading-none text-white">{p.streak.n}</span>
+                </span>
+              )}
             </span>
           ))}
         </div>
@@ -469,8 +507,10 @@ function CategoryChips({ card, interactive }: { card: Card; interactive?: boolea
 
 /** Sohbetin ortasında duran gün kartı */
 export function DayCardFull({ card, groupId, onReported }: { card: Card; groupId: string; onReported?: () => void }) {
+  const urgent = useLastMinute(card.deadline, card.open);
   return (
     <div id={`gun-${card.dayKey}`} className="relative mx-auto w-full max-w-md scroll-mt-24 space-y-2.5 rounded-2xl border border-border bg-card p-3 pt-3.5 shadow-sm">
+      <BlinkBorder on={urgent} />
       <RevenueTab card={card} />
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -499,6 +539,7 @@ export function DayCardFull({ card, groupId, onReported }: { card: Card; groupId
 
 /** Bugün sayfasındaki sade kart; tıklanınca grubun sohbetinde bu güne gider */
 export function DayCardMini({ card, groupId, groupName }: { card: Card; groupId: string; groupName: string }) {
+  const urgent = useLastMinute(card.deadline, card.open);
   const router = useRouter();
   const href = `/gruplar/${groupId}#gun-${card.dayKey}`;
   return (
@@ -510,6 +551,7 @@ export function DayCardMini({ card, groupId, groupName }: { card: Card; groupId:
       onMouseEnter={() => router.prefetch(href)}
       className="card relative mt-2 cursor-pointer space-y-2.5 p-3 pt-3.5 transition-colors hover:border-primary/40"
     >
+      <BlinkBorder on={urgent} />
       <RevenueTab card={card} />
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">

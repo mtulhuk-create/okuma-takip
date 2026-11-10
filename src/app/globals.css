@@ -272,3 +272,22 @@ textarea.input {
   background: var(--chat-mine);
   clip-path: polygon(0 0, 100% 0, 0 100%);
 }
+
+/* Gün kartı: son dakikada kırmızı kenar yanıp söner */
+@keyframes border-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.15;
+  }
+}
+.border-blink {
+  animation: border-blink 0.9s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .border-blink {
+    animation: none;
+  }
+}
