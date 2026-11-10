@@ -70,7 +70,7 @@ export function AvatarStack({ people, size = 28, max = 5 }: { people: { id: stri
   return (
     <span className="flex items-center">
       {shown.map((p, i) => (
-        <span key={p.id} className={i > 0 ? "-ml-2" : ""}>
+        <span key={p.id} className={`inline-flex ${i > 0 ? "-ml-2" : ""}`}>
           <Avatar name={p.name} src={p.imageUrl} initial={p.initial} seed={p.id} size={size} ring frame={p.tier} />
         </span>
       ))}

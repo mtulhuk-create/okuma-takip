@@ -8,7 +8,8 @@ import { formatDayLong, formatClock } from "@/lib/format";
 import { fonts, KEFARET, radius, STATE, useColors } from "@/lib/theme";
 import type { DayCard as Card } from "@/lib/types";
 import { Countdown } from "./countdown";
-import { Avatar, Row } from "./ui";
+import { StreakChip } from "./history";
+import { Avatar, Row, TIER_COLORS } from "./ui";
 
 type Cat = { key: "kefaret" | "read" | "min" | "none" | "pending"; label: string; Icon: LucideIcon; color: (c: ReturnType<typeof useColors>) => string };
 const CATS: Cat[] = [
@@ -25,12 +26,12 @@ export function AvatarStack({ people, size = 26, max = 5 }: { people: { id: stri
   return (
     <View style={{ flexDirection: "row" }}>
       {people.slice(0, max).map((p, i) => (
-        <View key={p.id} style={{ marginLeft: i ? -8 : 0, borderWidth: 2, borderColor: c.card, borderRadius: size }}>
+        <View key={p.id} style={{ marginLeft: i ? -7 : 0, borderWidth: 1.5, borderColor: c.card, borderRadius: size }}>
           <Avatar name={p.name} uri={p.imageUrl} initial={p.initial} seed={p.id} size={size} frame={p.tier} />
         </View>
       ))}
       {rest > 0 && (
-        <View style={{ marginLeft: -8, width: size + 4, height: size + 4, borderRadius: size, backgroundColor: c.muted, borderWidth: 2, borderColor: c.card, alignItems: "center", justifyContent: "center" }}>
+        <View style={{ marginLeft: -7, width: size + 3, height: size + 3, borderRadius: size, backgroundColor: c.muted, borderWidth: 1.5, borderColor: c.card, alignItems: "center", justifyContent: "center" }}>
           <Text style={{ fontFamily: fonts.bold, fontSize: 10, color: c.mutedForeground }}>+{rest}</Text>
         </View>
       )}
@@ -383,13 +384,24 @@ const SIMPLE_CATS: Cat[] = [
   { key: "pending", label: "Bildirmedi", Icon: Clock, color: (c) => c.mutedForeground },
 ];
 
+const CHIP_AVATAR = 22;
+
 /**
- * Kim okudu rozetleri: bir satırda en çok 2 rozet; satırda tek kalan rozet satırı doldurur ve daha çok avatar
- * gösterir (tek: 10, yan yana: 4–5). Avatarlarda ekip çerçevesi.
+ * Bir rozete sığan avatar sayısı: rozet ortadan başlar, avatar eklendikçe genişler; yuvasını doldurunca
+ * kalanlar "+N" ile gösterilir. Yuva: satırda tek rozetse tüm genişlik, iki rozetse yarısı.
  */
+function chipCapacity(slot: number, label: string, count: number, interactive?: boolean) {
+  const step = CHIP_AVATAR - 7 + 3; // üst üste binen avatarın kapladığı
+  const first = CHIP_AVATAR + 3;
+  const text = 14 + (interactive ? label.length * 6.6 + 4 : 0) + String(count).length * 7.5 + 22; // simge, yazı, sayı, iç boşluk
+  return Math.max(1, Math.floor((slot - text - first) / step) + 1);
+}
+
+/** Kim okudu rozetleri: satırda en çok 2 rozet, her biri kendi yuvasının ortasında; avatarlarda ekip çerçevesi */
 function CategoryChips({ card, interactive }: { card: Card; interactive?: boolean }) {
   const c = useColors();
   const [open, setOpen] = useState<Cat["key"] | null>(null);
+  const [width, setWidth] = useState(0);
   const simple = !!card.simple;
   // Kefaret okuyanlar "Okudu"dan ayrı, kendi renginde
   const lists: Record<Cat["key"], Card["read"]> = simple
@@ -400,19 +412,19 @@ function CategoryChips({ card, interactive }: { card: Card; interactive?: boolea
   const sel = cats.find((cat) => cat.key === open);
   return (
     <View style={{ gap: 6 }}>
-      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+      <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)} style={{ flexDirection: "row", flexWrap: "wrap", rowGap: 6 }}>
         {cats.map((cat, i) => {
           const color = cat.color(c);
           const people = lists[cat.key];
           const on = open === cat.key;
-          // Satırda tek kalan (tek sayıda rozetin sonuncusu) tüm satırı kaplar
+          // Satırda tek kalan (tek sayıda rozetin sonuncusu) tüm satırı yuva alır
           const alone = cats.length % 2 === 1 && i === cats.length - 1;
+          const slot = width ? (alone ? width : width / 2 - 3) : 0;
+          const cap = slot ? chipCapacity(slot, cat.label, people.length, interactive) : 4;
+          const max = people.length > cap ? Math.max(1, cap - 1) : people.length;
           const body = (
             <>
-              <View style={{ flexShrink: 1, overflow: "hidden" }}>
-                <AvatarStack people={people} size={22} max={alone ? 10 : interactive ? 4 : 5} />
-              </View>
-              <View style={{ flex: 1 }} />
+              <AvatarStack people={people} size={CHIP_AVATAR} max={max} />
               <cat.Icon size={13} color={color} strokeWidth={2.6} />
               {interactive && <Text style={{ fontFamily: fonts.semibold, fontSize: 11, color }}>{cat.label}</Text>}
               <Text style={{ fontFamily: fonts.bold, fontSize: 12, color }}>{people.length}</Text>
@@ -421,35 +433,41 @@ function CategoryChips({ card, interactive }: { card: Card; interactive?: boolea
           const style = {
             flexDirection: "row" as const,
             alignItems: "center" as const,
-            gap: 4,
-            flexGrow: 1,
-            flexBasis: "45%" as const,
+            gap: 5,
+            maxWidth: "100%" as const,
             backgroundColor: color + "1f",
             borderRadius: 99,
-            paddingLeft: 3,
+            paddingLeft: 2,
             paddingRight: 10,
-            paddingVertical: 3,
+            paddingVertical: 1,
             borderWidth: 1,
             borderColor: on ? color : "transparent",
           };
-          return interactive ? (
-            <Pressable key={cat.key} onPress={() => setOpen((o) => (o === cat.key ? null : cat.key))} style={({ pressed }) => [style, { opacity: pressed ? 0.7 : 1 }]}>
-              {body}
-            </Pressable>
-          ) : (
-            <View key={cat.key} style={style}>
-              {body}
+          return (
+            <View key={cat.key} style={{ width: alone ? "100%" : "50%", alignItems: "center", paddingHorizontal: alone ? 0 : 3 }}>
+              {interactive ? (
+                <Pressable onPress={() => setOpen((o) => (o === cat.key ? null : cat.key))} style={({ pressed }) => [style, { opacity: pressed ? 0.7 : 1 }]}>
+                  {body}
+                </Pressable>
+              ) : (
+                <View style={style}>{body}</View>
+              )}
             </View>
           );
         })}
       </View>
       {sel && (
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 4, backgroundColor: sel.color(c) + "14", borderRadius: 10, padding: 6 }}>
+        // İsimler ortadan dizilir; ekip çerçevesi kenarda, seri ismin yanında
+        <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 5, backgroundColor: sel.color(c) + "14", borderRadius: 10, padding: 6 }}>
           {lists[sel.key].map((p) => (
-            <View key={p.id} style={{ flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: c.card, borderRadius: 99, paddingHorizontal: 8, paddingVertical: 2 }}>
+            <View
+              key={p.id}
+              style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: c.card, borderRadius: 99, paddingHorizontal: 8, paddingVertical: 2, borderWidth: p.tier ? (p.tier === "bronze" ? 1 : 1.5) : 0, borderColor: p.tier ? TIER_COLORS[p.tier] : "transparent" }}
+            >
               <Text style={{ fontFamily: fonts.semibold, fontSize: 11, color: sel.color(c) }}>{p.name}</Text>
               {p.kefaret ? <BookHeart size={11} color={KEFARET} /> : null}
               {p.pages ? <Text style={{ fontFamily: fonts.semibold, fontSize: 11, color: sel.color(c) }}>· {p.pages}</Text> : null}
+              <StreakChip s={p.streak} />
             </View>
           ))}
         </View>

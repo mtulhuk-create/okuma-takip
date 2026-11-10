@@ -3,10 +3,11 @@ import type { Group, Team } from "@prisma/client";
 import { linkedGroupNames } from "./book-links";
 import { getDb } from "./db";
 import { categoryOf, parseBookLogs, penaltyFor, rulesFor, teamTiers, type BookLog, type Tier } from "./rules";
+import { memberStreaks, streakTag } from "./history";
 import { periodFor } from "./schedule";
 
 /** tier: ekip hiyerarşisi çerçevesi (gruba özel) */
-export type DayPerson = { id: string; name: string; imageUrl: string | null; initial?: string; pages: number | null; required: number; kefaret?: number; tier?: Tier };
+export type DayPerson = { id: string; name: string; imageUrl: string | null; initial?: string; pages: number | null; required: number; kefaret?: number; tier?: Tier; streak?: { n: number; full: boolean } };
 /** Kişinin süren kefaret okuması (gün kartında "Kefaret" butonu) */
 export type DayKefaret = {
   planId: string;
@@ -70,6 +71,8 @@ export async function getDayCards(group: Group & { teams: Team[] }, members: Mem
   const usedDays = plan ? (await getDb().readingLog.findMany({ where: { kefaretPlanId: plan.id, kefaret: { gt: 0 } }, select: { dayKey: true }, orderBy: { dayKey: "asc" } })).map((l) => l.dayKey) : [];
   const now = new Date();
   const tiers = teamTiers(group);
+  // Seri (gruba özel, ayarda açıksa): gün kartındaki isimlerin yanında
+  const streaks = dayKeys.length && group.streaksEnabled ? await memberStreaks(group, members) : null;
   const cards: Record<string, DayCard> = {};
   for (const dayKey of dayKeys) {
     const p = periodFor(dayKey, group);
@@ -117,7 +120,8 @@ export async function getDayCards(group: Group & { teams: Team[] }, members: Mem
       if (eligible) projected += penaltyFor({ ...r, targetPages: target, minPages: min }, log?.pages ?? 0);
       if (!eligible && !log) continue;
       const tier = m.teamId ? tiers.get(m.teamId) : undefined;
-      const person = { id: m.user.id, name: m.user.name, imageUrl: m.user.imageUrl, initial: m.user.initial, pages: log?.pages ?? null, required: target, ...(log?.kefaret ? { kefaret: log.kefaret } : {}), ...(tier ? { tier } : {}) };
+      const streak = streakTag(streaks?.get(m.userId));
+      const person = { id: m.user.id, name: m.user.name, imageUrl: m.user.imageUrl, initial: m.user.initial, pages: log?.pages ?? null, required: target, ...(log?.kefaret ? { kefaret: log.kefaret } : {}), ...(tier ? { tier } : {}), ...(streak ? { streak } : {}) };
       if (!log) (open ? card.pending : card.none).push(person);
       else card[categoryOf(log.pages, { targetPages: target, minPages: min })].push(person);
     }
@@ -126,7 +130,7 @@ export async function getDayCards(group: Group & { teams: Team[] }, members: Mem
     card.penaltyTotal = card.penaltyFinal ? (written.get(dayKey) ?? 0) : projected;
     // Ayrıntı kapalıysa kimin ne okuduğu gönderilmez: yalnızca bildirdi / bildirmedi
     if (group.dayDetails === false) {
-      const hide = (p: DayPerson): DayPerson => ({ id: p.id, name: p.name, imageUrl: p.imageUrl, initial: p.initial, pages: null, required: p.required, ...(p.tier ? { tier: p.tier } : {}) });
+      const hide = (p: DayPerson): DayPerson => ({ id: p.id, name: p.name, imageUrl: p.imageUrl, initial: p.initial, pages: null, required: p.required, ...(p.tier ? { tier: p.tier } : {}), ...(p.streak ? { streak: p.streak } : {}) });
       const reported = [...card.read, ...card.min, ...card.none.filter((p) => p.pages != null)].map(hide);
       const notReported = [...card.pending, ...card.none.filter((p) => p.pages == null)].map(hide);
       Object.assign(card, { read: reported, min: [], none: [], pending: notReported, simple: true });
