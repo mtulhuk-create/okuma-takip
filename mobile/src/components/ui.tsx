@@ -251,11 +251,11 @@ export function isRealPhoto(uri?: string | null): uri is string {
  */
 /**
  * Ekip hiyerarşisi çerçeveleri (gruba özel): yalnızca halka; üzerinde küçük baklava çıkıntılar.
- * Altın 4 çıkıntı (en şaşalı), gümüş 2, bronz düz halka. Hepsi sade tutulur.
+ * Altın 4 çıkıntı (en şaşalı), gümüş 2, bronz 1 (üstte). Hepsi sade tutulur.
  */
 export const TIER_COLORS = { gold: "#D4A017", silver: "#A7B1BC", bronze: "#B07040" } as const;
 export type Tier = "gold" | "silver" | "bronze";
-const TIER_NOTCHES: Record<Tier, ("top" | "bottom" | "left" | "right")[]> = { gold: ["top", "bottom", "left", "right"], silver: ["top", "bottom"], bronze: [] };
+const TIER_NOTCHES: Record<Tier, ("top" | "bottom" | "left" | "right")[]> = { gold: ["top", "bottom", "left", "right"], silver: ["top", "bottom"], bronze: ["top"] };
 
 export function Avatar({ name, uri, size = 36, initial, seed, frame }: { name: string; uri?: string | null; size?: number; initial?: string; seed?: string; frame?: Tier | null }) {
   const c = useColors();
