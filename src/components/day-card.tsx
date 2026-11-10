@@ -1,14 +1,13 @@
 "use client";
 
-import { BookHeart, BookOpen, Check, CheckCheck, ChevronRight, Clock, Link2, Lock, X } from "lucide-react";
+import { BookHeart, BookOpen, Check, Flame, CheckCheck, ChevronRight, Clock, Link2, Lock, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { reportReading } from "@/app/actions";
 import type { DayCard as Card } from "@/lib/day";
 import { formatClock, formatDayLong } from "@/lib/schedule";
 import { AvatarStack } from "./avatar";
-import { StreakChip } from "./history-grid";
-import { CELL_FRAME } from "./tier";
+import { TIER_COLOR, TIER_LABEL } from "./tier";
 import { Countdown } from "./countdown";
 
 const CATS = [
@@ -383,6 +382,19 @@ function DeadlinePill({ card, withClock }: { card: Card; withClock?: boolean }) 
 }
 
 /** Kategori çipleri: üst üste profil resimleri + sayı; dokununca isimler açılır */
+/** İsim rozetinin üst kenarının ortasında geniş, çok alçak üçgen: altın en geniş, gümüş bir tık dar, bronz daha dar */
+const TIP = { gold: { w: 20, h: 5 }, silver: { w: 16, h: 4.5 }, bronze: { w: 12, h: 4 } } as const;
+function TierTip({ tier }: { tier: keyof typeof TIP }) {
+  const { w, h } = TIP[tier];
+  return (
+    <span
+      aria-label={TIER_LABEL[tier]}
+      className="pointer-events-none absolute left-1/2"
+      style={{ top: -h, marginLeft: -w / 2, width: 0, height: 0, borderLeft: `${w / 2}px solid transparent`, borderRight: `${w / 2}px solid transparent`, borderBottom: `${h}px solid ${TIER_COLOR[tier]}` }}
+    />
+  );
+}
+
 const CHIP_AVATAR = 24;
 
 /** Rozete sığan avatar sayısı: yuvayı doldurana kadar avatar, sonra "+N" */
@@ -451,14 +463,20 @@ function CategoryChips({ card, interactive }: { card: Card; interactive?: boolea
         })}
       </div>
       {sel && (
-        // İsimler ortadan dizilir; ekip çerçevesi kenarda, seri ismin yanında
-        <div className={`flex flex-wrap justify-center gap-1 rounded-lg p-1.5 ${sel.bg}`}>
+        // İsimler ortadan dizilir; ekip çerçevesi üst kenarın ortasında ince üçgen, seri sağ üst köşede alev
+        <div className={`flex flex-wrap justify-center gap-x-1 gap-y-2.5 rounded-lg px-1.5 pb-1.5 pt-2.5 ${sel.bg}`}>
           {lists[sel.key].map((p) => (
-            <span key={p.id} className={`inline-flex items-center gap-1 rounded-full bg-card/70 px-2 py-0.5 text-[11px] font-semibold ${sel.tone} ${p.tier ? CELL_FRAME[p.tier] : ""}`}>
+            <span key={p.id} className={`relative inline-flex items-center gap-1 rounded-full border border-border bg-card/70 px-2 py-0.5 text-[11px] font-semibold ${sel.tone}`}>
               {p.name}
               {p.kefaret ? <BookHeart className="size-3 text-teal-600 dark:text-teal-400" aria-label="Kefaret okuması" /> : null}
               {p.pages != null && p.pages > 0 && <span className="opacity-70">· {p.pages}</span>}
-              <StreakChip s={p.streak} />
+              {p.tier && <TierTip tier={p.tier} />}
+              {p.streak && p.streak.n >= 3 && (
+                <span className="pointer-events-none absolute -right-1.5 -top-2.5 flex size-4 rotate-12 items-center justify-center" title={`${p.streak.n} gün ${p.streak.full ? "tam seri" : "seri"}`}>
+                  <Flame className={`absolute size-4 ${p.streak.full ? "text-emerald-500" : "text-orange-500"}`} fill="currentColor" strokeWidth={1.5} />
+                  <span className="relative top-[2px] text-[6.5px] font-bold leading-none text-white">{p.streak.n}</span>
+                </span>
+              )}
             </span>
           ))}
         </div>

@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { BookHeart, BookOpen, Check, CheckCheck, ChevronRight, Clock, CloudOff, Link2, Lock, X, type LucideIcon } from "lucide-react-native";
+import { BookHeart, BookOpen, Flame, Check, CheckCheck, ChevronRight, Clock, CloudOff, Link2, Lock, X, type LucideIcon } from "lucide-react-native";
 import { memo, useState } from "react";
 import { ActivityIndicator, Pressable, Text, View, Platform, Vibration, Animated, useColorScheme, type StyleProp, type ViewStyle } from "react-native";
 import { useAction } from "@/lib/api";
@@ -8,7 +8,6 @@ import { formatDayLong, formatClock } from "@/lib/format";
 import { fonts, KEFARET, radius, STATE, useColors } from "@/lib/theme";
 import type { DayCard as Card } from "@/lib/types";
 import { Countdown } from "./countdown";
-import { StreakChip } from "./history";
 import { Avatar, Row, TIER_COLORS } from "./ui";
 
 type Cat = { key: "kefaret" | "read" | "min" | "none" | "pending"; label: string; Icon: LucideIcon; color: (c: ReturnType<typeof useColors>) => string };
@@ -384,6 +383,30 @@ const SIMPLE_CATS: Cat[] = [
   { key: "pending", label: "Bildirmedi", Icon: Clock, color: (c) => c.mutedForeground },
 ];
 
+/** İsim rozetinin üst kenarının ortasında geniş, çok alçak üçgen: altın en geniş, gümüş bir tık dar, bronz daha dar */
+const TIP: Record<"gold" | "silver" | "bronze", { w: number; h: number }> = { gold: { w: 20, h: 5 }, silver: { w: 16, h: 4.5 }, bronze: { w: 12, h: 4 } };
+function TierTip({ tier }: { tier: "gold" | "silver" | "bronze" }) {
+  const { w, h } = TIP[tier];
+  return (
+    <View
+      pointerEvents="none"
+      style={{ position: "absolute", top: -h, left: "50%", marginLeft: -w / 2, width: 0, height: 0, borderLeftWidth: w / 2, borderRightWidth: w / 2, borderBottomWidth: h, borderLeftColor: "transparent", borderRightColor: "transparent", borderBottomColor: TIER_COLORS[tier] }}
+    />
+  );
+}
+
+/** İsim rozetinin sağ üst köşesinde hafif eğik alev; içinde küçük gün sayısı (tam seri yeşil) */
+function StreakFlame({ s }: { s: { n: number; full: boolean } }) {
+  if (s.n < 3) return null;
+  const color = s.full ? "#10b981" : "#f97316";
+  return (
+    <View pointerEvents="none" style={{ position: "absolute", top: -9, right: -5, width: 16, height: 16, alignItems: "center", justifyContent: "center", transform: [{ rotate: "12deg" }] }}>
+      <Flame size={16} color={color} fill={color} strokeWidth={1.5} />
+      <Text style={{ position: "absolute", top: 5, fontFamily: fonts.bold, fontSize: 6.5, lineHeight: 8, color: "#fff" }}>{s.n}</Text>
+    </View>
+  );
+}
+
 const CHIP_AVATAR = 22;
 
 /**
@@ -457,17 +480,15 @@ function CategoryChips({ card, interactive }: { card: Card; interactive?: boolea
         })}
       </View>
       {sel && (
-        // İsimler ortadan dizilir; ekip çerçevesi kenarda, seri ismin yanında
-        <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 5, backgroundColor: sel.color(c) + "14", borderRadius: 10, padding: 6 }}>
+        // İsimler ortadan dizilir; ekip çerçevesi üst kenarın ortasında ince üçgen, seri sağ üst köşede alev
+        <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", columnGap: 5, rowGap: 10, backgroundColor: sel.color(c) + "14", borderRadius: 10, paddingHorizontal: 6, paddingTop: 10, paddingBottom: 6 }}>
           {lists[sel.key].map((p) => (
-            <View
-              key={p.id}
-              style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: c.card, borderRadius: 99, paddingHorizontal: 8, paddingVertical: 2, borderWidth: p.tier ? (p.tier === "bronze" ? 1 : 1.5) : 0, borderColor: p.tier ? TIER_COLORS[p.tier] : "transparent" }}
-            >
+            <View key={p.id} style={{ flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: c.card, borderRadius: 99, paddingHorizontal: 9, paddingVertical: 2, borderWidth: 1, borderColor: c.border }}>
               <Text style={{ fontFamily: fonts.semibold, fontSize: 11, color: sel.color(c) }}>{p.name}</Text>
               {p.kefaret ? <BookHeart size={11} color={KEFARET} /> : null}
               {p.pages ? <Text style={{ fontFamily: fonts.semibold, fontSize: 11, color: sel.color(c) }}>· {p.pages}</Text> : null}
-              <StreakChip s={p.streak} />
+              {p.tier && <TierTip tier={p.tier} />}
+              {p.streak && <StreakFlame s={p.streak} />}
             </View>
           ))}
         </View>
