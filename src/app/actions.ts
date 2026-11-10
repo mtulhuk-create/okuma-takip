@@ -128,7 +128,7 @@ function parseGroupForm(fd: FormData, teamRules?: RulesInput, keep?: Set<string>
     deadlineMinute,
     reminderHours: int(fd, "reminderHours", 0, 23, "Uyarı süresi"),
     // Eski istemciler göndermezse ay sonu (0) kalır
-    dueOffsetDays: fd.get("dueOffsetDays") == null || fd.get("dueOffsetDays") === "" ? undefined : int(fd, "dueOffsetDays", -25, 25, "Vade kaydırma"),
+    dueOffsetDays: fd.get("dueOffsetDays") == null || fd.get("dueOffsetDays") === "" ? undefined : int(fd, "dueOffsetDays", -25, 28, "Vade günü"),
     kickOnExpire: fd.get("kickOnExpire") == null ? undefined : str(fd, "kickOnExpire") === "1",
     nameDisplay: (["ENTERED", "ACCOUNT", "BOTH"].includes(str(fd, "nameDisplay")) ? str(fd, "nameDisplay") : undefined) as "ENTERED" | "ACCOUNT" | "BOTH" | undefined,
     badgesEnabled: fd.get("badgesEnabled") == null ? undefined : str(fd, "badgesEnabled") === "1",

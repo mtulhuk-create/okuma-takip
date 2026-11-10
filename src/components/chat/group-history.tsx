@@ -2,9 +2,13 @@
 
 import { CalendarRange, EyeOff, X } from "lucide-react";
 import { Avatar } from "../avatar";
-import { HistoryGrid, RANGE_LABELS, RangePicker, StatsLine, useHistory, type Range, type Stats } from "../history-grid";
+import { HistoryGrid, RANGE_LABELS, RangePicker, StatsLine, StreakChip, useHistory, type Range, type Stats } from "../history-grid";
+import type { Tier } from "../tier";
 
-type Data = { limited: boolean; rows: { user: { id: string; name: string; imageUrl: string | null }; me: boolean; start: string; cells: string; stats: Stats }[] };
+type Data = {
+  limited: boolean;
+  rows: { user: { id: string; name: string; imageUrl: string | null }; me: boolean; start: string; cells: string; stats: Stats; streak?: { n: number; full: boolean } | null; tier?: Tier | null }[];
+};
 const LABELS: Record<Range, string> = { ...RANGE_LABELS, all: "Grup kurulduğundan beri" };
 
 /** Sohbetten açılan okuma geçmişi çekmecesi */
@@ -37,13 +41,15 @@ export function GroupHistory({ groupId, onClose }: { groupId: string; onClose: (
           {data?.rows.map((r) => (
             <div key={r.user.id} className="space-y-2">
               <div className="flex items-center gap-2">
-                <Avatar name={r.user.name} src={r.user.imageUrl} initial={(r.user as { initial?: string }).initial} seed={r.user.id} size={28} />
+                <Avatar name={r.user.name} src={r.user.imageUrl} initial={(r.user as { initial?: string }).initial} seed={r.user.id} size={28} frame={r.tier} />
                 <span className="truncate text-sm font-semibold">
                   {r.user.name}
                   {r.me && <span className="font-normal text-muted-foreground"> (sen)</span>}
                 </span>
+                {/* Seri bu grubun okumalarından */}
+                <StreakChip s={r.streak} />
               </div>
-              <HistoryGrid start={r.start} cells={r.cells} />
+              <HistoryGrid start={r.start} cells={r.cells} frame={r.tier} />
               <StatsLine stats={r.stats} />
             </div>
           ))}

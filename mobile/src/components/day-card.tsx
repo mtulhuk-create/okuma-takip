@@ -19,14 +19,14 @@ const CATS: Cat[] = [
   { key: "pending", label: "Bekleniyor", Icon: Clock, color: (c) => c.mutedForeground },
 ];
 
-export function AvatarStack({ people, size = 26, max = 5 }: { people: { id: string; name: string; imageUrl: string | null; initial?: string }[]; size?: number; max?: number }) {
+export function AvatarStack({ people, size = 26, max = 5 }: { people: { id: string; name: string; imageUrl: string | null; initial?: string; tier?: "gold" | "silver" | "bronze" }[]; size?: number; max?: number }) {
   const c = useColors();
   const rest = people.length - max;
   return (
     <View style={{ flexDirection: "row" }}>
       {people.slice(0, max).map((p, i) => (
         <View key={p.id} style={{ marginLeft: i ? -8 : 0, borderWidth: 2, borderColor: c.card, borderRadius: size }}>
-          <Avatar name={p.name} uri={p.imageUrl} initial={p.initial} seed={p.id} size={size} />
+          <Avatar name={p.name} uri={p.imageUrl} initial={p.initial} seed={p.id} size={size} frame={p.tier} />
         </View>
       ))}
       {rest > 0 && (

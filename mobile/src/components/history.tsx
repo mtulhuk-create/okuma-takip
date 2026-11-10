@@ -7,7 +7,7 @@ import { useApi, useApiFetch } from "@/lib/api";
 import { KAZA, type KazaState } from "@/lib/kaza";
 import { fonts, STATE, useColors } from "@/lib/theme";
 import type { GroupHistory, HistoryRange, MyHistory, Stats } from "@/lib/types";
-import { Avatar, Card, Muted, Row } from "./ui";
+import { Avatar, Card, Muted, Row, TIER_COLORS, type Tier } from "./ui";
 
 export const RANGE_LABELS: Record<HistoryRange, string> = { "7d": "Son 7 gün", "1m": "Son 1 ay", "3m": "Son 3 ay", "1y": "Son 1 yıl", all: "Üye olduğumdan beri" };
 const DOW = ["Pz", "Pt", "Sa", "Ça", "Pe", "Cu", "Ct"];
@@ -37,8 +37,24 @@ function weeksOf(start: string, cells: string) {
  * colorOf / labelOf: başka veri için (kaza geçmişi) hücre rengi ve 7 günlük şeritte hücre içi yazı.
  * Verilmezse okuma durumları (okudu / alt sınır / okumadı) gösterilir.
  */
-export function HistoryGrid({ start, cells, colorOf, labelOf }: { start: string; cells: string; colorOf?: (ch: string) => string; labelOf?: (ch: string, i: number) => string | null }) {
+export function HistoryGrid({
+  start,
+  cells,
+  colorOf,
+  labelOf,
+  frame,
+}: {
+  start: string;
+  cells: string;
+  colorOf?: (ch: string) => string;
+  labelOf?: (ch: string, i: number) => string | null;
+  /** Ekip çerçevesi (gruba özel) kutucukların çevresinde */
+  frame?: Tier | null;
+}) {
   const c = useColors();
+  // Altın kalın, gümüş orta, bronz ince
+  const fr = (ch: string, small?: boolean) =>
+    frame && ch !== "-" && ch !== "x" ? { borderWidth: small ? 1 : frame === "gold" ? 2 : frame === "silver" ? 1.5 : 1, borderColor: TIER_COLORS[frame] } : null;
   const base = useCellColor();
   const color = colorOf ?? base;
   // Koyu hücrede beyaz yazı
@@ -58,6 +74,7 @@ export function HistoryGrid({ start, cells, colorOf, labelOf }: { start: string;
               <View
                 style={[
                   { width: "100%", height: 28, borderRadius: 7, backgroundColor: color(ch), borderWidth: ch === "p" ? 1 : 0, borderColor: c.mutedForeground, alignItems: "center", justifyContent: "center" },
+                  fr(ch),
                   today && todayRing,
                 ]}
               >
@@ -96,6 +113,7 @@ export function HistoryGrid({ start, cells, colorOf, labelOf }: { start: string;
                 key={key}
                 style={[
                   { flex: 1, height: 24, borderRadius: 6, backgroundColor: color(ch), borderWidth: ch === "p" ? 1 : 0, borderColor: c.mutedForeground, alignItems: "center", justifyContent: "center" },
+                  fr(ch),
                   today && todayRing,
                 ]}
               >
@@ -134,7 +152,7 @@ export function HistoryGrid({ start, cells, colorOf, labelOf }: { start: string;
                 {months[w]}
               </Text>
               {days.slice(w * 7, w * 7 + 7).map(({ key, c: ch, today }) => (
-                <View key={key} style={[{ width: size, height: cell, borderRadius: 3, backgroundColor: color(ch), borderWidth: ch === "p" ? 1 : 0, borderColor: c.mutedForeground }, today && todayRing]} />
+                <View key={key} style={[{ width: size, height: cell, borderRadius: 3, backgroundColor: color(ch), borderWidth: ch === "p" ? 1 : 0, borderColor: c.mutedForeground }, fr(ch, true), today && todayRing]} />
               ))}
             </View>
           ))}
@@ -339,7 +357,10 @@ export function MyHistorySection() {
   if (!hasRead && !kazaOn) return null;
   const multi = !!data?.all && (data?.groups.length ?? 0) > 1;
   const group = data?.groups.find((g) => g.group.id === sel);
-  const row = data && hasRead ? ((sel === "all" || !group) && multi ? data.all! : (group ?? data.groups[0])) : null;
+  const combined = (sel === "all" || !group) && multi;
+  const row = data && hasRead ? (combined ? data.all! : (group ?? data.groups[0])) : null;
+  // Seri ve ekip çerçevesi gruba özel: "Tüm gruplar" birleşiminde gösterilmez
+  const groupRow = row && !combined ? (row as { tier?: Tier | null }) : null;
   const k = kh.data;
   return (
     <Card style={{ gap: 8, padding: 10, opacity: (view === "read" ? isFetching : kh.isFetching) ? 0.7 : 1 }}>
@@ -366,7 +387,7 @@ export function MyHistorySection() {
       </Row>
       {view === "read" && row ? (
         <>
-          <HistoryGrid start={row.start} cells={row.cells} />
+          <HistoryGrid start={row.start} cells={row.cells} frame={groupRow?.tier} />
           <StatsLine stats={row.stats} />
         </>
       ) : k ? (
@@ -395,7 +416,7 @@ export function MyHistorySection() {
       )}
       {/* Seri rozeti: kartın sağ üst kenarında, hafif eğik */}
       {/* Tam seri (üst üste hedef) öncelikli; yoksa alt sınır dahil seri */}
-      {view === "read" && row ? (row.fullStreak ?? 0) >= STREAK_MIN ? <StreakBadge n={row.fullStreak!} full small sticker /> : <StreakBadge n={row.streak ?? 0} small sticker /> : null}
+      {view === "read" && row && groupRow ? (row.fullStreak ?? 0) >= STREAK_MIN ? <StreakBadge n={row.fullStreak!} full small sticker /> : <StreakBadge n={row.streak ?? 0} small sticker /> : null}
       {view === "kaza" && <StreakBadge n={kaza.data?.streak ?? 0} small sticker kaza />}
     </Card>
   );
@@ -431,13 +452,15 @@ export function GroupHistoryModal({ groupId, visible, onClose }: { groupId: stri
             {data?.rows.map((r) => (
               <View key={r.user.id} style={{ gap: 8 }}>
                 <Row>
-                  <Avatar name={r.user.name} uri={r.user.imageUrl} initial={r.user.initial} seed={r.user.id} size={28} />
+                  <Avatar name={r.user.name} uri={r.user.imageUrl} initial={r.user.initial} seed={r.user.id} size={28} frame={r.tier} />
                   <Text numberOfLines={1} style={{ flex: 1, fontFamily: fonts.semibold, fontSize: 14, color: c.foreground }}>
                     {r.user.name}
                     {r.me ? " (sen)" : ""}
                   </Text>
+                  {/* Seri bu grubun okumalarından */}
+                  <StreakChip s={r.streak} />
                 </Row>
-                <HistoryGrid start={r.start} cells={r.cells} />
+                <HistoryGrid start={r.start} cells={r.cells} frame={r.tier} />
                 <StatsLine stats={r.stats} />
               </View>
             ))}

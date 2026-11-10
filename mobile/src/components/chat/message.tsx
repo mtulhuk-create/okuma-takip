@@ -28,7 +28,7 @@ export const MessageBubble = memo(function MessageBubble({ m, mine, showAuthor, 
 
   return (
     <View style={{ flexDirection: mine ? "row-reverse" : "row", alignItems: "flex-start", gap: 8, marginTop: showAuthor ? 8 : 2 }}>
-      {!mine && <View style={{ width: 30 }}>{showAuthor && m.user && <Avatar name={m.user.name} uri={m.user.imageUrl} initial={m.user.initial} seed={m.user.id} size={30} />}</View>}
+      {!mine && <View style={{ width: 30 }}>{showAuthor && m.user && <Avatar name={m.user.name} uri={m.user.imageUrl} initial={m.user.initial} seed={m.user.id} size={30} frame={m.user.tier} />}</View>}
       <Pressable
         // Uzun bas: kopyala; kendi mesajını ya da (yöneticiysen) herkesin mesajını sil
         onLongPress={() => {

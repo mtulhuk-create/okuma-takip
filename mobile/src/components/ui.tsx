@@ -249,7 +249,25 @@ export function isRealPhoto(uri?: string | null): uri is string {
  * Profil resmi: mail hesabından gelen fotoğraf varsa o; yoksa kişiye özel renkte,
  * hesap (mail) adının baş harfiyle sistem avatarı.
  */
-export function Avatar({ name, uri, size = 36, initial, seed }: { name: string; uri?: string | null; size?: number; initial?: string; seed?: string }) {
+/**
+ * Ekip hiyerarşisi çerçeveleri (gruba özel): altın en şaşalı (çift halka), gümüş düz halka, bronz ince çizgi.
+ */
+export const TIER_COLORS = { gold: "#D4A017", goldLight: "#F3D98B", silver: "#A7B1BC", bronze: "#B07040" } as const;
+export type Tier = "gold" | "silver" | "bronze";
+
+export function Avatar({ name, uri, size = 36, initial, seed, frame }: { name: string; uri?: string | null; size?: number; initial?: string; seed?: string; frame?: Tier | null }) {
+  const inner = <AvatarCore name={name} uri={uri} size={size} initial={initial} seed={seed} />;
+  if (!frame) return inner;
+  if (frame === "gold")
+    return (
+      <View style={{ borderRadius: 999, borderWidth: 1.5, borderColor: TIER_COLORS.goldLight, padding: 1 }}>
+        <View style={{ borderRadius: 999, borderWidth: 2, borderColor: TIER_COLORS.gold }}>{inner}</View>
+      </View>
+    );
+  return <View style={{ borderRadius: 999, borderWidth: frame === "silver" ? 2 : 1.5, borderColor: frame === "silver" ? TIER_COLORS.silver : TIER_COLORS.bronze }}>{inner}</View>;
+}
+
+function AvatarCore({ name, uri, size = 36, initial, seed }: { name: string; uri?: string | null; size?: number; initial?: string; seed?: string }) {
   const dark = useColorScheme() === "dark";
   if (isRealPhoto(uri)) return <Image source={{ uri }} style={{ width: size, height: size, borderRadius: size / 2 }} />;
   const key = seed || name;

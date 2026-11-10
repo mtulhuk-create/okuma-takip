@@ -136,7 +136,7 @@ export default async function GroupInfoPage({ params }: { params: Promise<{ id: 
         <ul className="space-y-2.5">
           {group.members.map((m) => (
             <li key={m.id} className="flex items-center gap-3">
-              <Avatar name={m.user.name} src={m.user.imageUrl} initial={m.user.initial} seed={m.user.id} size={36} />
+              <Avatar name={m.user.name} src={m.user.imageUrl} initial={m.user.initial} seed={m.user.id} size={36} frame={m.tier} />
               <span className="flex min-w-0 flex-1 items-center gap-1.5 text-sm font-medium">
                 <span className="truncate">
                   {m.user.name}

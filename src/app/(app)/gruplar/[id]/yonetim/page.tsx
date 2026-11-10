@@ -318,33 +318,49 @@ export default async function AdminPage({ params, searchParams }: { params: Prom
                 <span className="text-sm font-semibold text-destructive">{unpaidPenalties.reduce((s, p) => s + p.amount, 0)} TL</span>
               </div>
               <DiscountForm groupId={id} title="Toplu indirim (tüm grubun ödenmemiş cezaları)" />
+              {/* Kişi bazında toplam; günler açılır listede */}
               <ul className="divide-y divide-border">
-                {unpaidPenalties.map((p) => (
-                  <li key={p.id} className="space-y-1.5 py-2 text-sm">
-                    <div className="flex items-center gap-2">
-                      <span className="min-w-0 flex-1 truncate">
-                        {p.user.name} <span className="text-muted-foreground">· {formatDayKey(p.dayKey)}</span>
-                        {p.status === "IN_DUE" && <span className="ml-1 text-[11px] text-amber-600">· vadede</span>}
-                      </span>
-                      <b className="shrink-0">
-                        {p.originalAmount != null && p.originalAmount !== p.amount && <s className="mr-1 font-normal text-muted-foreground">{p.originalAmount}</s>}
-                        {p.amount} TL
-                      </b>
-                    </div>
-                    {/* İndirim satırı: kutular satıra sığar, taşmaz */}
-                    <div className="flex items-center gap-1.5">
-                      <DiscountForm groupId={id} penaltyId={p.id} compact />
-                      {p.status === "UNPAID" && (
-                        <ActionForm action={waivePenalty}>
-                          <input type="hidden" name="penaltyId" value={p.id} />
-                          <SubmitButton className="btn-quiet btn-sm">Affet</SubmitButton>
-                        </ActionForm>
-                      )}
-                    </div>
+                {penaltyGroups(unpaidPenalties).map((g) => (
+                  <li key={g.userId} className="space-y-1.5 py-2 text-sm">
+                    <details className="group">
+                      <summary className="flex cursor-pointer list-none items-center gap-2">
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate font-semibold">{g.name}</span>
+                          <span className="text-[11px] text-muted-foreground">
+                            {g.items.length} gün ceza{g.inDue ? ` · ${g.inDue} TL vadede` : ""}
+                          </span>
+                        </span>
+                        <b className="shrink-0 text-destructive">
+                          {g.original !== g.total && <s className="mr-1 font-normal text-muted-foreground">{g.original}</s>}
+                          {g.total} TL
+                        </b>
+                        <span className="text-xs text-muted-foreground transition-transform group-open:rotate-180">▾</span>
+                      </summary>
+                      <ul className="mt-1.5 space-y-1 rounded-lg bg-muted/60 p-2 text-xs">
+                        {g.items.map((p) => (
+                          <li key={p.id} className="flex items-center gap-2">
+                            <span className="flex-1">
+                              {formatDayKey(p.dayKey)}
+                              {p.status === "IN_DUE" && <span className="ml-1 text-amber-600">· vadede</span>}
+                            </span>
+                            {p.originalAmount != null && p.originalAmount !== p.amount && <s className="text-muted-foreground">{p.originalAmount}</s>}
+                            <b>{p.amount} TL</b>
+                            {p.status === "UNPAID" && (
+                              <ActionForm action={waivePenalty}>
+                                <input type="hidden" name="penaltyId" value={p.id} />
+                                <SubmitButton className="btn-quiet btn-sm h-6 px-2 text-[11px]">Affet</SubmitButton>
+                              </ActionForm>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                    {/* İndirim: kişinin tüm ödenmemiş cezalarına */}
+                    <DiscountForm groupId={id} userId={g.userId} compact />
                   </li>
                 ))}
               </ul>
-              <p className="text-xs text-muted-foreground">Bir kişinin tüm cezalarına indirim ya da vade için Üyeler sekmesinde kişinin menüsünü kullan.</p>
+              <p className="text-xs text-muted-foreground">Kişinin satırındaki indirim, o kişinin tüm ödenmemiş cezalarına uygulanır. Vade için Üyeler sekmesinde kişinin menüsünü kullan.</p>
             </section>
           )}
           {dues.some((d) => !["PENDING", "SUBMITTED", "OVERDUE"].includes(d.status)) && (
@@ -386,4 +402,20 @@ export default async function AdminPage({ params, searchParams }: { params: Prom
       )}
     </main>
   );
+}
+
+type UnpaidPenalty = { id: string; userId: string; dayKey: string; amount: number; originalAmount: number | null; status: string; user: { name: string } };
+
+/** Ödenmemiş cezalar kişi kişi: toplam, ilk tutar (indirim varsa) ve vadedeki kısım */
+function penaltyGroups<P extends UnpaidPenalty>(list: P[]) {
+  const map = new Map<string, { userId: string; name: string; items: P[]; total: number; original: number; inDue: number }>();
+  for (const p of list) {
+    const g = map.get(p.userId) ?? { userId: p.userId, name: p.user.name, items: [], total: 0, original: 0, inDue: 0 };
+    g.items.push(p);
+    g.total += p.amount;
+    g.original += p.originalAmount ?? p.amount;
+    if (p.status === "IN_DUE") g.inDue += p.amount;
+    map.set(p.userId, g);
+  }
+  return [...map.values()].sort((a, b) => b.total - a.total);
 }

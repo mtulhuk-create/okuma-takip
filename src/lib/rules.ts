@@ -36,6 +36,30 @@ export function teamsActive(group: { teamsEnabled: boolean; teams?: unknown[] })
   return group.teamsEnabled && (group.teams?.length ?? 0) >= 2;
 }
 
+/** Ekip hiyerarşisi çerçevesi */
+export type Tier = "gold" | "silver" | "bronze";
+
+/**
+ * Ekip hiyerarşisi: ekibin günlük toplam tam sayfası (eserlerin hedefleri) en çok olan en üstte.
+ * 1 ekip ya da hepsi eşitse çerçeve yok; 2 ekipte yalnızca üstteki altın; 3 ekipte altın ve gümüş
+ * (en az okuyan çerçevesiz); 4 ve üstünde altın, gümüş, bronz, kalanlar çerçevesiz. Eşit sayfalı ekipler aynı çerçeveyi alır.
+ */
+export function teamTiers(group: GroupLike): Map<string, Tier> {
+  const out = new Map<string, Tier>();
+  if (!teamsActive(group)) return out;
+  const teams = group.teams!;
+  const totals = teams.map((t) => ({ id: t.id, total: pickRules(t).targetPages }));
+  const levels = [...new Set(totals.map((t) => t.total))].sort((a, b) => b - a);
+  const tiers: Tier[] = teams.length === 2 ? ["gold"] : teams.length === 3 ? ["gold", "silver"] : ["gold", "silver", "bronze"];
+  // En alt seviye hiçbir zaman çerçeve almaz (ör. 3 ekip 50-50-20: yalnızca 50'ler altın)
+  const framed = Math.min(tiers.length, levels.length - 1);
+  for (const t of totals) {
+    const r = levels.indexOf(t.total);
+    if (r < framed) out.set(t.id, tiers[r]);
+  }
+  return out;
+}
+
 export function rulesFor(group: GroupLike, member: { teamId: string | null }): Rules & { teamName: string | null } {
   const team = teamsActive(group) ? group.teams!.find((t) => t.id === member.teamId) : undefined;
   return { ...pickRules(team ?? group), teamName: team?.name ?? null };

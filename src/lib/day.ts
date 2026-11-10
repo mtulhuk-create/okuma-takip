@@ -2,10 +2,11 @@ import "server-only";
 import type { Group, Team } from "@prisma/client";
 import { linkedGroupNames } from "./book-links";
 import { getDb } from "./db";
-import { categoryOf, parseBookLogs, penaltyFor, rulesFor, type BookLog } from "./rules";
+import { categoryOf, parseBookLogs, penaltyFor, rulesFor, teamTiers, type BookLog, type Tier } from "./rules";
 import { periodFor } from "./schedule";
 
-export type DayPerson = { id: string; name: string; imageUrl: string | null; initial?: string; pages: number | null; required: number; kefaret?: number };
+/** tier: ekip hiyerarşisi çerçevesi (gruba özel) */
+export type DayPerson = { id: string; name: string; imageUrl: string | null; initial?: string; pages: number | null; required: number; kefaret?: number; tier?: Tier };
 /** Kişinin süren kefaret okuması (gün kartında "Kefaret" butonu) */
 export type DayKefaret = {
   planId: string;
@@ -66,6 +67,7 @@ export async function getDayCards(group: Group & { teams: Team[] }, members: Mem
   const plan = dayKeys.length ? await getDb().kefaretPlan.findFirst({ where: { groupId: group.id, userId: meId, status: "ACTIVE" }, orderBy: { createdAt: "desc" } }) : null;
   const usedDays = plan ? (await getDb().readingLog.findMany({ where: { kefaretPlanId: plan.id, kefaret: { gt: 0 } }, select: { dayKey: true }, orderBy: { dayKey: "asc" } })).map((l) => l.dayKey) : [];
   const now = new Date();
+  const tiers = teamTiers(group);
   const cards: Record<string, DayCard> = {};
   for (const dayKey of dayKeys) {
     const p = periodFor(dayKey, group);
@@ -112,7 +114,8 @@ export async function getDayCards(group: Group & { teams: Team[] }, members: Mem
       // Günün hasılatı: bildirmeyen herkes "okumadı" sayılır (en kötü durum); okudukça düşer
       if (eligible) projected += penaltyFor({ ...r, targetPages: target, minPages: min }, log?.pages ?? 0);
       if (!eligible && !log) continue;
-      const person = { id: m.user.id, name: m.user.name, imageUrl: m.user.imageUrl, initial: m.user.initial, pages: log?.pages ?? null, required: target, ...(log?.kefaret ? { kefaret: log.kefaret } : {}) };
+      const tier = m.teamId ? tiers.get(m.teamId) : undefined;
+      const person = { id: m.user.id, name: m.user.name, imageUrl: m.user.imageUrl, initial: m.user.initial, pages: log?.pages ?? null, required: target, ...(log?.kefaret ? { kefaret: log.kefaret } : {}), ...(tier ? { tier } : {}) };
       if (!log) (open ? card.pending : card.none).push(person);
       else card[categoryOf(log.pages, { targetPages: target, minPages: min })].push(person);
     }

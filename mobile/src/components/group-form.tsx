@@ -67,6 +67,15 @@ function TeamCard({ team, index, canRemove, onChange, onRemove }: { team: TeamDr
   );
 }
 
+/** Türkçe belirtme eki: 1'i, 2'si, 6'sı, 9'u, 10'u, 20'si */
+function dayWithSuffix(n: number) {
+  const last = n % 10;
+  const s = last ? { 1: "i", 2: "si", 3: "ü", 4: "ü", 5: "i", 6: "sı", 7: "si", 8: "i", 9: "u" }[last] : { 10: "u", 20: "si", 30: "u" }[n] ?? "i";
+  return `${n}'${s}`;
+}
+/** Varsayılan vade: 0 ayın son günü, 1–28 ertesi ayın o günü (eski ayarlarda negatif: ay sonundan önce) */
+const dueOffsetText = (d: number) => (d === 0 ? "Her ayın son günü" : d < 0 ? `Ay sonundan ${-d} gün önce` : `Ertesi ayın ${dayWithSuffix(d)}`);
+
 export function GroupForm({ group, onSubmit, submitting, submitLabel }: { group?: Group; onSubmit: (v: GroupFormValues) => void; submitting?: boolean; submitLabel: string }) {
   const c = useColors();
   const [name, setName] = useState(group?.name ?? "");
@@ -239,23 +248,32 @@ export function GroupForm({ group, onSubmit, submitting, submitLabel }: { group?
         icon={Landmark}
         title="Kasa ve ödemeler"
         hint="Cezalar grubun kasasında toplanır; yönetici de herkes gibi okur ve ceza öder. Yalnızca üyeler görür."
-        summary={`${iban ? "IBAN girildi" : "IBAN yok"} · ${dueOffset === 0 ? "ay sonu" : dueOffset < 0 ? `ay sonundan ${-dueOffset} gün önce` : `ay sonundan ${dueOffset} gün sonra`} · ${kickOnExpire ? "ödemeyen çıkarılır" : "ödemeyen çıkarılmaz"}`}
+        summary={`${iban ? "IBAN girildi" : "IBAN yok"} · ${dueOffsetText(dueOffset).toLocaleLowerCase("tr-TR")} · ${kickOnExpire ? "ödemeyen çıkarılır" : "ödemeyen çıkarılmaz"}`}
         collapsible={edit}
       >
         <Input label="Grup kasası IBAN" value={iban.replace(/(.{4})/g, "$1 ").trim()} onChangeText={(v) => setIban(v.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 26))} autoCapitalize="characters" placeholder="TR00 0000 0000 0000 0000 0000 00" />
         <Input label="Hesap sahibi adı soyadı" value={ibanName} onChangeText={setIbanName} />
         <View>
           <Muted style={{ marginBottom: 6 }}>Varsayılan ödeme vadesi</Muted>
-          <Row gap={8}>
-            <Button title="−" variant="ghost" onPress={() => setDueOffset((d) => Math.max(-25, d - 1))} style={{ width: 46 }} />
-            <View style={{ flex: 1, alignItems: "center", borderWidth: 1, borderColor: c.border, borderRadius: 10, paddingVertical: 6, backgroundColor: c.card }}>
-              <Text style={{ fontFamily: fonts.semibold, fontSize: 14, color: c.foreground }}>
-                {dueOffset === 0 ? "Her ayın son günü" : dueOffset < 0 ? `Ay sonundan ${-dueOffset} gün önce` : `Ay sonundan ${dueOffset} gün sonra`}
-              </Text>
-              <Text style={{ fontFamily: fonts.regular, fontSize: 11, color: c.mutedForeground }}>Vade verirken bu tarih önerilir</Text>
-            </View>
-            <Button title="+" variant="ghost" onPress={() => setDueOffset((d) => Math.min(25, d + 1))} style={{ width: 46 }} />
-          </Row>
+          {/* Ay sonu ya da ertesi ayın bir günü (ay sonundan önce/sonra gün saymak kafa karıştırıyordu) */}
+          <Segmented
+            value={dueOffset > 0 ? "next" : "end"}
+            onChange={(v) => setDueOffset(v === "end" ? 0 : (d) => (d > 0 ? d : 5))}
+            options={[
+              { value: "end", label: "Ayın son günü" },
+              { value: "next", label: "Ertesi ayın bir günü" },
+            ]}
+          />
+          {dueOffset > 0 && (
+            <Row gap={8} style={{ marginTop: 8 }}>
+              <Button title="−" variant="ghost" onPress={() => setDueOffset((d) => Math.max(1, d - 1))} style={{ width: 46 }} />
+              <View style={{ flex: 1, alignItems: "center", borderWidth: 1, borderColor: c.border, borderRadius: 10, paddingVertical: 8, backgroundColor: c.card }}>
+                <Text style={{ fontFamily: fonts.semibold, fontSize: 14, color: c.foreground }}>Ertesi ayın {dayWithSuffix(dueOffset)}</Text>
+              </View>
+              <Button title="+" variant="ghost" onPress={() => setDueOffset((d) => Math.min(28, d + 1))} style={{ width: 46 }} />
+            </Row>
+          )}
+          <Muted style={{ marginTop: 6 }}>{dueOffsetText(dueOffset)} · vade verirken bu tarih önerilir. Ayın cezaları bu tarihe kadar ödenir.</Muted>
         </View>
         <Row style={{ justifyContent: "space-between" }}>
           <View style={{ flex: 1 }}>
