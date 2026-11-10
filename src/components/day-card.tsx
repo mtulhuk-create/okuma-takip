@@ -468,7 +468,8 @@ function CategoryChips({ card, interactive }: { card: Card; interactive?: boolea
     ? { kefaret: [], read: card.read, min: [], none: [], pending: card.pending }
     : { kefaret: card.read.filter((p) => p.kefaret), read: card.read.filter((p) => !p.kefaret), min: card.min, none: card.none, pending: card.pending };
   const all = simple ? SIMPLE_CATS : CATS;
-  const cats = all.filter((c) => lists[c.key].length);
+  // En kalabalık rozet her zaman en üstte (eşitse sabit sıra: okudu, alt sınır, okumadı, bekleniyor)
+  const cats = all.filter((c) => lists[c.key].length).sort((a, b) => lists[b.key].length - lists[a.key].length);
   const sel = cats.find((c) => c.key === open);
   if (!cats.length) return null;
   const half = (width - 6) / 2;
