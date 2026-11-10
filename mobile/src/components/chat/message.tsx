@@ -7,7 +7,7 @@ import { formatClock } from "@/lib/format";
 import { fonts, useColors } from "@/lib/theme";
 import type { ChatMessage } from "@/lib/types";
 import { BadgeChip } from "../badge-chip";
-import { StreakChip } from "../history";
+import { StreakFlame } from "../day-card";
 import { Avatar } from "../ui";
 import { ChatPhoto } from "./photo";
 
@@ -105,11 +105,14 @@ export const MessageBubble = memo(function MessageBubble({ m, mine, showAuthor, 
         )}
         {!mine && showAuthor && m.user && (
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 }}>
-            <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: fonts.bold, fontSize: 12, color: nameColor(m.user.id) }}>
-              {m.user.name}
-            </Text>
+            {/* Seri: gün kartındaki gibi ismin sağ üst köşesinde hafif eğik alev, içinde gün sayısı */}
+            <View style={{ flexShrink: 1, paddingRight: m.user.streak && m.user.streak.n >= 3 ? 9 : 0 }}>
+              <Text numberOfLines={1} style={{ fontFamily: fonts.bold, fontSize: 12, color: nameColor(m.user.id) }}>
+                {m.user.name}
+              </Text>
+              <StreakFlame s={m.user.streak} top={-6} right={-4} />
+            </View>
             {m.user.badge && <BadgeChip tag={m.user.badge} />}
-            <StreakChip s={m.user.streak} />
           </View>
         )}
         {poll ? (

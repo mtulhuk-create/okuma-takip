@@ -383,12 +383,12 @@ const SIMPLE_CATS: Cat[] = [
   { key: "pending", label: "Bildirmedi", Icon: Clock, color: (c) => c.mutedForeground },
 ];
 
-/** İsim rozetinin sağ üst köşesinde hafif eğik alev; içinde küçük gün sayısı (tam seri yeşil) */
-function StreakFlame({ s }: { s: { n: number; full: boolean } }) {
-  if (s.n < 3) return null;
+/** İsmin sağ üst köşesinde hafif eğik alev; içinde küçük gün sayısı (tam seri yeşil). Gün kartı ve sohbette aynı */
+export function StreakFlame({ s, top = -9, right = -5 }: { s: { n: number; full: boolean } | null | undefined; top?: number; right?: number }) {
+  if (!s || s.n < 3) return null;
   const color = s.full ? "#10b981" : "#f97316";
   return (
-    <View pointerEvents="none" style={{ position: "absolute", top: -9, right: -5, width: 16, height: 16, alignItems: "center", justifyContent: "center", transform: [{ rotate: "12deg" }] }}>
+    <View pointerEvents="none" style={{ position: "absolute", top, right, width: 16, height: 16, alignItems: "center", justifyContent: "center", transform: [{ rotate: "12deg" }] }}>
       <Flame size={16} color={color} fill={color} strokeWidth={1.5} />
       <Text style={{ position: "absolute", top: 5, fontFamily: fonts.bold, fontSize: 6.5, lineHeight: 8, color: "#fff" }}>{s.n}</Text>
     </View>
@@ -408,7 +408,25 @@ function chipCapacity(slot: number, label: string, count: number, interactive?: 
   return Math.max(1, Math.floor((slot - text - first) / step) + 1);
 }
 
-/** Kim okudu rozetleri: satırda en çok 2 rozet, her biri kendi yuvasının ortasında; avatarlarda ekip çerçevesi */
+/**
+ * Rozetlerin satırlara dizilişi: iki rozet yan yana ancak ikisi de avatarlarının hepsini yarım satıra
+ * sığdırabiliyorsa durur; sığmıyorsa (kalabalık rozet sıkışıp "+N" olmasın) rozetler alt alta tam satır olur.
+ */
+function chipRows<T>(cats: T[], fitsHalf: (cat: T) => boolean) {
+  const full: boolean[] = [];
+  for (let i = 0; i < cats.length; ) {
+    if (i + 1 < cats.length && fitsHalf(cats[i]) && fitsHalf(cats[i + 1])) {
+      full.push(false, false);
+      i += 2;
+    } else {
+      full.push(true);
+      i += 1;
+    }
+  }
+  return full;
+}
+
+/** Kim okudu rozetleri: sığdıkça satırda 2 rozet, sığmazsa alt alta; her biri yuvasının ortasında, avatarlarda ekip çerçevesi */
 function CategoryChips({ card, interactive }: { card: Card; interactive?: boolean }) {
   const c = useColors();
   const [open, setOpen] = useState<Cat["key"] | null>(null);
@@ -421,6 +439,9 @@ function CategoryChips({ card, interactive }: { card: Card; interactive?: boolea
   const cats = (simple ? SIMPLE_CATS : CATS).filter((cat) => lists[cat.key].length);
   if (!cats.length) return null;
   const sel = cats.find((cat) => cat.key === open);
+  const half = width / 2 - 3;
+  // Ölçülmeden önce ikili düzen varsayılır
+  const fullRow = chipRows(cats, (cat) => !width || lists[cat.key].length <= chipCapacity(half, cat.label, lists[cat.key].length, interactive));
   return (
     <View style={{ gap: 6 }}>
       <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)} style={{ flexDirection: "row", flexWrap: "wrap", rowGap: 6 }}>
@@ -428,9 +449,8 @@ function CategoryChips({ card, interactive }: { card: Card; interactive?: boolea
           const color = cat.color(c);
           const people = lists[cat.key];
           const on = open === cat.key;
-          // Satırda tek kalan (tek sayıda rozetin sonuncusu) tüm satırı yuva alır
-          const alone = cats.length % 2 === 1 && i === cats.length - 1;
-          const slot = width ? (alone ? width : width / 2 - 3) : 0;
+          const alone = fullRow[i];
+          const slot = width ? (alone ? width : half) : 0;
           const cap = slot ? chipCapacity(slot, cat.label, people.length, interactive) : 4;
           const max = people.length > cap ? Math.max(1, cap - 1) : people.length;
           const body = (
@@ -469,17 +489,17 @@ function CategoryChips({ card, interactive }: { card: Card; interactive?: boolea
       </View>
       {sel && (
         // İsimler ortadan dizilir; ekip çerçevesi ince kenar, seri sağ üst köşede alev
-        <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", columnGap: 5, rowGap: 10, backgroundColor: sel.color(c) + "14", borderRadius: 10, paddingHorizontal: 6, paddingTop: 10, paddingBottom: 6 }}>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", columnGap: 4, rowGap: 7, backgroundColor: sel.color(c) + "14", borderRadius: 10, paddingHorizontal: 6, paddingTop: 8, paddingBottom: 6 }}>
           {lists[sel.key].map((p) => (
             // Ekip çerçevesi: tüm kenar ince ve hafif saydam altın / gümüş / bronz
             <View
               key={p.id}
-              style={{ flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: c.card, borderRadius: 99, paddingHorizontal: 9, paddingVertical: 2, borderWidth: p.tier ? 0.75 : 1, borderColor: p.tier ? TIER_COLORS[p.tier] + "cc" : c.border }}
+              style={{ flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: c.card, borderRadius: 99, paddingHorizontal: 7, paddingVertical: 1.5, borderWidth: p.tier ? 0.75 : 1, borderColor: p.tier ? TIER_COLORS[p.tier] + "cc" : c.border }}
             >
               <Text style={{ fontFamily: fonts.semibold, fontSize: 11, color: sel.color(c) }}>{p.name}</Text>
               {p.kefaret ? <BookHeart size={11} color={KEFARET} /> : null}
               {p.pages ? <Text style={{ fontFamily: fonts.semibold, fontSize: 11, color: sel.color(c) }}>· {p.pages}</Text> : null}
-              {p.streak && <StreakFlame s={p.streak} />}
+              <StreakFlame s={p.streak} top={-8} />
             </View>
           ))}
         </View>

@@ -7,7 +7,7 @@ import type { ChatMessage } from "@/lib/chat";
 import { formatClock } from "@/lib/schedule";
 import { Avatar } from "../avatar";
 import { BadgeChip } from "../badge-chip";
-import { StreakChip } from "../history-grid";
+import { StreakFlame } from "../day-card";
 
 const NAME_COLORS = ["text-rose-700", "text-amber-700", "text-emerald-700", "text-sky-700", "text-violet-700", "text-orange-700", "text-teal-700"];
 function nameColor(id: string) {
@@ -123,9 +123,12 @@ export function Bubble({
       >
         {!mine && showAuthor && m.user && (
           <p className={`mb-0.5 flex items-center gap-1.5 text-[13px] font-bold leading-tight ${nameColor(m.user.id)}`}>
-            <span className="truncate">{m.user.name}</span>
+            {/* Seri: gün kartındaki gibi ismin sağ üst köşesinde hafif eğik alev, içinde gün sayısı */}
+            <span className={`relative min-w-0 ${m.user.streak && m.user.streak.n >= 3 ? "pr-2.5" : ""}`}>
+              <span className="block truncate">{m.user.name}</span>
+              <StreakFlame s={m.user.streak} className="-right-1 -top-1.5" />
+            </span>
             {m.user.badge && <BadgeChip tag={m.user.badge} />}
-            <StreakChip s={m.user.streak} />
           </p>
         )}
         {children}
