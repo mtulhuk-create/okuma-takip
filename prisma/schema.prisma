@@ -60,6 +60,7 @@ enum MessageKind {
   DAY // her okuma günü için otomatik gün kartı
   POLL
   BADGE // rozet kartı (oylama / kazanıldı / kalktı)
+  IMAGE // fotoğraf (dosya Cloudinary'de; burada yalnızca adresi)
 }
 
 enum KefaretStatus {
@@ -335,6 +336,9 @@ model Message {
   kind      MessageKind       @default(TEXT)
   text      String?
   dayKey    String? // DAY mesajları için okuma günü
+  media     String? // IMAGE: Cloudinary adresi (dosya uygulamanın sunucusunda tutulmaz)
+  mediaW    Int?
+  mediaH    Int?
   createdAt DateTime          @default(now())
   poll      Poll?
   badgeId   String? // BADGE mesajları: text = VOTE | AWARD | END

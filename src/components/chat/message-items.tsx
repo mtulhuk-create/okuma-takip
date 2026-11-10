@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, SmilePlus, Trash2 } from "lucide-react";
+import { Check, SmilePlus, Trash2, X } from "lucide-react";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { deleteMessage, reactMessage, votePoll } from "@/app/actions";
 import type { ChatMessage } from "@/lib/chat";
@@ -16,7 +16,7 @@ function nameColor(id: string) {
   return `${NAME_COLORS[h % NAME_COLORS.length]} dark:brightness-150`;
 }
 
-export type UiMessage = ChatMessage & { pending?: boolean; failed?: boolean };
+export type UiMessage = ChatMessage & { pending?: boolean; failed?: boolean; progress?: number };
 
 function DeleteButton({ id, onDone }: { id: string; onDone: () => void }) {
   const [pending, start] = useTransition();
@@ -76,7 +76,7 @@ export function Bubble({
   // Sunucudan yeni veri gelene kadar benim ifadem anında görünür
   const [over, setOver] = useState<{ base: Reaction[] | undefined; value: Reaction[] } | null>(null);
   const reactions = over && over.base === m.reactions ? over.value : (m.reactions ?? []);
-  const canReact = !m.pending && !m.failed && (m.kind === "TEXT" || m.kind === "POLL");
+  const canReact = !m.pending && !m.failed && (m.kind === "TEXT" || m.kind === "POLL" || m.kind === "IMAGE");
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!picker) return;
@@ -210,5 +210,51 @@ export function PollBody({ m, mine, onChanged }: { m: UiMessage; mine: boolean; 
       </div>
       <p className={`text-[11px] ${mine ? "opacity-70" : "text-muted-foreground"}`}>{poll.voters} kişi oy verdi</p>
     </div>
+  );
+}
+
+/** Sohbetteki fotoğraf: önce küçük sürüm (hızlı ve az veri), tıklayınca büyük sürüm tam ekran */
+export function ChatImage({ m }: { m: UiMessage }) {
+  const [open, setOpen] = useState(false);
+  const img = m.image;
+  if (!img) return null;
+  const w = img.w || 4;
+  const h = img.h || 3;
+  // Çok uzun ya da çok yatay fotoğraflar sohbeti kaplamasın
+  const ratio = Math.min(1.6, Math.max(0.7, w / h));
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => !m.pending && setOpen(true)}
+        className="relative -mx-1.5 mb-1 block w-[min(17rem,70vw)] overflow-hidden rounded-lg bg-muted"
+        style={{ aspectRatio: ratio }}
+        aria-label="Fotoğrafı büyüt"
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={img.thumb} alt="" loading="lazy" decoding="async" className="size-full object-cover" />
+        {m.pending && (
+          <span className="absolute inset-0 flex items-center justify-center bg-black/30">
+            <span className="rounded-full bg-black/60 px-2.5 py-1 text-xs font-semibold text-white">%{Math.round((m.progress ?? 0) * 100)}</span>
+          </span>
+        )}
+      </button>
+      {m.text && (
+        <p className="whitespace-pre-wrap break-words text-[15px] leading-snug">
+          {m.text}
+          <span className="inline-block w-12" />
+        </p>
+      )}
+      {open && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/90 p-3" onClick={() => setOpen(false)} role="dialog" aria-label="Fotoğraf">
+          <button className="btn-icon absolute right-3 top-3 text-white hover:bg-white/10" aria-label="Kapat" onClick={() => setOpen(false)}>
+            <X />
+          </button>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={img.full} alt="" className="max-h-full max-w-full rounded object-contain" onClick={(e) => e.stopPropagation()} />
+          {m.text && <p className="absolute inset-x-0 bottom-0 bg-black/50 p-3 text-center text-sm text-white">{m.text}</p>}
+        </div>
+      )}
+    </>
   );
 }

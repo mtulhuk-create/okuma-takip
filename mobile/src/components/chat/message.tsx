@@ -9,6 +9,7 @@ import type { ChatMessage } from "@/lib/types";
 import { BadgeChip } from "../badge-chip";
 import { StreakChip } from "../history";
 import { Avatar } from "../ui";
+import { ChatPhoto } from "./photo";
 
 const NAME_COLORS = ["#be123c", "#b45309", "#047857", "#0369a1", "#6d28d9", "#c2410c", "#0f766e"];
 const nameColor = (id: string) => {
@@ -39,7 +40,7 @@ export const MessageBubble = memo(function MessageBubble({ m, mine, showAuthor, 
   // Sunucudan yeni veri gelene kadar benim ifadem anında görünür
   const [over, setOver] = useState<{ base: ChatMessage["reactions"]; value: Reaction[] } | null>(null);
   const reactions = over && over.base === m.reactions ? over.value : (m.reactions ?? []);
-  const canReact = !m.pending && !m.failed && (m.kind === "TEXT" || m.kind === "POLL");
+  const canReact = !m.pending && !m.failed && (m.kind === "TEXT" || m.kind === "POLL" || m.kind === "IMAGE");
   const react = (emoji: string) => {
     setMenu(false);
     setOver({ base: m.reactions, value: toggleReaction(reactions, emoji) });
@@ -133,11 +134,13 @@ export const MessageBubble = memo(function MessageBubble({ m, mine, showAuthor, 
             ))}
             <Text style={{ fontFamily: fonts.regular, fontSize: 11, color: sub }}>{poll.voters} kişi oy verdi</Text>
           </View>
+        ) : m.kind === "IMAGE" && m.image ? (
+          <ChatPhoto m={m} color={fg} />
         ) : (
           <Text style={{ fontFamily: fonts.regular, fontSize: 15, lineHeight: 20, color: fg }}>{m.text}</Text>
         )}
         <View style={{ flexDirection: "row", alignItems: "center", gap: 2, alignSelf: "flex-end", marginTop: 1 }}>
-          <Text style={{ fontFamily: fonts.regular, fontSize: 10, color: sub }}>{m.failed ? "Gönderilemedi" : m.pending ? "Gönderiliyor…" : formatClock(m.createdAt)}</Text>
+          <Text style={{ fontFamily: fonts.regular, fontSize: 10, color: sub }}>{m.failed ? "Gönderilemedi" : m.pending ? (m.kind === "IMAGE" ? "Yükleniyor…" : "Gönderiliyor…") : formatClock(m.createdAt)}</Text>
           {mine && !m.pending && !m.failed && <Check size={11} color={sub} strokeWidth={2.5} />}
         </View>
       </Pressable>

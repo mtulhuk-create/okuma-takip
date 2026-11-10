@@ -17,6 +17,7 @@ import { groupAdminIds, notifyUsers } from "@/lib/notify";
 import { canPost } from "@/lib/chat";
 import { booksOf, teamsActive } from "@/lib/rules";
 import { publish } from "@/lib/realtime";
+import { checkMediaUrl, destroyMedia, mediaView, uploadTicket } from "@/lib/media";
 import { submitReading, type ReportChoice } from "@/lib/reading";
 import { DAY, MIN, formatDateTime, timeToMinute } from "@/lib/schedule";
 
@@ -680,6 +681,43 @@ export async function sendMessage(_: Prev, fd: FormData) {
   });
 }
 
+/** Fotoğraf yükleme izni: cihaz fotoğrafı doğrudan Cloudinary'ye yükler (dosya bu sunucuya gelmez) */
+export async function mediaTicket(groupId: string) {
+  const { user } = await chatMember(groupId);
+  const recent = await getDb().message.count({ where: { groupId, userId: user.id, kind: "IMAGE", createdAt: { gt: new Date(Date.now() - 10 * 60_000) } } });
+  if (recent >= 10) throw new Error("Kısa sürede çok fazla fotoğraf gönderdin, biraz bekle");
+  return uploadTicket(groupId);
+}
+
+export async function sendImage(_: Prev, fd: FormData) {
+  return run(async () => {
+    const groupId = str(fd, "groupId");
+    const media = checkMediaUrl(str(fd, "url", 400));
+    const text = str(fd, "text", 1000) || null;
+    const dim = (k: string) => Math.min(20_000, Math.max(0, Math.round(Number(fd.get(k)) || 0)));
+    const { user, member } = await chatMember(groupId);
+    const recent = await getDb().message.count({ where: { groupId, userId: user.id, kind: "IMAGE", createdAt: { gt: new Date(Date.now() - 10 * 60_000) } } });
+    if (recent >= 10) throw new Error("Kısa sürede çok fazla fotoğraf gönderdin, biraz bekle");
+    const m = await getDb().message.create({ data: { groupId, userId: user.id, kind: "IMAGE", text, media, mediaW: dim("w"), mediaH: dim("h") } });
+    await publish(groupId, {
+      type: "message",
+      message: {
+        id: m.id,
+        kind: "IMAGE",
+        text,
+        createdAt: m.createdAt.toISOString(),
+        user: { id: user.id, name: shownName(user, member.group.nameDisplay), imageUrl: user.imageUrl, initial: avatarInitial(user), badge: (await activeBadges(member.group)).get(user.id) ?? null },
+        day: null,
+        poll: null,
+        badge: null,
+        image: mediaView(m),
+      },
+    });
+    notifyChat(member.group, user.id, `📷 ${member.group.name}`, `${shownName(user, member.group.nameDisplay)}: ${text ?? "Fotoğraf gönderdi"}`);
+    return { id: m.id };
+  });
+}
+
 export async function createPoll(_: Prev, fd: FormData) {
   return run(async () => {
     const groupId = str(fd, "groupId");
@@ -729,6 +767,10 @@ export async function deleteMessage(_: Prev, fd: FormData) {
     const { user, member } = await chatMember(msg.groupId, false);
     if (msg.userId !== user.id && member.role !== "ADMIN") throw new Error("Bu mesajı silemezsiniz");
     await db.message.delete({ where: { id: msg.id } });
+    if (msg.media) {
+      const url = msg.media;
+      after(() => destroyMedia(url));
+    }
     await publish(msg.groupId, { type: "refresh", reason: "delete" });
     return "Mesaj silindi";
   });
@@ -747,7 +789,7 @@ export async function reactMessage(_: Prev, fd: FormData) {
     const emoji = str(fd, "emoji", 16);
     if (!REACTIONS.includes(emoji)) throw new Error("Bu ifade kullanılamaz");
     const msg = await db.message.findUniqueOrThrow({ where: { id: str(fd, "messageId") }, select: { id: true, groupId: true, kind: true } });
-    if (msg.kind !== "TEXT" && msg.kind !== "POLL") throw new Error("Bu karta ifade bırakılamaz");
+    if (msg.kind !== "TEXT" && msg.kind !== "POLL" && msg.kind !== "IMAGE") throw new Error("Bu karta ifade bırakılamaz");
     const { user } = await chatMember(msg.groupId, false);
     const cur = await db.messageReaction.findUnique({ where: { messageId_userId: { messageId: msg.id, userId: user.id } } });
     if (cur?.emoji === emoji) await db.messageReaction.delete({ where: { id: cur.id } });

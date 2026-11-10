@@ -67,6 +67,7 @@ const ACTIONS: Record<string, Fn> = {
   removeBadge: wrap(actions.removeBadge),
   deleteMessage: wrap(actions.deleteMessage),
   reactMessage: wrap(actions.reactMessage),
+  sendImage: wrap(actions.sendImage),
   requestTeamChange: wrap(actions.requestTeamChange),
   respondTeamChange: wrap(actions.respondTeamChange),
   setMemberTeam: wrap(actions.setMemberTeam),

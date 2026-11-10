@@ -7,6 +7,7 @@ import { getDayCards } from "./day";
 import { memberStreaks, streakTag } from "./history";
 import { teamTiers } from "./rules";
 import { dueView } from "./due-view";
+import { mediaEnabled, mediaView } from "./media";
 import { currentPeriod, defaultDueAt } from "./schedule";
 
 const PAGE = 40;
@@ -101,6 +102,7 @@ export async function getChatPage(groupId: string, userId: string, before?: Date
         }
       : null,
     badge: m.kind === "BADGE" && m.badge ? badgeView(m.badge, m.text, userId, me.role === "ADMIN", group) : null,
+    image: m.kind === "IMAGE" ? mediaView(m) : null,
     reactions: reactionView(m.reactions, userId, group.nameDisplay),
   }));
 
@@ -118,7 +120,7 @@ export async function getChatPage(groupId: string, userId: string, before?: Date
     },
     todayCard: before ? null : (cards[today] ?? null),
     kasa,
-    me: { userId, role: me.role, canPost: canPost(group, me.role) },
+    me: { userId, role: me.role, canPost: canPost(group, me.role), canPhoto: canPost(group, me.role) && mediaEnabled() },
     messages,
     hasMore,
   };
