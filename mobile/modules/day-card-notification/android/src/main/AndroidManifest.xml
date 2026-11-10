@@ -4,6 +4,7 @@
     <receiver android:name="expo.modules.daycard.DayCardReceiver" android:exported="false" />
     <receiver android:name="expo.modules.daycard.DayCardAlarmReceiver" android:exported="false" />
     <receiver android:name="expo.modules.daycard.KazaReceiver" android:exported="false" />
+    <receiver android:name="expo.modules.daycard.InboxReceiver" android:exported="false" />
     <receiver android:name="expo.modules.daycard.DayCardBootReceiver" android:exported="true">
       <intent-filter>
         <action android:name="android.intent.action.BOOT_COMPLETED" />

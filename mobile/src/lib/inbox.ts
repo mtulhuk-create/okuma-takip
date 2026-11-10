@@ -1,10 +1,11 @@
-// Gruplara yazılan mesajların bildirimi: uygulama açıkken kısa aralıklarla, kapalıyken arka plan görevi
-// (Android en az ~15 dk) sunucuya sorar ve yeni mesajları grup başına tek bildirim olarak gösterir.
+// Gruplara yazılan mesajların bildirimi: uygulama açıkken burada kısa aralıklarla, kapalıyken yerel Android
+// alarmı (~15 dk, JS başlatmadan) sunucuya sorar; yeni mesajlar grup başına tek bildirim olarak gösterilir.
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Notifications from "expo-notifications";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 import { API_URL } from "./config";
+import { configureInboxPoller, setInboxPollerAfter } from "../../modules/day-card-notification";
 
 const TOKEN_KEY = "inbox-token";
 const AFTER_KEY = "inbox-after";
@@ -16,6 +17,13 @@ export async function getMessagePref() {
 }
 export async function setMessagePref(on: boolean) {
   await SecureStore.setItemAsync(PREF_KEY, on ? "1" : "0").catch(() => {});
+  await syncPoller();
+}
+
+/** Uygulama kapalıyken çalışan yerel kontrolü güncel token ve tercihle kurar */
+async function syncPoller() {
+  const token = (await SecureStore.getItemAsync(TOKEN_KEY).catch(() => null)) ?? "";
+  configureInboxPoller(API_URL, token, !!token && (await getMessagePref()));
 }
 
 /** Şu an ekranda açık olan sohbet: onun mesajları zaten görülüyor, bildirilmez */
@@ -31,16 +39,20 @@ type InboxMessage = { id: string; groupId: string; groupName: string; author: st
 export async function refreshInboxToken(fetcher: <T>(path: string) => Promise<T>) {
   const res = await fetcher<{ token: string }>("/api/m/inbox-token").catch(() => null);
   if (res?.token) await SecureStore.setItemAsync(TOKEN_KEY, res.token).catch(() => {});
+  await syncPoller();
 }
 
 export async function clearInbox() {
   await SecureStore.deleteItemAsync(TOKEN_KEY).catch(() => {});
   await AsyncStorage.removeItem(AFTER_KEY).catch(() => {});
+  configureInboxPoller(API_URL, "", false);
 }
 
 /** Uygulama açıkken mesajlar zaten görülüyor: bu andan sonrası bildirilsin */
 export async function markInboxSeen() {
-  await AsyncStorage.setItem(AFTER_KEY, new Date().toISOString()).catch(() => {});
+  const now = new Date().toISOString();
+  await AsyncStorage.setItem(AFTER_KEY, now).catch(() => {});
+  setInboxPollerAfter(now);
 }
 
 let checking = false;
@@ -63,6 +75,7 @@ async function checkOnce() {
   const body = (await res.json().catch(() => null)) as { now: string; messages: InboxMessage[] } | null;
   if (!body) return 0;
   await AsyncStorage.setItem(AFTER_KEY, body.now).catch(() => {});
+  setInboxPollerAfter(body.now);
   const byGroup = new Map<string, InboxMessage[]>();
   for (const m of body.messages) byGroup.set(m.groupId, [...(byGroup.get(m.groupId) ?? []), m]);
   for (const [groupId, list] of byGroup) {

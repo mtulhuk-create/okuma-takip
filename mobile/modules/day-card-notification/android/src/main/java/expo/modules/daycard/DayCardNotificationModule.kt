@@ -33,6 +33,15 @@ class DayCardNotificationModule : Module() {
       KazaCard.render(context, p)
     }
 
+    // Uygulama kapalıyken grup mesajı kontrolü (yerel; JS başlatmaz)
+    Function("configureInbox") { apiUrl: String, token: String, enabled: Boolean ->
+      InboxPoller.configure(context, apiUrl, token, enabled)
+    }
+
+    Function("setInboxAfter") { iso: String ->
+      InboxPoller.setAfter(context, iso)
+    }
+
     Function("hideKaza") {
       KazaCard.hide(context)
     }

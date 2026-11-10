@@ -36,6 +36,8 @@ type Native = {
   showKaza?(json: string): void;
   hideKaza?(): void;
   getAppIcon?(): string;
+  configureInbox?(apiUrl: string, token: string, enabled: boolean): void;
+  setInboxAfter?(iso: string): void;
   setAppIcon?(name: string): void;
 };
 const native = requireOptionalNativeModule<Native>("DayCardNotification");
@@ -84,4 +86,17 @@ export function getAppIcon(): AppIcon {
 }
 export function setAppIcon(name: AppIcon) {
   native?.setAppIcon?.(name);
+}
+
+/** Uygulama kapalıyken grup mesajı kontrolü: yerel alarm ~15 dakikada bir sunucuya sorar (JS başlatmaz) */
+export function configureInboxPoller(apiUrl: string, token: string, enabled: boolean) {
+  try {
+    native?.configureInbox?.(apiUrl, token, enabled);
+  } catch {}
+}
+/** Bu andan önceki mesajlar görüldü sayılır (yerel kontrol tekrar bildirmesin) */
+export function setInboxPollerAfter(iso: string) {
+  try {
+    native?.setInboxAfter?.(iso);
+  } catch {}
 }

@@ -12,7 +12,6 @@ import { exactAlarmsAllowed, getLastSync, getStickyPref, requestExactAlarms, sch
 import { useThemePref } from "@/lib/theme-pref";
 import { setKazaStickyPref } from "@/lib/kaza";
 import { getMessagePref, markInboxSeen, setMessagePref } from "@/lib/inbox";
-import { setInboxTask } from "@/lib/inbox-task";
 import { hideAllDayCardNotifications, hideKazaNotification, scheduleDayCardNotificationsJson } from "../../../modules/day-card-notification";
 import { Bell, BookOpen, CalendarCheck, LogOut, Monitor, Moon, Palette, Pencil, Sun, Users, Wallet } from "lucide-react-native";
 import { fonts, useColors } from "@/lib/theme";
@@ -169,7 +168,6 @@ export default function ProfileScreen() {
               onValueChange={async (v) => {
                 setMsgNotify(v);
                 await setMessagePref(v);
-                await setInboxTask(v);
                 if (v) markInboxSeen();
               }}
               trackColor={{ true: c.primary, false: c.muted }}
