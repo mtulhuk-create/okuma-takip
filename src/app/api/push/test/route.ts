@@ -21,9 +21,9 @@ export async function POST() {
       db.readingLog.findMany({ where: { groupId: m.groupId, dayKey: period.dayKey }, select: { pages: true, minPages: true } }),
     ]);
     const done = logs.filter((l) => l.pages > 0 && l.pages >= l.minPages).length;
-    await notifyUsers([userId], { ...(await dayCardPush(m.group, m, period, { done, total })), renotify: true });
+    await notifyUsers([userId], { ...(await dayCardPush(m.group, m, period, { done, total })), renotify: true }, { push: true });
     return Response.json({ ok: true, devices: subs });
   }
-  await notifyUsers([userId], { title: "🔔 Okuma Takip", body: "Bildirimler çalışıyor. Okuma günü başlayınca gün kartı burada butonlarıyla görünecek.", url: "/panel" });
+  await notifyUsers([userId], { title: "🔔 Okuma Takip", body: "Bildirimler çalışıyor. Okuma günü başlayınca gün kartı burada butonlarıyla görünecek.", url: "/panel" }, { push: true });
   return Response.json({ ok: true, devices: subs });
 }

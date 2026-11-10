@@ -198,7 +198,7 @@ export function GroupForm({ group, onSubmit, submitting, submitLabel }: { group?
         </View>
         <Muted>
           Her gün {time(startMinute)}&apos;de başlar, {deadlineMinute <= startMinute ? "ertesi gün " : ""}
-          {time(deadlineMinute)}&apos;de kapanır.{reminderHours ? ` ${reminderHours} saat önce uyarı,` : ""} son 10 dakikada geri sayım gelir.
+          {time(deadlineMinute)}&apos;de kapanır.{reminderHours ? ` ${reminderHours} saat önce uyarı,` : ""} son 10 dakika kala son çağrı gelir.
         </Muted>
       </Section>
 

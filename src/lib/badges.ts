@@ -101,8 +101,6 @@ export async function processBadges(g: Group, upTo: string) {
     } else {
       const b = await db.badge.create({ data: { groupId: g.id, userId: m.userId, kind: "BAD", status: "VOTING", streakDay: upTo, voteUntil: new Date(Date.now() + VOTE_MS) } });
       await badgeMessage(g.id, b.id, "VOTE");
-      const others = members.filter((x) => x.userId !== m.userId).map((x) => x.userId);
-      await notifyUsers(others, { title: `🏷️ ${g.name}: rozet oylaması`, body: `${m.user.name} 7 gündür tam okuyamadı. Sohbette ona latife bir rozet önerin ve oylayın.`, url: `/gruplar/${g.id}` }).catch(() => {});
     }
     changed++;
   }

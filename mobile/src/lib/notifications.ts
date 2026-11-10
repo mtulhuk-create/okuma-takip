@@ -1,5 +1,5 @@
-// Okuma günü hatırlatmaları ve son 10 dakika geri sayımı cihazda planlanır;
-// böylece internet ya da push servisi olmadan da tam zamanında gelir.
+// Okuma günü hatırlatmaları cihazda planlanır; böylece internet ya da push servisi olmadan da tam zamanında gelir.
+// Telefona yalnızca üç tür bildirim gelir: sabit gün/kaza kartı, okuma hatırlatmaları ve grup mesajları.
 import * as Notifications from "expo-notifications";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
@@ -11,8 +11,8 @@ import type { DayCard } from "./types";
 import { dayCardNotificationAvailable, hideDayCardNotification, scheduleDayCardNotificationsJson, showDayCardNotification, type DayCardPayload } from "../../modules/day-card-notification";
 
 export const REPORT_CATEGORY = "REPORT";
-// Tam sürüm: son 10 dakikada her dakika. Lite: telefonu yormasın, yalnızca 10 ve 1 dakika kala
-const COUNTDOWN_MINUTES = LITE ? [10, 1] : [10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
+/** Son çağrı: süre bitmeden 10 dakika önce tek hatırlatma (eskiden her dakika geliyordu, kalabalık yapıyordu) */
+const LAST_CALL_MINUTES = 10;
 /** Kaç okuma günü ileriye planlanır (uygulama uzun süre açılmasa da bildirimler gelsin) */
 export const PLAN_DAYS = LITE ? 4 : 7;
 export const SCHEDULE_PATH = `/api/me/schedule?days=${PLAN_DAYS}`;
@@ -61,16 +61,13 @@ export async function setupNotifications() {
     });
     await Notifications.setNotificationChannelAsync("messages", {
       name: "Grup mesajları",
-      description: "Gruplara yazılan yeni mesajlar ve anketler",
+      description: "Okuyucuların grup sohbetine yazdığı mesajlar, fotoğraflar ve anketler",
       // eslint-disable-next-line import/namespace -- enum `export *` ile geliyor, eklenti göremiyor
-      importance: Notifications.AndroidImportance.DEFAULT,
+      importance: Notifications.AndroidImportance.HIGH,
+      vibrationPattern: [0, 150],
     });
-    await Notifications.setNotificationChannelAsync("countdown", {
-      name: "Son 10 dakika geri sayımı",
-      // eslint-disable-next-line import/namespace -- enum `export *` ile geliyor, eklenti göremiyor
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 200],
-    });
+    // Eski sürümlerdeki dakika dakika geri sayım kanalı kaldırıldı
+    await Notifications.deleteNotificationChannelAsync("countdown").catch(() => {});
   }
   // Android en fazla 3 buton gösterir: gün kartındaki temel seçenekler
   await Notifications.setNotificationCategoryAsync(REPORT_CATEGORY, [
@@ -255,7 +252,7 @@ export async function sendTestNotification(fetchSchedule: () => Promise<Schedule
 
 type Planned = { identifier: string; key: string; request: Notifications.NotificationRequestInput };
 const PLAN_KEY = "notif-plan-v2";
-/** Geri sayım yalnızca en yakın iki okuma günü için planlanır (cihazda gereksiz alarm birikmesin) */
+/** Son çağrı yalnızca en yakın iki okuma günü için planlanır (cihazda gereksiz alarm birikmesin) */
 const COUNTDOWN_PERIODS = LITE ? 1 : 2;
 
 /** Planlanması gereken bildirimler (her biri sabit kimlikli; aynı plan tekrar kurulmaz) */
@@ -278,8 +275,8 @@ function buildPlan(data: Schedule, sticky: boolean, now: number): Planned[] {
       const deadline = new Date(p.deadline);
       if (p.reported) continue;
       const payload: ReportData = { token: p.token, groupId: g.groupId, dayKey: p.dayKey };
-      // Gün başlarken gün kartı bildirimi
-      if (start > now && !native) add(`day-${g.groupId}-${p.dayKey}`, start, { ...dayCardContent(g, deadline, p.dayKey), categoryIdentifier: REPORT_CATEGORY, data: { ...payload, sticky }, sticky, autoDismiss: false }, "today");
+      // Gün başlarken sabit gün kartı (yalnızca kilit ekranı kartı açıksa ve özel kart yoksa; yoksa gün başı bildirimi gelmez)
+      if (start > now && sticky && !native) add(`day-${g.groupId}-${p.dayKey}`, start, { ...dayCardContent(g, deadline, p.dayKey), categoryIdentifier: REPORT_CATEGORY, data: { ...payload, sticky }, sticky, autoDismiss: false }, "today");
       const remindAt = deadline.getTime() - g.reminderHours * 3_600_000;
       if (g.reminderHours > 0 && remindAt > now && remindAt >= start) {
         add(
@@ -290,14 +287,13 @@ function buildPlan(data: Schedule, sticky: boolean, now: number): Planned[] {
         );
       }
       if (countdownPeriods++ >= COUNTDOWN_PERIODS) continue;
-      for (const m of COUNTDOWN_MINUTES) {
-        const t = deadline.getTime() - m * 60_000;
-        if (t <= now) continue;
+      const t = deadline.getTime() - LAST_CALL_MINUTES * 60_000;
+      if (t > now && t >= start) {
         add(
-          `cd-${g.groupId}-${p.dayKey}-${m}`,
+          `last-${g.groupId}-${p.dayKey}`,
           t,
-          { title: `⏳ ${m} dakika kaldı · ${g.name}`, body: `Son bildirim ${hhmm(deadline)}. Okuduysan hemen bildir, yoksa ceza yazılacak!`, ...category, data: payload },
-          "countdown",
+          { title: `⏳ ${LAST_CALL_MINUTES} dakika kaldı · ${g.name}`, body: `Son bildirim ${hhmm(deadline)}. Okuduysan hemen bildir, yoksa ceza yazılacak!`, ...category, data: payload },
+          "reminders",
         );
       }
     }
@@ -458,15 +454,13 @@ export async function handleReportAction(actionId: string, data: ReportData, use
     );
   }
   await dismissDayNotifications(data);
-  await Notifications.scheduleNotificationAsync({
-    identifier: "report-result",
-    content: {
-      title: res.ok ? "Bildirim kaydedildi ✓" : "Bildirilemedi",
-      body: res.ok
-        ? `${body.pages} sayfa bildirildi${body.required && body.pages! < body.required ? ` (hedef ${body.required})` : ""}.`
-        : body.error ?? "Uygulamayı açıp tekrar deneyin.",
-    },
-    trigger: null,
-  });
+  // Başarıda ayrıca "kaydedildi" bildirimi gösterilmez (kalabalık yapmasın); yalnızca hata bildirilir
+  if (!res.ok) {
+    await Notifications.scheduleNotificationAsync({
+      identifier: "report-result",
+      content: { title: "Bildirilemedi", body: body.error ?? "Uygulamayı açıp tekrar deneyin." },
+      trigger: null,
+    });
+  }
   return true;
 }

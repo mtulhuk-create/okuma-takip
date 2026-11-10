@@ -805,6 +805,7 @@ function notifyChat(group: { id: string; name: string }, authorId: string, title
     await notifyUsers(
       others.map((o) => o.userId),
       { title, body: body.length > 140 ? `${body.slice(0, 137)}…` : body, url: `/gruplar/${group.id}`, tag: `msg-${group.id}`, renotify: true },
+      { push: true },
     ).catch((e) => console.error("mesaj bildirimi", e));
   });
 }

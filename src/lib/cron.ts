@@ -1,10 +1,10 @@
 import type { Group, Team } from "@prisma/client";
 import { ensureDayCard } from "./chat";
 import { getDb } from "./db";
-import { groupAdminIds, notifyEach, notifyUsers } from "./notify";
+import { notifyEach } from "./notify";
 import { publish } from "./realtime";
 import { penaltyFor, rulesFor } from "./rules";
-import { DAY, MIN, currentPeriod, formatDateTime, formatDayKey, lastClosedPeriod, minuteToTime, openPeriod, periodFor, shiftDayKey } from "./schedule";
+import { DAY, MIN, currentPeriod, lastClosedPeriod, minuteToTime, openPeriod, periodFor, shiftDayKey } from "./schedule";
 import { DAY_ACTIONS, sendDayStart } from "./day-push";
 import { processDues } from "./dues";
 import { finalizeVotes, processBadges } from "./badges";
@@ -53,19 +53,8 @@ async function settleDay(g: G, dayKey: string) {
     if (amount > 0) rows.push({ groupId: g.id, userId: m.userId, dayKey, amount, pagesRead: read, requiredPages: rules.targetPages });
   }
   if (!rows.length) return 0;
+  // Günlük ceza bildirimi gönderilmez (her gün kalabalık yapıyordu); ceza gün kartında ve kasada görünür
   const res = await db.penalty.createMany({ data: rows, skipDuplicates: true });
-  await notifyEach(
-    rows.map((r) => ({
-      userId: r.userId,
-      msg: {
-        title: `💸 ${g.name}: ${r.amount} TL ceza`,
-        body: `${formatDayKey(dayKey)} için ${r.pagesRead}/${r.requiredPages} sayfa bildirildi.`,
-        url: `/gruplar/${g.id}/bilgi`,
-        tag: `pen-${g.id}-${dayKey}`,
-      },
-    })),
-    { inApp: true },
-  );
   return res.count;
 }
 
@@ -79,7 +68,7 @@ export async function runCron(now = new Date()) {
     if (await ensureDayCard(g, now)) await publish(g.id, { type: "refresh", reason: "card" });
     stats.penalties += await settleGroup(g, now);
 
-    // Hatırlatma ve geri sayım (web push)
+    // Hatırlatma ve son çağrı (web push)
     const open = openPeriod(now, g);
     if (!open) continue;
     // Yeni gün başladı: gün kartı bildirimi (ilk 3 saat içinde, bir kez)
@@ -111,7 +100,7 @@ export async function runCron(now = new Date()) {
         return { userId: m.userId, msg: { ...msg, url: `/bildir/${g.id}?t=${encodeURIComponent(token)}`, token, actions: DAY_ACTIONS } };
       }),
     );
-    await notifyEach(items);
+    await notifyEach(items, { push: true });
     if (kind === "REMINDER") stats.reminders += items.length;
     else stats.countdowns += items.length;
   }

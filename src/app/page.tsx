@@ -23,7 +23,7 @@ export default async function Home() {
         {[
           [Target, "Günlük sayfa hedefini sen belirle"],
           [Users, "Herkese açık ya da özel gruplar kur, sohbet et"],
-          [AlarmClock, "Son saatten önce hatırlatma ve 10 dakikalık geri sayım"],
+          [AlarmClock, "Son saatten önce hatırlatma ve 10 dakika kala son çağrı"],
           [Coins, "Okumayana TL ceza, vadesinde ödemeyen gruptan çıkar"],
         ].map(([Icon, t]) => {
           const I = Icon as typeof Target;

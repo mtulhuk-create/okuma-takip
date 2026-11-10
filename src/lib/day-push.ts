@@ -45,6 +45,6 @@ export async function sendDayStart(g: G, period: Period) {
   await db.notificationLog.createMany({ data: targets.map((m) => ({ groupId: g.id, userId: m.userId, key: period.dayKey, kind: "DAY" })), skipDuplicates: true });
   const done = logs.filter((l) => l.pages > 0 && l.pages >= l.minPages).length;
   const items = await Promise.all(targets.map(async (m) => ({ userId: m.userId, msg: await dayCardPush(g, m, period, { done, total: members.length }) })));
-  await notifyEach(items);
+  await notifyEach(items, { push: true });
   return items.length;
 }

@@ -20,6 +20,7 @@ import { ErrorView, Loading, Row } from "@/components/ui";
 import { ApiError, useAction, useApiFetch } from "@/lib/api";
 import { formatDayLong } from "@/lib/format";
 import { fonts, useColors } from "@/lib/theme";
+import { setOpenChat } from "@/lib/inbox";
 import { compressPhoto, pickPhoto, uploadPhoto, type Picked, type Ticket } from "@/lib/photo";
 import { LITE } from "@/lib/variant";
 import type { ChatMessage, ChatResponse } from "@/lib/types";
@@ -146,6 +147,14 @@ export default function ChatScreen() {
   useEffect(() => {
     if (chat.data && !cursor.current) cursor.current = chat.data.cursor;
   }, [chat.data]);
+
+  // Bu sohbet açıkken mesajları bildirim olarak gelmez; bildirimi varsa kalkar
+  useFocusEffect(
+    useCallback(() => {
+      setOpenChat(id);
+      return () => setOpenChat(null);
+    }, [id]),
+  );
 
   // Gerçek zamanlı: ekran açıkken 2 saniyede bir yeni olay var mı bak
   useFocusEffect(

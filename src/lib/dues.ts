@@ -27,11 +27,6 @@ export async function ensureAdmin(groupId: string) {
   const ownerActive = members.some((m) => m.userId === g.ownerId);
   if (!ownerActive) await db.group.update({ where: { id: groupId }, data: { ownerId: pick.userId } });
   await notifyUsers([pick.userId], { title: `👑 ${g.name}: artık yöneticisin`, body: "Grupta yönetici kalmadığı için rastgele seçilerek yönetici yapıldın.", url: `/gruplar/${groupId}/yonetim` }, { inApp: true });
-  await notifyUsers(
-    members.filter((m) => m.id !== pick.id).map((m) => m.userId),
-    { title: g.name, body: `${pick.user.name} grubun yeni yöneticisi oldu.`, url: `/gruplar/${groupId}` },
-    { inApp: true },
-  );
   await publish(groupId, { type: "refresh", reason: "members" });
   return pick.userId;
 }

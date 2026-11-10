@@ -5,7 +5,9 @@ import { useEffect, useState } from "react";
 import { AppState, Pressable, Text } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApi, useApiFetch } from "@/lib/api";
-import { markInboxSeen, refreshInboxToken } from "@/lib/inbox";
+import { checkInbox, getMessagePref, markInboxSeen, refreshInboxToken } from "@/lib/inbox";
+import { setInboxTask } from "@/lib/inbox-task";
+import { LITE } from "@/lib/variant";
 import { getKazaStickyPref, syncKazaCard, type KazaState } from "@/lib/kaza";
 import { exactAlarmsAllowed, handleReportAction, requestExactAlarms, setupNotifications, syncSchedule, type ReportData, SCHEDULE_PATH, setDayCards } from "@/lib/notifications";
 import { fonts, useColors } from "@/lib/theme";
@@ -53,7 +55,16 @@ export function NotificationBridge() {
   useEffect(() => {
     refreshInboxToken(fetcher).catch(() => {});
     markInboxSeen();
+    getMessagePref().then(setInboxTask).catch(() => {});
   }, [fetcher]);
+
+  // Uygulama açıkken gruplara gelen mesajlar da bildirilir (açık olan sohbet hariç)
+  useEffect(() => {
+    const t = setInterval(() => {
+      if (AppState.currentState === "active") checkInbox().catch(() => {});
+    }, LITE ? 60_000 : 30_000);
+    return () => clearInterval(t);
+  }, []);
 
   useEffect(() => {
     const sub = AppState.addEventListener("change", (s) => {
@@ -87,7 +98,7 @@ export function NotificationBridge() {
       style={{ position: "absolute", zIndex: 100, top: insets.top + 6, left: 12, right: 12, backgroundColor: c.warningBg, borderRadius: 10, padding: 12, elevation: 6 }}
     >
       <Text style={{ fontFamily: fonts.medium, color: c.warning, fontSize: 13 }}>
-        ⏰ Geri sayım bildirimlerinin tam zamanında gelmesi için &quot;Alarm ve hatırlatıcılar&quot; iznini ver. <Text style={{ fontFamily: fonts.bold }}>İzin ver →</Text>
+        ⏰ Okuma hatırlatmalarının tam zamanında gelmesi için &quot;Alarm ve hatırlatıcılar&quot; iznini ver. <Text style={{ fontFamily: fonts.bold }}>İzin ver →</Text>
       </Text>
     </Pressable>
   );
