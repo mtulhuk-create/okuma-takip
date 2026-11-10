@@ -1,6 +1,6 @@
-import { memo } from "react";
-import { Check } from "lucide-react-native";
-import { Alert, Pressable, Text, View } from "react-native";
+import { memo, useState } from "react";
+import { Check, Copy, Trash2 } from "lucide-react-native";
+import { Alert, Modal, Pressable, Text, View } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { toast, useAction } from "@/lib/api";
 import { formatClock } from "@/lib/format";
@@ -17,9 +17,41 @@ const nameColor = (id: string) => {
   return NAME_COLORS[h % NAME_COLORS.length];
 };
 
+/** Mesajlara bırakılabilen ifadeler (sunucudakiyle aynı) */
+const REACTIONS = ["👍", "❤️", "🤲", "😂", "😮", "🔥"];
+type Reaction = NonNullable<ChatMessage["reactions"]>[number];
+
+/** Benim ifademi değiştirir: aynısıysa kaldırır, farklıysa yerine koyar (anında görünsün diye) */
+function toggleReaction(list: Reaction[], emoji: string): Reaction[] {
+  const had = list.find((r) => r.mine)?.emoji;
+  let out = list.map((r) => (r.mine ? { ...r, count: r.count - 1, mine: false, names: r.names.filter((n) => n !== "Sen") } : r)).filter((r) => r.count > 0);
+  if (had !== emoji) {
+    const hit = out.find((r) => r.emoji === emoji);
+    out = hit ? out.map((r) => (r.emoji === emoji ? { ...r, count: r.count + 1, mine: true, names: [...r.names, "Sen"] } : r)) : [...out, { emoji, count: 1, mine: true, names: ["Sen"] }];
+  }
+  return out.sort((a, b) => b.count - a.count);
+}
+
 export const MessageBubble = memo(function MessageBubble({ m, mine, showAuthor, canDelete }: { m: ChatMessage; mine: boolean; showAuthor: boolean; canDelete: boolean }) {
   const c = useColors();
   const action = useAction();
+  const [menu, setMenu] = useState(false);
+  // Sunucudan yeni veri gelene kadar benim ifadem anında görünür
+  const [over, setOver] = useState<{ base: ChatMessage["reactions"]; value: Reaction[] } | null>(null);
+  const reactions = over && over.base === m.reactions ? over.value : (m.reactions ?? []);
+  const canReact = !m.pending && !m.failed && (m.kind === "TEXT" || m.kind === "POLL");
+  const react = (emoji: string) => {
+    setMenu(false);
+    setOver({ base: m.reactions, value: toggleReaction(reactions, emoji) });
+    action.mutate({ name: "reactMessage", body: { messageId: m.id, emoji } }, { onError: () => setOver(null) });
+  };
+  const remove = () => {
+    setMenu(false);
+    Alert.alert("Mesajı sil", mine ? "Mesajın herkes için silinsin mi?" : `${m.user?.name ?? "Bu kişinin"} mesajı herkes için silinsin mi?`, [
+      { text: "Vazgeç", style: "cancel" },
+      { text: "Sil", style: "destructive", onPress: () => action.mutate({ name: "deleteMessage", body: { messageId: m.id } }) },
+    ]);
+  };
   const fg = mine ? c.chatMineFg : c.foreground;
   const sub = mine ? c.chatMineFg + "99" : c.mutedForeground;
   const bg = mine ? c.chatMine : c.card;
@@ -29,29 +61,16 @@ export const MessageBubble = memo(function MessageBubble({ m, mine, showAuthor, 
   return (
     <View style={{ flexDirection: mine ? "row-reverse" : "row", alignItems: "flex-start", gap: 8, marginTop: showAuthor ? 8 : 2 }}>
       {!mine && <View style={{ width: 30 }}>{showAuthor && m.user && <Avatar name={m.user.name} uri={m.user.imageUrl} initial={m.user.initial} seed={m.user.id} size={30} frame={m.user.tier} />}</View>}
+      <View style={{ maxWidth: "80%", alignItems: mine ? "flex-end" : "flex-start" }}>
       <Pressable
-        // Uzun bas: kopyala; kendi mesajını ya da (yöneticiysen) herkesin mesajını sil
+        // Uzun bas: ifade bırak, kopyala; kendi mesajını ya da (yöneticiysen) herkesin mesajını sil
         onLongPress={() => {
           if (m.pending) return;
-          const buttons: { text: string; style?: "cancel" | "destructive"; onPress?: () => void }[] = [];
-          if (m.text) buttons.push({ text: "Kopyala", onPress: () => Clipboard.setStringAsync(m.text ?? "").then(() => toast("Kopyalandı")) });
-          if (canDelete)
-            buttons.push({
-              text: "Sil",
-              style: "destructive",
-              onPress: () =>
-                Alert.alert("Mesajı sil", mine ? "Mesajın herkes için silinsin mi?" : `${m.user?.name ?? "Bu kişinin"} mesajı herkes için silinsin mi?`, [
-                  { text: "Vazgeç", style: "cancel" },
-                  { text: "Sil", style: "destructive", onPress: () => action.mutate({ name: "deleteMessage", body: { messageId: m.id } }) },
-                ]),
-            });
-          if (!buttons.length) return;
-          buttons.push({ text: "Vazgeç", style: "cancel" });
-          Alert.alert(m.poll ? "Anket" : "Mesaj", undefined, buttons);
+          if (canReact || m.text || canDelete) setMenu(true);
         }}
         style={{
-          maxWidth: "80%",
-          minWidth: poll ? "70%" : undefined,
+          maxWidth: "100%",
+          minWidth: poll ? "85%" : undefined,
           backgroundColor: bg,
           borderRadius: 12,
           borderTopLeftRadius: !mine && showAuthor ? 0 : 12,
@@ -122,6 +141,78 @@ export const MessageBubble = memo(function MessageBubble({ m, mine, showAuthor, 
           {mine && !m.pending && !m.failed && <Check size={11} color={sub} strokeWidth={2.5} />}
         </View>
       </Pressable>
+      {/* İfadeler: baloncuğun altına hafif biner; dokun: ekle/kaldır, uzun bas: kimler */}
+      {reactions.length > 0 && (
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: -5, paddingHorizontal: 6, justifyContent: mine ? "flex-end" : "flex-start" }}>
+          {reactions.map((r) => (
+            <Pressable
+              key={r.emoji}
+              onPress={() => canReact && react(r.emoji)}
+              onLongPress={() => Alert.alert(`${r.emoji} ${r.count}`, r.names.join("\n"))}
+              hitSlop={4}
+              style={({ pressed }) => ({
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 2,
+                paddingHorizontal: 6,
+                paddingVertical: 1,
+                borderRadius: 99,
+                backgroundColor: r.mine ? c.primary + "26" : c.card,
+                borderWidth: 1,
+                borderColor: r.mine ? c.primary + "88" : c.border,
+                opacity: pressed ? 0.7 : 1,
+                elevation: 1,
+              })}
+            >
+              <Text style={{ fontSize: 12, lineHeight: 16 }}>{r.emoji}</Text>
+              {r.count > 1 && <Text style={{ fontFamily: fonts.semibold, fontSize: 10.5, color: c.mutedForeground }}>{r.count}</Text>}
+            </Pressable>
+          ))}
+        </View>
+      )}
+      </View>
+      <Modal visible={menu} transparent animationType="fade" onRequestClose={() => setMenu(false)} statusBarTranslucent>
+        <Pressable onPress={() => setMenu(false)} style={{ flex: 1, backgroundColor: "#0006", justifyContent: "center", alignItems: "center", padding: 24 }}>
+          <Pressable onPress={() => {}} style={{ backgroundColor: c.card, borderRadius: 18, paddingVertical: 8, minWidth: 260, elevation: 8 }}>
+            {canReact && (
+              <View style={{ flexDirection: "row", justifyContent: "space-around", paddingHorizontal: 8, paddingVertical: 4 }}>
+                {REACTIONS.map((e) => {
+                  const on = reactions.some((r) => r.mine && r.emoji === e);
+                  return (
+                    <Pressable
+                      key={e}
+                      onPress={() => react(e)}
+                      accessibilityLabel={`${e} ifadesini bırak`}
+                      style={({ pressed }) => ({ width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: on ? c.primary + "26" : pressed ? c.muted : "transparent", transform: [{ scale: pressed ? 1.15 : 1 }] })}
+                    >
+                      <Text style={{ fontSize: 24, lineHeight: 30 }}>{e}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
+            {(!!m.text || canDelete) && <View style={{ height: 1, backgroundColor: c.border, marginVertical: 4 }} />}
+            {!!m.text && (
+              <Pressable
+                onPress={() => {
+                  setMenu(false);
+                  Clipboard.setStringAsync(m.text ?? "").then(() => toast("Kopyalandı"));
+                }}
+                style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 11, backgroundColor: pressed ? c.muted : "transparent" })}
+              >
+                <Copy size={17} color={c.foreground} />
+                <Text style={{ fontFamily: fonts.medium, fontSize: 14, color: c.foreground }}>Kopyala</Text>
+              </Pressable>
+            )}
+            {canDelete && (
+              <Pressable onPress={remove} style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 11, backgroundColor: pressed ? c.muted : "transparent" })}>
+                <Trash2 size={17} color={c.destructive} />
+                <Text style={{ fontFamily: fonts.medium, fontSize: 14, color: c.destructive }}>Sil</Text>
+              </Pressable>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 });

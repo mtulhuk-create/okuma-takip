@@ -111,6 +111,7 @@ model User {
   pushSubscriptions PushSubscription[]
   notifications     Notification[]
   messages          Message[]
+  reactions         MessageReaction[]
   pollVotes         PollVote[]
   bookLinks         BookLink[]
   badges            Badge[]
@@ -326,18 +327,19 @@ model NotificationLog {
 }
 
 model Message {
-  id        String      @id @default(cuid())
+  id        String            @id @default(cuid())
   groupId   String
-  group     Group       @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  group     Group             @relation(fields: [groupId], references: [id], onDelete: Cascade)
   userId    String? // gün kartlarında boş
-  user      User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
-  kind      MessageKind @default(TEXT)
+  user      User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  kind      MessageKind       @default(TEXT)
   text      String?
   dayKey    String? // DAY mesajları için okuma günü
-  createdAt DateTime    @default(now())
+  createdAt DateTime          @default(now())
   poll      Poll?
   badgeId   String? // BADGE mesajları: text = VOTE | AWARD | END
-  badge     Badge?      @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+  badge     Badge?            @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+  reactions MessageReaction[]
 
   @@unique([groupId, kind, dayKey])
   @@index([groupId, createdAt])
@@ -548,4 +550,20 @@ model KazaDay {
   added  Int    @default(0) // o gün kaçırılıp kazaya eklenen (geçmişte net = kılınan − eklenen)
 
   @@id([userId, dayKey])
+}
+
+/**
+ * Mesaja bırakılan ifade: kişi başına mesajda bir ifade (aynısına tekrar basınca kalkar)
+ */
+model MessageReaction {
+  id        String   @id @default(cuid())
+  messageId String
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emoji     String
+  createdAt DateTime @default(now())
+
+  @@unique([messageId, userId])
+  @@index([messageId])
 }

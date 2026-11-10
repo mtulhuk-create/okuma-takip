@@ -151,7 +151,12 @@ export default function ChatScreen() {
           if (res.events.length) {
             chat.refetch();
             // Ayar, üyelik ya da ödeme değiştiyse ilgili ekranlar da tazelensin
-            if (res.events.some((e) => (e as { type?: string }).type !== "message")) {
+            // İfade ya da silme yalnızca sohbeti değiştirir; diğer ekranlar yenilenmez
+            const onlyChat = (e: unknown) => {
+              const ev = e as { type?: string; reason?: string };
+              return ev.type === "message" || (ev.type === "refresh" && (ev.reason === "reaction" || ev.reason === "delete"));
+            };
+            if (!res.events.every(onlyChat)) {
               qc.invalidateQueries({ queryKey: ["/api/m/me"] });
               qc.invalidateQueries({ queryKey: [`/api/m/groups/${id}`] });
             }

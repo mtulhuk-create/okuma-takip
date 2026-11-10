@@ -182,6 +182,7 @@ export function ChatView({ initial }: { initial: Page }) {
       day: null,
       poll: null,
       badge: null,
+      reactions: [],
       pending: true,
     };
     setMessages((prev) => [...prev, tmp]);
