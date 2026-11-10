@@ -1,5 +1,5 @@
 /* eslint-disable @next/next/no-img-element */
-import { AVATAR_FRAME, TIER_LABEL, type Tier } from "./tier";
+import { AVATAR_FRAME, TIER_COLOR, TIER_LABEL, TIER_NOTCHES, type Tier } from "./tier";
 // Her kişiye sabit bir renk: açık modda açık, koyu modda koyu tonlar
 const COLORS = [
   "bg-rose-100 text-rose-800 dark:bg-rose-900/80 dark:text-rose-100",
@@ -29,7 +29,28 @@ export function isRealPhoto(src?: string | null): src is string {
  * Profil resmi: mail hesabından gelen fotoğraf varsa o; yoksa kişiye özel renkte,
  * hesap (mail) adının baş harfiyle sistem avatarı.
  */
-export function Avatar({ name, src, size = 36, ring = false, initial, seed, frame }: { name: string; src?: string | null; size?: number; ring?: boolean; initial?: string; seed?: string; frame?: Tier | null }) {
+export function Avatar(props: { name: string; src?: string | null; size?: number; ring?: boolean; initial?: string; seed?: string; frame?: Tier | null }) {
+  const { frame, size = 36 } = props;
+  if (!frame) return <AvatarCore {...props} />;
+  // Halka üzerinde küçük baklava çıkıntılar (altın 4, gümüş 2, bronz yok)
+  const d = Math.max(4, Math.round(size * 0.17));
+  const pos = { top: { left: "50%", top: 0 }, bottom: { left: "50%", top: "100%" }, left: { left: 0, top: "50%" }, right: { left: "100%", top: "50%" } } as const;
+  return (
+    <span className="relative inline-flex shrink-0">
+      <AvatarCore {...props} />
+      {TIER_NOTCHES[frame].map((p) => (
+        <span
+          key={p}
+          aria-hidden
+          className="pointer-events-none absolute rotate-45 rounded-[1px] border border-card"
+          style={{ ...pos[p], width: d, height: d, marginLeft: -d / 2, marginTop: -d / 2, backgroundColor: TIER_COLOR[frame] }}
+        />
+      ))}
+    </span>
+  );
+}
+
+function AvatarCore({ name, src, size = 36, ring = false, initial, seed, frame }: { name: string; src?: string | null; size?: number; ring?: boolean; initial?: string; seed?: string; frame?: Tier | null }) {
   const letter = (initial || name.trim().match(/\p{L}|\d/u)?.[0] || "?").toLocaleUpperCase("tr-TR");
   // Ekip çerçevesi (altın / gümüş / bronz) üst üste dizilimdeki ayırıcı halkanın yerine geçer
   const cls = `shrink-0 rounded-full ${frame ? AVATAR_FRAME[frame] : ring ? "ring-2 ring-card" : ""}`;

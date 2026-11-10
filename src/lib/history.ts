@@ -66,9 +66,9 @@ export async function memberStreaks(g: G, members: { userId: string; joinedAt: D
   return data;
 }
 
-/** Gösterilecek seri: tam seri öncelikli; 3 günden azsa yok */
-export function streakTag(s: { n: number; full: number } | undefined) {
-  if (!s) return null;
+/** Gösterilecek seri: tam seri öncelikli; 3 günden azsa ya da grupta seriler kapalıysa yok */
+export function streakTag(s: { n: number; full: number } | undefined, enabled = true) {
+  if (!s || !enabled) return null;
   if (s.full >= STREAK_MIN) return { n: s.full, full: true };
   if (s.n >= STREAK_MIN) return { n: s.n, full: false };
   return null;
@@ -148,7 +148,9 @@ export async function getMyHistory(userId: string, range: HistoryRange) {
     full.push(long);
     // Ekip çerçevesi gruba özel: yalnızca o grup seçiliyken gösterilir
     const tier = (m.teamId && teamTiers(m.group).get(m.teamId)) || null;
-    return { group: { id: m.group.id, name: m.group.name }, ...row(m.group, m.joinedAt, startKey, endKey, mine, now), streak: streakOf(long.cells), fullStreak: fullStreakOf(long.cells), tier };
+    // Grupta seriler kapalıysa seri gösterilmez
+    const on = m.group.streaksEnabled;
+    return { group: { id: m.group.id, name: m.group.name }, ...row(m.group, m.joinedAt, startKey, endKey, mine, now), streak: on ? streakOf(long.cells) : 0, fullStreak: on ? fullStreakOf(long.cells) : 0, tier };
   });
 
   const allCells = groups.length ? combine(full).cells : "";
@@ -179,7 +181,7 @@ export async function getGroupHistory(groupId: string, userId: string, range: Hi
       user: withShownName(m.user, group.nameDisplay),
       me: m.userId === userId,
       ...row(group, m.joinedAt, startKey, endKey, mine, now),
-      streak: streakTag(streaks.get(m.userId)),
+      streak: streakTag(streaks.get(m.userId), group.streaksEnabled),
       tier: (m.teamId && tiers.get(m.teamId)) || null,
     };
   });

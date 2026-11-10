@@ -37,6 +37,10 @@ export type Group = Rules & {
   kickOnExpire?: boolean;
   nameDisplay?: "ENTERED" | "ACCOUNT" | "BOTH";
   badgesEnabled?: boolean;
+  /** Görünüm ayarları (eski sunucuda yok) */
+  streaksEnabled?: boolean;
+  framesEnabled?: boolean;
+  dayDetails?: boolean;
   tzOffset: number;
 };
 
@@ -95,6 +99,8 @@ export type DayCard = {
   /** O günün toplam cezası (eski sunucuda yok) */
   penaltyTotal?: number;
   penaltyFinal?: boolean;
+  /** Ayrıntı kapalı: read = bildirenler, pending = bildirmeyenler */
+  simple?: boolean;
 };
 
 export type Stats = { read: number; min: number; none: number; pages: number };

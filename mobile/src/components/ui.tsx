@@ -250,21 +250,30 @@ export function isRealPhoto(uri?: string | null): uri is string {
  * hesap (mail) adının baş harfiyle sistem avatarı.
  */
 /**
- * Ekip hiyerarşisi çerçeveleri (gruba özel): altın en şaşalı (çift halka), gümüş düz halka, bronz ince çizgi.
+ * Ekip hiyerarşisi çerçeveleri (gruba özel): yalnızca halka; üzerinde küçük baklava çıkıntılar.
+ * Altın 4 çıkıntı (en şaşalı), gümüş 2, bronz düz halka. Hepsi sade tutulur.
  */
-export const TIER_COLORS = { gold: "#D4A017", goldLight: "#F3D98B", silver: "#A7B1BC", bronze: "#B07040" } as const;
+export const TIER_COLORS = { gold: "#D4A017", silver: "#A7B1BC", bronze: "#B07040" } as const;
 export type Tier = "gold" | "silver" | "bronze";
+const TIER_NOTCHES: Record<Tier, ("top" | "bottom" | "left" | "right")[]> = { gold: ["top", "bottom", "left", "right"], silver: ["top", "bottom"], bronze: [] };
 
 export function Avatar({ name, uri, size = 36, initial, seed, frame }: { name: string; uri?: string | null; size?: number; initial?: string; seed?: string; frame?: Tier | null }) {
+  const c = useColors();
   const inner = <AvatarCore name={name} uri={uri} size={size} initial={initial} seed={seed} />;
   if (!frame) return inner;
-  if (frame === "gold")
-    return (
-      <View style={{ borderRadius: 999, borderWidth: 1.5, borderColor: TIER_COLORS.goldLight, padding: 1 }}>
-        <View style={{ borderRadius: 999, borderWidth: 2, borderColor: TIER_COLORS.gold }}>{inner}</View>
-      </View>
-    );
-  return <View style={{ borderRadius: 999, borderWidth: frame === "silver" ? 2 : 1.5, borderColor: frame === "silver" ? TIER_COLORS.silver : TIER_COLORS.bronze }}>{inner}</View>;
+  const bw = frame === "bronze" ? 1.5 : 2;
+  const W = size + bw * 2;
+  const d = Math.max(4, Math.round(size * 0.17));
+  const color = TIER_COLORS[frame];
+  const at = { top: { left: W / 2 - d / 2, top: bw / 2 - d / 2 }, bottom: { left: W / 2 - d / 2, top: W - bw / 2 - d / 2 }, left: { left: bw / 2 - d / 2, top: W / 2 - d / 2 }, right: { left: W - bw / 2 - d / 2, top: W / 2 - d / 2 } };
+  return (
+    <View style={{ width: W, height: W }}>
+      <View style={{ borderRadius: 999, borderWidth: bw, borderColor: color }}>{inner}</View>
+      {TIER_NOTCHES[frame].map((p) => (
+        <View key={p} pointerEvents="none" style={{ position: "absolute", ...at[p], width: d, height: d, backgroundColor: color, borderWidth: 1, borderColor: c.card, transform: [{ rotate: "45deg" }], borderRadius: 1 }} />
+      ))}
+    </View>
+  );
 }
 
 function AvatarCore({ name, uri, size = 36, initial, seed }: { name: string; uri?: string | null; size?: number; initial?: string; seed?: string }) {

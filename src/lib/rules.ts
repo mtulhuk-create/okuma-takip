@@ -4,7 +4,7 @@ export type Book = { id: string; title: string; targetPages: number; minPages: n
 export type Rules = { penaltyMode: PenaltyMode; targetPages: number; minPages: number; penaltyAmount: number; minDiscount: number; books: Book[] };
 type RulesRow = Omit<Rules, "books"> & { books: unknown };
 type TeamLike = RulesRow & { id: string; name: string };
-type GroupLike = RulesRow & { teamsEnabled: boolean; teams?: TeamLike[] };
+type GroupLike = RulesRow & { teamsEnabled: boolean; teams?: TeamLike[]; framesEnabled?: boolean };
 
 function parseBooks(v: unknown): Book[] {
   if (!Array.isArray(v)) return [];
@@ -46,7 +46,8 @@ export type Tier = "gold" | "silver" | "bronze";
  */
 export function teamTiers(group: GroupLike): Map<string, Tier> {
   const out = new Map<string, Tier>();
-  if (!teamsActive(group)) return out;
+  // Grup ayarında çerçeveler kapalıysa hiç verilmez
+  if (!teamsActive(group) || group.framesEnabled === false) return out;
   const teams = group.teams!;
   const totals = teams.map((t) => ({ id: t.id, total: pickRules(t).targetPages }));
   const levels = [...new Set(totals.map((t) => t.total))].sort((a, b) => b - a);

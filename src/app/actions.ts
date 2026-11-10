@@ -132,6 +132,10 @@ function parseGroupForm(fd: FormData, teamRules?: RulesInput, keep?: Set<string>
     kickOnExpire: fd.get("kickOnExpire") == null ? undefined : str(fd, "kickOnExpire") === "1",
     nameDisplay: (["ENTERED", "ACCOUNT", "BOTH"].includes(str(fd, "nameDisplay")) ? str(fd, "nameDisplay") : undefined) as "ENTERED" | "ACCOUNT" | "BOTH" | undefined,
     badgesEnabled: fd.get("badgesEnabled") == null ? undefined : str(fd, "badgesEnabled") === "1",
+    // Eski istemciler göndermezse değişmez
+    streaksEnabled: fd.get("streaksEnabled") == null ? undefined : str(fd, "streaksEnabled") === "1",
+    framesEnabled: fd.get("framesEnabled") == null ? undefined : str(fd, "framesEnabled") === "1",
+    dayDetails: fd.get("dayDetails") == null ? undefined : str(fd, "dayDetails") === "1",
   };
 }
 

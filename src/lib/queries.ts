@@ -100,7 +100,7 @@ export async function getGroupDetail(id: string, userId: string) {
   const tiers = teamTiers(raw);
   const group = {
     ...raw,
-    members: raw.members.map((m) => ({ ...m, user: withShownName(m.user, raw.nameDisplay), badge: tags.get(m.userId) ?? null, streak: streakTag(streaks.get(m.userId)), tier: (m.teamId && tiers.get(m.teamId)) || null })),
+    members: raw.members.map((m) => ({ ...m, user: withShownName(m.user, raw.nameDisplay), badge: tags.get(m.userId) ?? null, streak: streakTag(streaks.get(m.userId), raw.streaksEnabled), tier: (m.teamId && tiers.get(m.teamId)) || null })),
   };
   const me = group.members.find((m) => m.userId === userId) ?? null;
   const myRules = me ? rulesFor(group, me) : null;

@@ -48,6 +48,8 @@ export type DayCard = {
   penaltyTotal: number;
   /** Kesinleşmiş mi (gün kapandı ve cezalar yazıldı) */
   penaltyFinal: boolean;
+  /** Grup ayarında ayrıntı kapalı: read = bildirenler, pending = bildirmeyenler (sayfa ve durum gösterilmez) */
+  simple?: boolean;
 };
 
 type Member = { userId: string; teamId: string | null; joinedAt: Date; user: { id: string; name: string; imageUrl: string | null; initial?: string } };
@@ -122,6 +124,13 @@ export async function getDayCards(group: Group & { teams: Team[] }, members: Mem
     // Ceza hesabı yapılmış günlerde (lastSettledDay) yazılan cezalar esas alınır
     card.penaltyFinal = !open && (written.has(dayKey) || (!!group.lastSettledDay && group.lastSettledDay >= dayKey));
     card.penaltyTotal = card.penaltyFinal ? (written.get(dayKey) ?? 0) : projected;
+    // Ayrıntı kapalıysa kimin ne okuduğu gönderilmez: yalnızca bildirdi / bildirmedi
+    if (group.dayDetails === false) {
+      const hide = (p: DayPerson): DayPerson => ({ id: p.id, name: p.name, imageUrl: p.imageUrl, initial: p.initial, pages: null, required: p.required, ...(p.tier ? { tier: p.tier } : {}) });
+      const reported = [...card.read, ...card.min, ...card.none.filter((p) => p.pages != null)].map(hide);
+      const notReported = [...card.pending, ...card.none.filter((p) => p.pages == null)].map(hide);
+      Object.assign(card, { read: reported, min: [], none: [], pending: notReported, simple: true });
+    }
     cards[dayKey] = card;
   }
   return cards;

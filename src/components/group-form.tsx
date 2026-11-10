@@ -147,9 +147,12 @@ export function GroupForm({ group }: { group?: Group & { teams?: Team[] } }) {
   const [kickOnExpire, setKickOnExpire] = useState(group?.kickOnExpire ?? true);
   const [nameDisplay, setNameDisplay] = useState<"ENTERED" | "ACCOUNT" | "BOTH">(group?.nameDisplay ?? "ENTERED");
   const [badgesEnabled, setBadgesEnabled] = useState(group?.badgesEnabled ?? false);
+  const [streaksEnabled, setStreaksEnabled] = useState(group?.streaksEnabled ?? true);
+  const [framesEnabled, setFramesEnabled] = useState(group?.framesEnabled ?? true);
+  const [dayDetails, setDayDetails] = useState(group?.dayDetails ?? true);
   const edit = !!group;
   // Kaydedilmemiş değişiklik: seçimlerin ilk halinden farkı ya da metin alanlarına yazılması
-  const snapshot = JSON.stringify([visibility, chatPolicy, shareProgress, rules, teamsEnabled, teams, start, deadline, reminderHours, iban, dueOffset, kickOnExpire, nameDisplay, badgesEnabled]);
+  const snapshot = JSON.stringify([visibility, chatPolicy, shareProgress, rules, teamsEnabled, teams, start, deadline, reminderHours, iban, dueOffset, kickOnExpire, nameDisplay, badgesEnabled, streaksEnabled, framesEnabled, dayDetails]);
   const [saved, setSaved] = useState(snapshot);
   const [typed, setTyped] = useState(false);
   const dirty = typed || snapshot !== saved;
@@ -196,6 +199,9 @@ export function GroupForm({ group }: { group?: Group & { teams?: Team[] } }) {
       <input type="hidden" name="kickOnExpire" value={kickOnExpire ? "1" : "0"} />
       <input type="hidden" name="nameDisplay" value={nameDisplay} />
       <input type="hidden" name="badgesEnabled" value={badgesEnabled ? "1" : "0"} />
+      <input type="hidden" name="streaksEnabled" value={streaksEnabled ? "1" : "0"} />
+      <input type="hidden" name="framesEnabled" value={framesEnabled ? "1" : "0"} />
+      <input type="hidden" name="dayDetails" value={dayDetails ? "1" : "0"} />
 
       <Section Icon={PencilLine} title="Genel" summary={`${group?.name ?? ""} · ${visibility === "PUBLIC" ? "Herkese açık" : "Özel"}`} collapsible={edit}>
         <div>
@@ -332,6 +338,14 @@ export function GroupForm({ group }: { group?: Group & { teams?: Team[] } }) {
           }}
           title="Latife rozetleri"
           desc="7 gün üst üste tam okuyana Maşallah rozeti; 7 gün tam okuyamayana adını üyelerin oyladığı rozet. 2 gün içinde durum değişirse kalkar."
+        />
+        <Toggle checked={streaksEnabled} onChange={setStreaksEnabled} title="Seri rozetleri" desc="3 gün ve üstü üst üste okuyana seri, hedefi tam okuyana yeşil tam seri rozeti. Yalnızca bu grupta görünür." />
+        <Toggle checked={framesEnabled} onChange={setFramesEnabled} title="Ekip çerçeveleri" desc="Ekipler arasında günlük toplam sayfası en çok olan altın, sonraki gümüş ve bronz çerçeve alır (avatar ve okuma geçmişi)." />
+        <Toggle
+          checked={dayDetails}
+          onChange={setDayDetails}
+          title="Gün kartında okuma ayrıntısı"
+          desc="Açıkken kim okudu, alt sınırda kaldı, okumadı görünür. Kapalıyken yalnızca kimin bildirdiği (yeşil) ve bildirmediği (gri) görünür."
         />
       </Section>
 

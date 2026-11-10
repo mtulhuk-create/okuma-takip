@@ -96,6 +96,9 @@ export function GroupForm({ group, onSubmit, submitting, submitLabel }: { group?
   const [kickOnExpire, setKickOnExpire] = useState(group?.kickOnExpire ?? true);
   const [nameDisplay, setNameDisplay] = useState<"ENTERED" | "ACCOUNT" | "BOTH">(group?.nameDisplay ?? "ENTERED");
   const [badgesEnabled, setBadgesEnabled] = useState(group?.badgesEnabled ?? false);
+  const [streaksEnabled, setStreaksEnabled] = useState(group?.streaksEnabled ?? true);
+  const [framesEnabled, setFramesEnabled] = useState(group?.framesEnabled ?? true);
+  const [dayDetails, setDayDetails] = useState(group?.dayDetails ?? true);
   // Rozetler açılmadan önce uyarı onayı
   const toggleBadges = (on: boolean) => {
     if (!on) return setBadgesEnabled(false);
@@ -110,7 +113,7 @@ export function GroupForm({ group, onSubmit, submitting, submitLabel }: { group?
   };
   const edit = !!group;
   // Kaydedilmemiş değişiklik göstergesi
-  const snapshot = JSON.stringify([name, description, visibility, chatPolicy, shareProgress, rules, teamsEnabled, teams, startMinute, deadlineMinute, reminderHours, iban, ibanName, dueOffset, kickOnExpire, nameDisplay, badgesEnabled]);
+  const snapshot = JSON.stringify([name, description, visibility, chatPolicy, shareProgress, rules, teamsEnabled, teams, startMinute, deadlineMinute, reminderHours, iban, ibanName, dueOffset, kickOnExpire, nameDisplay, badgesEnabled, streaksEnabled, framesEnabled, dayDetails]);
   const [saved, setSaved] = useState(snapshot);
   const dirty = snapshot !== saved;
   const time = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
@@ -242,6 +245,27 @@ export function GroupForm({ group, onSubmit, submitting, submitLabel }: { group?
           </View>
           <Switch value={badgesEnabled} onValueChange={toggleBadges} trackColor={{ true: c.primary, false: c.muted }} thumbColor="#fff" />
         </Row>
+        <Row style={{ justifyContent: "space-between" }}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontFamily: fonts.semibold, fontSize: 14, color: c.foreground }}>Seri rozetleri</Text>
+            <Muted>3 gün ve üstü üst üste okuyana seri, hedefi tam okuyana yeşil tam seri rozeti. Yalnızca bu grupta görünür.</Muted>
+          </View>
+          <Switch value={streaksEnabled} onValueChange={setStreaksEnabled} trackColor={{ true: c.primary, false: c.muted }} thumbColor="#fff" />
+        </Row>
+        <Row style={{ justifyContent: "space-between" }}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontFamily: fonts.semibold, fontSize: 14, color: c.foreground }}>Ekip çerçeveleri</Text>
+            <Muted>Günlük toplam sayfası en çok olan ekip altın, sonraki gümüş ve bronz çerçeve alır (avatar ve okuma geçmişi).</Muted>
+          </View>
+          <Switch value={framesEnabled} onValueChange={setFramesEnabled} trackColor={{ true: c.primary, false: c.muted }} thumbColor="#fff" />
+        </Row>
+        <Row style={{ justifyContent: "space-between" }}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontFamily: fonts.semibold, fontSize: 14, color: c.foreground }}>Gün kartında okuma ayrıntısı</Text>
+            <Muted>Açıkken kim okudu, alt sınırda kaldı, okumadı görünür. Kapalıyken yalnızca kimin bildirdiği (yeşil) ve bildirmediği (gri) görünür.</Muted>
+          </View>
+          <Switch value={dayDetails} onValueChange={setDayDetails} trackColor={{ true: c.primary, false: c.muted }} thumbColor="#fff" />
+        </Row>
       </Section>
 
       <Section
@@ -311,6 +335,9 @@ export function GroupForm({ group, onSubmit, submitting, submitLabel }: { group?
             kickOnExpire: kickOnExpire ? "1" : "0",
             nameDisplay,
             badgesEnabled: badgesEnabled ? "1" : "0",
+            streaksEnabled: streaksEnabled ? "1" : "0",
+            framesEnabled: framesEnabled ? "1" : "0",
+            dayDetails: dayDetails ? "1" : "0",
             ...(group ? {} : { bookLinks: suggest.linksJson() }),
           });
         }}

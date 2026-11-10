@@ -81,7 +81,7 @@ export async function getChatPage(groupId: string, userId: string, before?: Date
     kind: m.kind,
     text: m.text,
     createdAt: m.createdAt.toISOString(),
-    user: m.user ? { ...withShownName(m.user, group.nameDisplay), badge: tag(m.user.id), streak: streakTag(streaks.get(m.user.id)), tier: tierOf(m.user.id) } : null,
+    user: m.user ? { ...withShownName(m.user, group.nameDisplay), badge: tag(m.user.id), streak: streakTag(streaks.get(m.user.id), group.streaksEnabled), tier: tierOf(m.user.id) } : null,
     mine: m.userId === userId,
     day: m.kind === "DAY" && m.dayKey ? cards[m.dayKey] : null,
     poll: m.poll
