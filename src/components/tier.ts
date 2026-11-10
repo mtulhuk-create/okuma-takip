@@ -8,9 +8,9 @@ export const TIER_COLOR: Record<Tier, string> = { gold: "#d4a017", silver: "#a7b
 
 /** Avatar çevresindeki halka (tüm çerçevelerde aynı, ince) */
 export const AVATAR_FRAME: Record<Tier, string> = {
-  gold: "ring-[1.25px] ring-[#d4a017]",
-  silver: "ring-[1.25px] ring-[#a7b1bc]",
-  bronze: "ring-[1.25px] ring-[#b07040]",
+  gold: "ring-1 ring-[#d4a017]",
+  silver: "ring-1 ring-[#a7b1bc]",
+  bronze: "ring-1 ring-[#b07040]",
 };
 
 /** Halkadaki çıkıntılar (üst, alt, sol, sağ) */
