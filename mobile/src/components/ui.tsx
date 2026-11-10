@@ -262,7 +262,8 @@ export function Avatar({ name, uri, size = 36, initial, seed, frame }: { name: s
   const inner = <AvatarCore name={name} uri={uri} size={size} initial={initial} seed={seed} />;
   if (!frame) return inner;
   // Halka avatarın üstüne çizilir (boyut değişmez, dairenin tam çevresine oturur); çıkıntılar halkanın üzerinde
-  const bw = frame === "bronze" ? 1.5 : 2;
+  // Tüm çerçevelerde aynı, orta kalınlık
+  const bw = 1.75;
   const R = size + bw * 2;
   const d = Math.max(4, Math.round(size * 0.17));
   const color = TIER_COLORS[frame];

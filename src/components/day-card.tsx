@@ -382,16 +382,18 @@ function DeadlinePill({ card, withClock }: { card: Card; withClock?: boolean }) 
 }
 
 /** Kategori çipleri: üst üste profil resimleri + sayı; dokununca isimler açılır */
-/** İsim rozetinin üst kenarının ortasında geniş, çok alçak üçgen: altın en geniş, gümüş bir tık dar, bronz daha dar */
-const TIP = { gold: { w: 20, h: 5 }, silver: { w: 16, h: 4.5 }, bronze: { w: 12, h: 4 } } as const;
-function TierTip({ tier }: { tier: keyof typeof TIP }) {
-  const { w, h } = TIP[tier];
+/**
+ * İsim rozetinin üst kenarının ortasında küçük baklava taşlar (avatar halkasındaki çıkıntılarla aynı dil):
+ * altın 3 taş (ortadaki büyük), gümüş 1 taş, bronz 1 küçük taş.
+ */
+const GEMS = { gold: [4, 6, 4], silver: [6], bronze: [5] } as const;
+function TierTip({ tier }: { tier: keyof typeof GEMS }) {
   return (
-    <span
-      aria-label={TIER_LABEL[tier]}
-      className="pointer-events-none absolute left-1/2"
-      style={{ top: -h, marginLeft: -w / 2, width: 0, height: 0, borderLeft: `${w / 2}px solid transparent`, borderRight: `${w / 2}px solid transparent`, borderBottom: `${h}px solid ${TIER_COLOR[tier]}` }}
-    />
+    <span aria-label={TIER_LABEL[tier]} className="pointer-events-none absolute inset-x-0 -top-1 flex items-center justify-center gap-0.5">
+      {GEMS[tier].map((d, i) => (
+        <span key={i} className="rotate-45 rounded-[1px] border border-card" style={{ width: d, height: d, backgroundColor: TIER_COLOR[tier] }} />
+      ))}
+    </span>
   );
 }
 

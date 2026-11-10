@@ -383,15 +383,19 @@ const SIMPLE_CATS: Cat[] = [
   { key: "pending", label: "Bildirmedi", Icon: Clock, color: (c) => c.mutedForeground },
 ];
 
-/** İsim rozetinin üst kenarının ortasında geniş, çok alçak üçgen: altın en geniş, gümüş bir tık dar, bronz daha dar */
-const TIP: Record<"gold" | "silver" | "bronze", { w: number; h: number }> = { gold: { w: 20, h: 5 }, silver: { w: 16, h: 4.5 }, bronze: { w: 12, h: 4 } };
+/**
+ * İsim rozetinin üst kenarının ortasında küçük baklava taşlar (avatar halkasındaki çıkıntılarla aynı dil):
+ * altın 3 taş (ortadaki büyük), gümüş 1 taş, bronz 1 küçük taş.
+ */
+const GEMS: Record<"gold" | "silver" | "bronze", number[]> = { gold: [4, 6, 4], silver: [6], bronze: [5] };
 function TierTip({ tier }: { tier: "gold" | "silver" | "bronze" }) {
-  const { w, h } = TIP[tier];
+  const c = useColors();
   return (
-    <View
-      pointerEvents="none"
-      style={{ position: "absolute", top: -h, left: "50%", marginLeft: -w / 2, width: 0, height: 0, borderLeftWidth: w / 2, borderRightWidth: w / 2, borderBottomWidth: h, borderLeftColor: "transparent", borderRightColor: "transparent", borderBottomColor: TIER_COLORS[tier] }}
-    />
+    <View pointerEvents="none" style={{ position: "absolute", top: -4, left: 0, right: 0, flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 2 }}>
+      {GEMS[tier].map((d, i) => (
+        <View key={i} style={{ width: d, height: d, backgroundColor: TIER_COLORS[tier], borderWidth: 1, borderColor: c.card, borderRadius: 1, transform: [{ rotate: "45deg" }] }} />
+      ))}
+    </View>
   );
 }
 

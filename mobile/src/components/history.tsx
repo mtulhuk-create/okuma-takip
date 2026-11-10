@@ -52,9 +52,9 @@ export function HistoryGrid({
   frame?: Tier | null;
 }) {
   const c = useColors();
-  // Kutucuklarda yalnızca ince halka: altın biraz kalın, gümüş orta, bronz ince
+  // Kutucuklarda yalnızca ince halka; tüm çerçevelerde aynı kalınlık
   const fr = (ch: string, small?: boolean) =>
-    frame && ch !== "-" && ch !== "x" ? { borderWidth: small ? 1 : frame === "gold" ? 1.75 : frame === "silver" ? 1.5 : 1, borderColor: TIER_COLORS[frame] } : null;
+    frame && ch !== "-" && ch !== "x" ? { borderWidth: small ? 1 : 1.5, borderColor: TIER_COLORS[frame] } : null;
   const base = useCellColor();
   const color = colorOf ?? base;
   // Koyu hücrede beyaz yazı
