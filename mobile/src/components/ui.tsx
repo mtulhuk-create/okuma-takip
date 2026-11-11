@@ -265,16 +265,20 @@ export function EdgeNotches({ tier, bw, d = 3 }: { tier: Tier; bw: number; d?: n
   const c = useColors();
   const color = TIER_COLORS[tier];
   const edge = -bw / 2 - d / 2;
-  const at = {
-    top: { top: edge, left: "50%", marginLeft: -d / 2 },
-    bottom: { bottom: edge, left: "50%", marginLeft: -d / 2 },
-    left: { left: edge, top: "50%", marginTop: -d / 2 },
-    right: { right: edge, top: "50%", marginTop: -d / 2 },
+  // Yüzdeyle konumlama kullanılmaz: Android'de iç boşluklu kutularda (isim rozeti) nokta ortadan kayıyordu.
+  // Her nokta, kenar boyunca uzanan ve içeriğini ortalayan bir şeridin içinde durur.
+  const strip = {
+    top: { left: 0, right: 0, top: edge, alignItems: "center" },
+    bottom: { left: 0, right: 0, bottom: edge, alignItems: "center" },
+    left: { top: 0, bottom: 0, left: edge, justifyContent: "center" },
+    right: { top: 0, bottom: 0, right: edge, justifyContent: "center" },
   } as const;
   return (
     <>
       {TIER_NOTCHES[tier].map((p) => (
-        <View key={p} pointerEvents="none" style={{ position: "absolute", ...at[p], width: d, height: d, backgroundColor: color, borderWidth: 0.6, borderColor: c.card, borderRadius: 0.5, transform: [{ rotate: "45deg" }] }} />
+        <View key={p} pointerEvents="none" style={{ position: "absolute", ...strip[p] }}>
+          <View style={{ width: d, height: d, backgroundColor: color, borderWidth: 0.6, borderColor: c.card, borderRadius: 0.5, transform: [{ rotate: "45deg" }] }} />
+        </View>
       ))}
     </>
   );

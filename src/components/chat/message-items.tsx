@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, SmilePlus, Trash2, X } from "lucide-react";
+import { Check, Reply, SmilePlus, Trash2, X } from "lucide-react";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { deleteMessage, reactMessage, votePoll } from "@/app/actions";
 import type { ChatMessage } from "@/lib/chat";
@@ -17,6 +17,22 @@ function nameColor(id: string) {
 }
 
 export type UiMessage = ChatMessage & { pending?: boolean; failed?: boolean; progress?: number };
+
+/** Yanıt önizlemesi için mesajın kısa metni */
+export function replySnippet(m: Pick<UiMessage, "kind" | "text" | "poll">) {
+  if (m.kind === "IMAGE") return `📷 ${m.text ?? "Fotoğraf"}`;
+  if (m.kind === "POLL") return `📊 ${m.poll?.question ?? "Anket"}`;
+  return m.text ?? "";
+}
+
+/** Yanıtlanan mesaja git ve kısa süre vurgula */
+function jumpToMessage(id: string) {
+  const el = document.getElementById(`msg-${id}`);
+  if (!el) return;
+  el.scrollIntoView({ block: "center", behavior: "smooth" });
+  el.classList.add("bg-primary/10");
+  setTimeout(() => el.classList.remove("bg-primary/10"), 1400);
+}
 
 function DeleteButton({ id, onDone }: { id: string; onDone: () => void }) {
   const [pending, start] = useTransition();
@@ -62,6 +78,7 @@ export function Bubble({
   showAuthor,
   canDelete,
   onChanged,
+  onReply,
   children,
 }: {
   m: UiMessage;
@@ -69,6 +86,8 @@ export function Bubble({
   showAuthor: boolean;
   canDelete: boolean;
   onChanged: () => void;
+  /** Bu mesajı yanıtla (yazma izni yoksa verilmez) */
+  onReply?: () => void;
   children: React.ReactNode;
 }) {
   const [picker, setPicker] = useState(false);
@@ -129,6 +148,17 @@ export function Bubble({
             {m.user.badge && <BadgeChip tag={m.user.badge} />}
           </p>
         )}
+        {m.reply && (
+          // Yanıtlanan mesaj: tıklayınca o mesaja gider
+          <button
+            type="button"
+            onClick={() => jumpToMessage(m.reply!.id)}
+            className={`mb-1 block w-full min-w-32 rounded-md border-l-[3px] border-primary px-2 py-1 text-left ${mine ? "bg-black/10" : "bg-muted"}`}
+          >
+            <span className="block truncate text-[11px] font-bold leading-tight text-primary">{m.reply.name || "Mesaj"}</span>
+            <span className={`block truncate text-xs leading-snug ${mine ? "opacity-80" : "text-muted-foreground"}`}>{m.reply.text}</span>
+          </button>
+        )}
         {children}
         <p className={`-mt-0.5 flex items-center justify-end gap-0.5 text-[10px] leading-4 ${mine ? "opacity-60" : "text-muted-foreground"}`}>
           {m.failed ? "Gönderilemedi" : m.pending ? "Gönderiliyor…" : formatClock(m.createdAt)}
@@ -154,6 +184,17 @@ export function Bubble({
         </div>
       )}
       </div>
+      {canReact && onReply && (
+        <button
+          type="button"
+          className="btn-icon size-7 opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100 [@media(hover:none)]:opacity-60 [&_svg]:size-3.5"
+          aria-label="Yanıtla"
+          title="Yanıtla"
+          onClick={onReply}
+        >
+          <Reply />
+        </button>
+      )}
       {canReact && (
         <button
           type="button"

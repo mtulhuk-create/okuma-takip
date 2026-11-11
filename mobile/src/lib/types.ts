@@ -240,6 +240,8 @@ export type ChatMessage = {
   reactions?: { emoji: string; count: number; mine: boolean; names: string[] }[];
   /** Fotoğraf: küçük ve büyük sürüm adresi, gerçek boyut (oran için) */
   image?: { thumb: string; full: string; w: number; h: number } | null;
+  /** Yanıtlanan mesajın özeti (eski sunucuda yok) */
+  reply?: { id: string; userId: string | null; name: string; text: string } | null;
   pending?: boolean;
   failed?: boolean;
   /** Fotoğraf yüklenirken ilerleme (0-1) */

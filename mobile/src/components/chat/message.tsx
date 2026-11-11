@@ -1,6 +1,6 @@
-import { memo, useState } from "react";
-import { Check, Copy, Trash2 } from "lucide-react-native";
-import { Modal, Pressable, Text, View } from "react-native";
+import { memo, useMemo, useState } from "react";
+import { Check, Copy, Reply, Trash2 } from "lucide-react-native";
+import { Animated, Modal, PanResponder, Pressable, Text, View } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { toast, useAction } from "@/lib/api";
 import { formatClock } from "@/lib/format";
@@ -34,7 +34,33 @@ function toggleReaction(list: Reaction[], emoji: string): Reaction[] {
   return out.sort((a, b) => b.count - a.count);
 }
 
-export const MessageBubble = memo(function MessageBubble({ m, mine, showAuthor, canDelete }: { m: ChatMessage; mine: boolean; showAuthor: boolean; canDelete: boolean }) {
+/** Yanıt önizlemesi için mesajın kısa metni */
+export function replySnippet(m: Pick<ChatMessage, "kind" | "text" | "poll">) {
+  if (m.kind === "IMAGE") return `📷 ${m.text ?? "Fotoğraf"}`;
+  if (m.kind === "POLL") return `📊 ${m.poll?.question ?? "Anket"}`;
+  return m.text ?? "";
+}
+
+/** Sağa kaydırma bu kadar olunca (dp) bırakıldığında yanıt başlar */
+const SWIPE_REPLY = 46;
+
+export const MessageBubble = memo(function MessageBubble({
+  m,
+  mine,
+  showAuthor,
+  canDelete,
+  onReply,
+  onQuote,
+}: {
+  m: ChatMessage;
+  mine: boolean;
+  showAuthor: boolean;
+  canDelete: boolean;
+  /** Mesajı yanıtla: sağa kaydırınca ya da menüden (yazma izni yoksa verilmez) */
+  onReply?: (m: ChatMessage) => void;
+  /** Yanıtlanan mesaja git */
+  onQuote?: (id: string) => void;
+}) {
   const c = useColors();
   const action = useAction();
   const [menu, setMenu] = useState(false);
@@ -42,6 +68,23 @@ export const MessageBubble = memo(function MessageBubble({ m, mine, showAuthor, 
   const [over, setOver] = useState<{ base: ChatMessage["reactions"]; value: Reaction[] } | null>(null);
   const reactions = over && over.base === m.reactions ? over.value : (m.reactions ?? []);
   const canReact = !m.pending && !m.failed && (m.kind === "TEXT" || m.kind === "POLL" || m.kind === "IMAGE");
+  const canReply = canReact && !!onReply;
+  // Sağa kaydır: balon parmakla birlikte kayar, yeterince çekilip bırakılınca yanıt başlar (WhatsApp gibi)
+  const [dx] = useState(() => new Animated.Value(0));
+  const pan = useMemo(() => {
+    const back = () => Animated.spring(dx, { toValue: 0, useNativeDriver: true, bounciness: 6 }).start();
+    return PanResponder.create({
+      // Yalnızca belirgin yatay harekette devralır; dikey kaydırma listeye kalır
+      onMoveShouldSetPanResponder: (_, g) => canReply && g.dx > 14 && Math.abs(g.dx) > Math.abs(g.dy) * 2,
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderMove: (_, g) => dx.setValue(Math.max(0, Math.min(70, g.dx * 0.6))),
+      onPanResponderRelease: (_, g) => {
+        if (g.dx * 0.6 >= SWIPE_REPLY) onReply?.(m);
+        back();
+      },
+      onPanResponderTerminate: back,
+    });
+  }, [canReply, dx, m, onReply]);
   const react = (emoji: string) => {
     setMenu(false);
     setOver({ base: m.reactions, value: toggleReaction(reactions, emoji) });
@@ -61,7 +104,15 @@ export const MessageBubble = memo(function MessageBubble({ m, mine, showAuthor, 
   const max = poll ? Math.max(1, ...poll.options.map((o) => o.votes)) : 1;
 
   return (
-    <View style={{ flexDirection: mine ? "row-reverse" : "row", alignItems: "flex-start", gap: 8, marginTop: showAuthor ? 8 : 2 }}>
+    <Animated.View {...pan.panHandlers} style={{ flexDirection: mine ? "row-reverse" : "row", alignItems: "flex-start", gap: 8, marginTop: showAuthor ? 8 : 2, transform: [{ translateX: dx }] }}>
+      {/* Kaydırırken soldan beliren yanıt simgesi */}
+      {canReply && (
+        <Animated.View pointerEvents="none" style={{ position: "absolute", left: -34, top: 0, bottom: 0, justifyContent: "center", opacity: dx.interpolate({ inputRange: [0, SWIPE_REPLY], outputRange: [0, 1], extrapolate: "clamp" }) }}>
+          <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: c.card, alignItems: "center", justifyContent: "center", elevation: 2 }}>
+            <Reply size={15} color={c.primary} />
+          </View>
+        </Animated.View>
+      )}
       {!mine && <View style={{ width: 30 }}>{showAuthor && m.user && <Avatar name={m.user.name} uri={m.user.imageUrl} initial={m.user.initial} seed={m.user.id} size={30} frame={m.user.tier} />}</View>}
       <View style={{ maxWidth: "80%", alignItems: mine ? "flex-end" : "flex-start" }}>
       <Pressable
@@ -113,6 +164,20 @@ export const MessageBubble = memo(function MessageBubble({ m, mine, showAuthor, 
             <StreakFlame s={m.user.streak} inline />
             {m.user.badge && <BadgeChip tag={m.user.badge} />}
           </View>
+        )}
+        {m.reply && (
+          // Yanıtlanan mesaj: dokununca o mesaja gider
+          <Pressable
+            onPress={() => onQuote?.(m.reply!.id)}
+            style={{ minWidth: 130, marginBottom: 4, marginTop: 1, borderLeftWidth: 3, borderLeftColor: c.primary, borderRadius: 6, backgroundColor: mine ? "#0000001f" : c.muted, paddingHorizontal: 7, paddingVertical: 4 }}
+          >
+            <Text numberOfLines={1} style={{ fontFamily: fonts.bold, fontSize: 11, lineHeight: 14, color: mine ? c.chatMineFg : c.primary }}>
+              {m.reply.name || "Mesaj"}
+            </Text>
+            <Text numberOfLines={1} style={{ fontFamily: fonts.regular, fontSize: 12, lineHeight: 16, color: sub }}>
+              {m.reply.text}
+            </Text>
+          </Pressable>
         )}
         {poll ? (
           <View style={{ gap: 6 }}>
@@ -196,7 +261,19 @@ export const MessageBubble = memo(function MessageBubble({ m, mine, showAuthor, 
                 })}
               </View>
             )}
-            {(!!m.text || canDelete) && <View style={{ height: 1, backgroundColor: c.border, marginVertical: 4 }} />}
+            {(canReply || !!m.text || canDelete) && <View style={{ height: 1, backgroundColor: c.border, marginVertical: 4 }} />}
+            {canReply && (
+              <Pressable
+                onPress={() => {
+                  setMenu(false);
+                  onReply?.(m);
+                }}
+                style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 11, backgroundColor: pressed ? c.muted : "transparent" })}
+              >
+                <Reply size={17} color={c.foreground} />
+                <Text style={{ fontFamily: fonts.medium, fontSize: 14, color: c.foreground }}>Yanıtla</Text>
+              </Pressable>
+            )}
             {!!m.text && (
               <Pressable
                 onPress={() => {
@@ -218,6 +295,6 @@ export const MessageBubble = memo(function MessageBubble({ m, mine, showAuthor, 
           </Pressable>
         </Pressable>
       </Modal>
-    </View>
+    </Animated.View>
   );
 });

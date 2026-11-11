@@ -12,7 +12,7 @@ import { Countdown } from "../countdown";
 import { DueBadge } from "../due-badge";
 import { PaySheet } from "../pay-sheet";
 import { BadgeCard } from "./badge-card";
-import { Bubble, ChatImage, PollBody, type UiMessage } from "./message-items";
+import { Bubble, ChatImage, PollBody, replySnippet, type UiMessage } from "./message-items";
 import { GroupHistory } from "./group-history";
 import { PollDialog } from "./poll-dialog";
 
@@ -44,6 +44,10 @@ export function ChatView({ initial }: { initial: Page }) {
   const [pollOpen, setPollOpen] = useState(false);
   const [photo, setPhoto] = useState<{ file: File; preview: string } | null>(null);
   const [caption, setCaption] = useState("");
+  // Yanıtlanan mesaj (yazma alanının üstünde gösterilir)
+  const [replyTo, setReplyTo] = useState<UiMessage | null>(null);
+  const input = useRef<HTMLTextAreaElement>(null);
+  const replyOf = (m: UiMessage | null) => (m ? { id: m.id, userId: m.user?.id ?? null, name: m.mine ? "Sen" : (m.user?.name ?? ""), text: replySnippet(m).slice(0, 140) } : null);
   const fileInput = useRef<HTMLInputElement>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [atBottom, setAtBottom] = useState(true);
@@ -203,6 +207,8 @@ export function ChatView({ initial }: { initial: Page }) {
     const body = text.trim();
     if (!body) return;
     setText("");
+    const answering = replyTo;
+    setReplyTo(null);
     stickBottom.current = true;
     const tmp: UiMessage = {
       id: `tmp-${Date.now()}`,
@@ -215,6 +221,7 @@ export function ChatView({ initial }: { initial: Page }) {
       poll: null,
       badge: null,
       image: null,
+      reply: replyOf(answering),
       reactions: [],
       pending: true,
     };
@@ -222,6 +229,7 @@ export function ChatView({ initial }: { initial: Page }) {
     const fd = new FormData();
     fd.set("groupId", groupId);
     fd.set("text", body);
+    if (answering) fd.set("replyTo", answering.id);
     const res = await sendMessage(null, fd);
     setMessages((prev) =>
       prev.map((m) => (m.id === tmp.id ? (res?.ok ? { ...m, id: res.id ?? m.id, pending: false } : { ...m, pending: false, failed: true }) : m)),
@@ -235,6 +243,8 @@ export function ChatView({ initial }: { initial: Page }) {
     const note = caption.trim() || null;
     setPhoto(null);
     setCaption("");
+    const answering = replyTo;
+    setReplyTo(null);
     stickBottom.current = true;
     const id = `tmp-${Date.now()}`;
     const patch = (p: Partial<UiMessage>) => setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, ...p } : m)));
@@ -251,6 +261,7 @@ export function ChatView({ initial }: { initial: Page }) {
         poll: null,
         badge: null,
         image: { thumb: preview, full: preview, w: 4, h: 3 },
+        reply: replyOf(answering),
         reactions: [],
         pending: true,
         progress: 0,
@@ -267,6 +278,7 @@ export function ChatView({ initial }: { initial: Page }) {
       fd.set("w", String(w));
       fd.set("h", String(h));
       if (note) fd.set("text", note);
+      if (answering) fd.set("replyTo", answering.id);
       const res = await sendImage(null, fd);
       if (!res?.ok) throw new Error(res?.error ?? "Fotoğraf gönderilemedi");
       patch({ id: res.id ?? id, pending: false });
@@ -416,13 +428,27 @@ export function ChatView({ initial }: { initial: Page }) {
             lastAuthor = m.user?.id ?? null;
             const canDelete = mine || isAdmin;
             return (
-              <div key={m.id}>
+              <div key={m.id} id={`msg-${m.id}`} className="rounded-lg transition-colors duration-500">
                 {sep && (
                   <p className="sticky top-2 z-10 mx-auto my-3 w-fit rounded-lg bg-card/95 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground shadow-xs backdrop-blur">
                     {dayLabel(day)}
                   </p>
                 )}
-                <Bubble m={m} mine={mine} showAuthor={!!showAuthor} canDelete={canDelete} onChanged={refresh}>
+                <Bubble
+                  m={m}
+                  mine={mine}
+                  showAuthor={!!showAuthor}
+                  canDelete={canDelete}
+                  onChanged={refresh}
+                  onReply={
+                    me.canPost
+                      ? () => {
+                          setReplyTo(m);
+                          input.current?.focus();
+                        }
+                      : undefined
+                  }
+                >
                   {m.kind === "POLL" && m.poll ? (
                     <PollBody m={m} mine={mine} onChanged={refresh} />
                   ) : m.kind === "IMAGE" ? (
@@ -449,6 +475,18 @@ export function ChatView({ initial }: { initial: Page }) {
 
       <footer className="pb-safe bg-[var(--chat-bg)]">
         <div className="mx-auto max-w-3xl px-2 py-1.5">
+          {me.canPost && replyTo && (
+            // Yanıtlanan mesajın önizlemesi
+            <div className="mb-1 flex items-center gap-2 rounded-2xl bg-card px-3 py-1.5 shadow-xs">
+              <div className="min-w-0 flex-1 border-l-[3px] border-primary pl-2">
+                <p className="truncate text-[11px] font-bold leading-tight text-primary">{replyOf(replyTo)!.name || "Mesaj"}</p>
+                <p className="truncate text-xs text-muted-foreground">{replyOf(replyTo)!.text}</p>
+              </div>
+              <button type="button" className="btn-icon size-7 shrink-0 [&_svg]:size-4" aria-label="Yanıtı iptal et" onClick={() => setReplyTo(null)}>
+                <X />
+              </button>
+            </div>
+          )}
           {me.canPost ? (
             <form
               className="flex items-end gap-1.5"
@@ -457,15 +495,35 @@ export function ChatView({ initial }: { initial: Page }) {
                 send();
               }}
             >
-              <div className="flex min-h-11 flex-1 items-end rounded-3xl bg-card pl-1 shadow-xs">
+              <div className="flex min-h-11 flex-1 items-end rounded-3xl bg-card pl-4 pr-1 shadow-xs">
+                <textarea
+                  ref={input}
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey && !("ontouchstart" in window)) {
+                      e.preventDefault();
+                      send();
+                    }
+                  }}
+                  rows={1}
+                  maxLength={2000}
+                  placeholder="Mesaj"
+                  className="max-h-32 min-h-11 flex-1 resize-none bg-transparent py-3 pr-1 text-[15px] outline-none placeholder:text-muted-foreground [field-sizing:content]"
+                />
+                {/* Yazının sağında: anket ve fotoğraf */}
                 <button type="button" className="btn-icon size-10 shrink-0 rounded-full" onClick={() => setPollOpen(true)} aria-label="Anket oluştur" title="Anket">
                   <BarChart3 />
                 </button>
-                {me.canPhoto && (
-                  <button type="button" className="btn-icon -ml-1 size-10 shrink-0 rounded-full" onClick={() => fileInput.current?.click()} aria-label="Fotoğraf gönder" title="Fotoğraf">
-                    <ImagePlus />
-                  </button>
-                )}
+                <button
+                  type="button"
+                  className="btn-icon -ml-1.5 size-10 shrink-0 rounded-full"
+                  onClick={() => (me.canPhoto ? fileInput.current?.click() : alert("Fotoğraf paylaşımı henüz açılmadı. Fotoğrafların saklanacağı depolama hesabı bağlanınca kullanılabilecek."))}
+                  aria-label="Fotoğraf gönder"
+                  title="Fotoğraf"
+                >
+                  <ImagePlus />
+                </button>
                 <input
                   ref={fileInput}
                   type="file"
@@ -480,20 +538,6 @@ export function ChatView({ initial }: { initial: Page }) {
                     setCaption(text.trim());
                     setPhoto({ file, preview: URL.createObjectURL(file) });
                   }}
-                />
-                <textarea
-                  value={text}
-                  onChange={(e) => setText(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey && !("ontouchstart" in window)) {
-                      e.preventDefault();
-                      send();
-                    }
-                  }}
-                  rows={1}
-                  maxLength={2000}
-                  placeholder="Mesaj"
-                  className="max-h-32 min-h-11 flex-1 resize-none bg-transparent py-3 pr-3 text-[15px] outline-none placeholder:text-muted-foreground [field-sizing:content]"
                 />
               </div>
               <button type="submit" disabled={!text.trim()} className="btn-primary size-11 shrink-0 rounded-full p-0 shadow-md [&_svg]:size-5" aria-label="Gönder">
