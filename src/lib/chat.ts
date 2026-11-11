@@ -8,7 +8,8 @@ import { memberStreaks, streakTag } from "./history";
 import { teamTiers } from "./rules";
 import { dueView } from "./due-view";
 import { mediaEnabled, mediaView } from "./media";
-import { currentPeriod, defaultDueAt } from "./schedule";
+import { publish } from "./realtime";
+import { MIN, currentPeriod, defaultDueAt, openPeriod } from "./schedule";
 
 const PAGE = 40;
 const publicUser = { select: { id: true, name: true, accountName: true, imageUrl: true } } as const;
@@ -30,6 +31,27 @@ export async function ensureDayCard(group: Group, now = new Date()) {
   return res.count > 0;
 }
 
+/** Sohbet bu kadar süre sessiz kalınca açık günün kartı en alta taşınır */
+export const CARD_SINK_MS = 3 * MIN;
+
+/**
+ * Mesajlaşma gün kartını yukarıda bıraktıysa ve sohbet bir süredir sessizse, açık günün kartını
+ * bulunduğu yerden alıp sohbetin en altına koyar (herkes için). Kapanmış günlerin kartına dokunulmaz.
+ */
+export async function sinkDayCard(group: Group, now = new Date()) {
+  const p = openPeriod(now, group);
+  if (!p) return false;
+  const db = getDb();
+  const last = await db.message.findFirst({ where: { groupId: group.id }, orderBy: { createdAt: "desc" }, select: { kind: true, dayKey: true, createdAt: true } });
+  // En altta zaten bugünün kartı varsa ya da sohbet hâlâ sürüyorsa dokunulmaz
+  if (!last || (last.kind === "DAY" && last.dayKey === p.dayKey)) return false;
+  if (now.getTime() - last.createdAt.getTime() < CARD_SINK_MS) return false;
+  const res = await db.message.updateMany({ where: { groupId: group.id, kind: "DAY", dayKey: p.dayKey, createdAt: { lt: last.createdAt } }, data: { createdAt: now } });
+  if (!res.count) return false;
+  await publish(group.id, { type: "refresh", reason: "card" });
+  return true;
+}
+
 export function canPost(group: Pick<Group, "chatPolicy">, role: "ADMIN" | "MEMBER") {
   return group.chatPolicy === "ALL" || role === "ADMIN";
 }
@@ -48,6 +70,7 @@ export async function getChatPage(groupId: string, userId: string, before?: Date
   if (!me) return { group: { id: group.id, name: group.name }, me: null };
   if (!before) {
     await ensureDayCard(group);
+    await sinkDayCard(group).catch(() => false);
     if (group.badgesEnabled) await finalizeVotes(groupId).catch(() => 0);
   }
   const [tags, streaks] = await Promise.all([activeBadges(group), memberStreaks(group, group.members)]);
@@ -121,6 +144,8 @@ export async function getChatPage(groupId: string, userId: string, before?: Date
     todayCard: before ? null : (cards[today] ?? null),
     kasa,
     me: { userId, role: me.role, canPost: canPost(group, me.role), canPhoto: canPost(group, me.role) && mediaEnabled() },
+    // Sohbet bu kadar sessiz kalınca gün kartı en alta taşınır (istemci süre dolunca sayfayı yeniler)
+    cardSinkMs: CARD_SINK_MS,
     messages,
     hasMore,
   };

@@ -265,6 +265,8 @@ export type ChatResponse = {
   kasa?: GroupCash | null;
   todayCard?: DayCard | null;
   me: { userId: string; role: Member["role"]; canPost: boolean; canPhoto?: boolean };
+  /** Sohbet bu kadar sessiz kalınca gün kartı en alta taşınır (eski sunucuda yok) */
+  cardSinkMs?: number;
   messages: ChatMessage[];
   hasMore: boolean;
 };

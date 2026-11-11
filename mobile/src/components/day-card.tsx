@@ -387,11 +387,14 @@ const SIMPLE_CATS: Cat[] = [
 export function StreakFlame({ s, top = -9, right = -5, inline }: { s: { n: number; full: boolean } | null | undefined; top?: number; right?: number; inline?: boolean }) {
   if (!s || s.n < 3) return null;
   const color = s.full ? "#10b981" : "#f97316";
+  // Sohbette: ismin hemen sağında, isimle aynı hizada, bir tık büyük
   if (inline)
     return (
-      <View pointerEvents="none" accessibilityLabel={`${s.n} gün ${s.full ? "tam seri" : "seri"}`} style={{ width: 16, height: 16, alignItems: "center", justifyContent: "center" }}>
-        <Flame size={16} color={color} fill={color} strokeWidth={1.5} />
-        <Text style={{ position: "absolute", top: 5, fontFamily: fonts.bold, fontSize: 6.5, lineHeight: 8, color: "#fff" }}>{s.n}</Text>
+      <View pointerEvents="none" accessibilityLabel={`${s.n} gün ${s.full ? "tam seri" : "seri"}`} style={{ width: 20, height: 16, alignItems: "center", justifyContent: "center" }}>
+        <View style={{ position: "absolute", top: -4.5, width: 20, height: 20, alignItems: "center", justifyContent: "center" }}>
+          <Flame size={20} color={color} fill={color} strokeWidth={1.5} />
+          <Text style={{ position: "absolute", top: 7, fontFamily: fonts.bold, fontSize: 8, lineHeight: 10, includeFontPadding: false, color: "#fff" }}>{s.n}</Text>
+        </View>
       </View>
     );
   return (
@@ -405,35 +408,21 @@ export function StreakFlame({ s, top = -9, right = -5, inline }: { s: { n: numbe
 const CHIP_AVATAR = 22;
 
 /**
- * Bir rozete sığan avatar sayısı: rozet ortadan başlar, avatar eklendikçe genişler; yuvasını doldurunca
- * kalanlar "+N" ile gösterilir. Yuva: satırda tek rozetse tüm genişlik, iki rozetse yarısı.
+ * Bir rozete sığan avatar sayısı: rozet avatar eklendikçe genişler; satırın tamamını doldurunca
+ * kalanlar "+N" ile gösterilir (rozet boyutu değişmez).
  */
-function chipCapacity(slot: number, label: string, count: number, interactive?: boolean) {
+function chipCapacity(row: number, count: number) {
   const step = CHIP_AVATAR - 7 + 3; // üst üste binen avatarın kapladığı
   const first = CHIP_AVATAR + 3;
-  const text = 14 + (interactive ? label.length * 6.6 + 4 : 0) + String(count).length * 7.5 + 22; // simge, yazı, sayı, iç boşluk
-  return Math.max(1, Math.floor((slot - text - first) / step) + 1);
+  const text = 14 + String(count).length * 7.5 + 22; // simge, sayı, iç boşluk
+  return Math.max(1, Math.floor((row - text - first) / step) + 1);
 }
 
 /**
- * Rozetlerin satırlara dizilişi: iki rozet yan yana ancak ikisi de avatarlarının hepsini yarım satıra
- * sığdırabiliyorsa durur; sığmıyorsa (kalabalık rozet sıkışıp "+N" olmasın) rozetler alt alta tam satır olur.
+ * Kim okudu rozetleri: yalnızca avatarlar, simge ve sayı. Rozetler boyutlarını koruyup yan yana dizilir,
+ * satırı doldurur; ancak sığmayınca alt satıra geçer. En kalabalık rozet başta.
+ * Basınca açılan alanda rozetin adı (Okudu, Bekleniyor…) çerçevenin üstündeki küçük etikette yazar.
  */
-function chipRows<T>(cats: T[], fitsHalf: (cat: T) => boolean) {
-  const full: boolean[] = [];
-  for (let i = 0; i < cats.length; ) {
-    if (i + 1 < cats.length && fitsHalf(cats[i]) && fitsHalf(cats[i + 1])) {
-      full.push(false, false);
-      i += 2;
-    } else {
-      full.push(true);
-      i += 1;
-    }
-  }
-  return full;
-}
-
-/** Kim okudu rozetleri: sığdıkça satırda 2 rozet, sığmazsa alt alta; her biri yuvasının ortasında, avatarlarda ekip çerçevesi */
 function CategoryChips({ card, interactive }: { card: Card; interactive?: boolean }) {
   const c = useColors();
   const [open, setOpen] = useState<Cat["key"] | null>(null);
@@ -443,37 +432,30 @@ function CategoryChips({ card, interactive }: { card: Card; interactive?: boolea
   const lists: Record<Cat["key"], Card["read"]> = simple
     ? { kefaret: [], read: card.read, min: [], none: [], pending: card.pending }
     : { kefaret: card.read.filter((p) => p.kefaret), read: card.read.filter((p) => !p.kefaret), min: card.min, none: card.none, pending: card.pending };
-  // En kalabalık rozet her zaman en üstte (eşitse sabit sıra: okudu, alt sınır, okumadı, bekleniyor)
+  // En kalabalık rozet her zaman başta (eşitse sabit sıra: okudu, alt sınır, okumadı, bekleniyor)
   const cats = (simple ? SIMPLE_CATS : CATS).filter((cat) => lists[cat.key].length).sort((a, b) => lists[b.key].length - lists[a.key].length);
   if (!cats.length) return null;
   const sel = cats.find((cat) => cat.key === open);
-  const half = width / 2 - 3;
-  // Ölçülmeden önce ikili düzen varsayılır
-  const fullRow = chipRows(cats, (cat) => !width || lists[cat.key].length <= chipCapacity(half, cat.label, lists[cat.key].length, interactive));
   return (
-    <View style={{ gap: 6 }}>
-      <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)} style={{ flexDirection: "row", flexWrap: "wrap", rowGap: 6 }}>
-        {cats.map((cat, i) => {
+    <View style={{ gap: sel ? 11 : 6 }}>
+      <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)} style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", columnGap: 6, rowGap: 6 }}>
+        {cats.map((cat) => {
           const color = cat.color(c);
           const people = lists[cat.key];
           const on = open === cat.key;
-          const alone = fullRow[i];
-          const slot = width ? (alone ? width : half) : 0;
-          const cap = slot ? chipCapacity(slot, cat.label, people.length, interactive) : 4;
+          const cap = width ? chipCapacity(width, people.length) : 6;
           const max = people.length > cap ? Math.max(1, cap - 1) : people.length;
           const body = (
             <>
               <AvatarStack people={people} size={CHIP_AVATAR} max={max} />
               <cat.Icon size={13} color={color} strokeWidth={2.6} />
-              {interactive && <Text style={{ fontFamily: fonts.semibold, fontSize: 11, color }}>{cat.label}</Text>}
-              <Text style={{ fontFamily: fonts.bold, fontSize: 12, color }}>{people.length}</Text>
+              <Text style={{ fontFamily: fonts.bold, fontSize: 12, lineHeight: 16, color }}>{people.length}</Text>
             </>
           );
           const style = {
             flexDirection: "row" as const,
             alignItems: "center" as const,
             gap: 5,
-            maxWidth: "100%" as const,
             backgroundColor: color + "1f",
             borderRadius: 99,
             paddingLeft: 2,
@@ -482,34 +464,43 @@ function CategoryChips({ card, interactive }: { card: Card; interactive?: boolea
             borderWidth: 1,
             borderColor: on ? color : "transparent",
           };
-          return (
-            <View key={cat.key} style={{ width: alone ? "100%" : "50%", alignItems: "center", paddingHorizontal: alone ? 0 : 3 }}>
-              {interactive ? (
-                <Pressable onPress={() => setOpen((o) => (o === cat.key ? null : cat.key))} style={({ pressed }) => [style, { opacity: pressed ? 0.7 : 1 }]}>
-                  {body}
-                </Pressable>
-              ) : (
-                <View style={style}>{body}</View>
-              )}
+          return interactive ? (
+            <Pressable key={cat.key} onPress={() => setOpen((o) => (o === cat.key ? null : cat.key))} accessibilityLabel={`${cat.label} ${people.length}`} style={({ pressed }) => [style, { opacity: pressed ? 0.7 : 1 }]}>
+              {body}
+            </Pressable>
+          ) : (
+            <View key={cat.key} accessibilityLabel={`${cat.label} ${people.length}`} style={style}>
+              {body}
             </View>
           );
         })}
       </View>
       {sel && (
-        // İsimler ortadan dizilir; ekip çerçevesi ince kenar, seri sağ üst köşede alev
-        <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", columnGap: 4, rowGap: 7, backgroundColor: sel.color(c) + "14", borderRadius: 10, paddingHorizontal: 6, paddingTop: 8, paddingBottom: 6 }}>
-          {lists[sel.key].map((p) => (
-            // Ekip çerçevesi: tüm kenar ince ve hafif saydam altın / gümüş / bronz
-            <View
-              key={p.id}
-              style={{ flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: c.card, borderRadius: 99, paddingHorizontal: 7, paddingVertical: 1.5, borderWidth: p.tier ? 0.75 : 1, borderColor: p.tier ? TIER_COLORS[p.tier] + "cc" : c.border }}
-            >
-              <Text style={{ fontFamily: fonts.semibold, fontSize: 11, color: sel.color(c) }}>{p.name}</Text>
-              {p.kefaret ? <BookHeart size={11} color={KEFARET} /> : null}
-              {p.pages ? <Text style={{ fontFamily: fonts.semibold, fontSize: 11, color: sel.color(c) }}>· {p.pages}</Text> : null}
-              <StreakFlame s={p.streak} top={-8} />
+        // İsimler ortadan dizilir; rozetin adı çerçevenin üst kenarındaki küçük etikette (yer kaplamaz)
+        <View style={{ borderWidth: 1, borderColor: sel.color(c) + "55", backgroundColor: sel.color(c) + "12", borderRadius: 10, paddingHorizontal: 6, paddingTop: 11, paddingBottom: 7 }}>
+          <View pointerEvents="none" style={{ position: "absolute", top: -8, left: 0, right: 0, alignItems: "center" }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: c.card, borderRadius: 99, borderWidth: 1, borderColor: sel.color(c) + "55", paddingHorizontal: 7, height: 15 }}>
+              <sel.Icon size={9} color={sel.color(c)} strokeWidth={3} />
+              <Text style={{ fontFamily: fonts.semibold, fontSize: 9, lineHeight: 12, includeFontPadding: false, color: sel.color(c) }}>{sel.label}</Text>
             </View>
-          ))}
+          </View>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", columnGap: 4, rowGap: 7 }}>
+            {lists[sel.key].map((p) => (
+              // Ekip çerçevesi: tüm kenar ince ve hafif saydam altın / gümüş / bronz
+              <View
+                key={p.id}
+                style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 3, height: 21, backgroundColor: c.card, borderRadius: 99, paddingHorizontal: 8, borderWidth: p.tier ? 0.75 : 1, borderColor: p.tier ? TIER_COLORS[p.tier] + "cc" : c.border }}
+              >
+                {/* Yazı kutunun tam ortasında: yazı tipi iç boşluğu kapalı, satır yüksekliği sabit */}
+                <Text style={{ fontFamily: fonts.semibold, fontSize: 11, lineHeight: 15, includeFontPadding: false, textAlignVertical: "center", textAlign: "center", color: sel.color(c) }}>
+                  {p.name}
+                  {p.pages ? ` · ${p.pages}` : ""}
+                </Text>
+                {p.kefaret ? <BookHeart size={11} color={KEFARET} /> : null}
+                <StreakFlame s={p.streak} top={-8} />
+              </View>
+            ))}
+          </View>
         </View>
       )}
     </View>
@@ -668,18 +659,18 @@ export function DayShortcut({ card, groupId, onJump, onReported }: { card: Card;
   ];
   const busy = (k: string) => action.isPending && action.variables?.body?.key === `sc-${k}`;
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: c.card, borderBottomWidth: 1, borderBottomColor: c.border, paddingHorizontal: 10, paddingVertical: 6 }}>
-      <Pressable onPress={onJump} style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 8 }} accessibilityLabel="Gün kartına git">
-        <View style={{ width: 30, height: 30, borderRadius: 8, backgroundColor: c.primary + "1a", alignItems: "center", justifyContent: "center" }}>
-          <BookOpen size={15} color={c.primary} />
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: c.card, borderBottomWidth: 1, borderBottomColor: c.border, paddingHorizontal: 10, paddingVertical: 2 }}>
+      <Pressable onPress={onJump} style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 7 }} accessibilityLabel="Gün kartına git">
+        <View style={{ width: 24, height: 24, borderRadius: 7, backgroundColor: c.primary + "1a", alignItems: "center", justifyContent: "center" }}>
+          <BookOpen size={13} color={c.primary} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text numberOfLines={1} style={{ fontFamily: fonts.bold, fontSize: 12, color: c.foreground }}>
+          <Text numberOfLines={1} style={{ fontFamily: fonts.bold, fontSize: 11.5, lineHeight: 15, includeFontPadding: false, color: c.foreground }}>
             {formatDayLong(card.dayKey)}
           </Text>
           <Row gap={4}>
-            {card.open ? <Countdown to={card.deadline} style={{ fontSize: 11 }} /> : <Text style={{ fontFamily: fonts.regular, fontSize: 11, color: c.mutedForeground }}>Kapandı</Text>}
-            <Text style={{ fontFamily: fonts.regular, fontSize: 11, color: c.mutedForeground }}>
+            {card.open ? <Countdown to={card.deadline} style={{ fontSize: 10.5, lineHeight: 14, includeFontPadding: false }} /> : <Text style={{ fontFamily: fonts.regular, fontSize: 10.5, lineHeight: 14, includeFontPadding: false, color: c.mutedForeground }}>Kapandı</Text>}
+            <Text style={{ fontFamily: fonts.regular, fontSize: 10.5, lineHeight: 14, includeFontPadding: false, color: c.mutedForeground }}>
               · {done}/{total} okudu
             </Text>
           </Row>
@@ -695,7 +686,7 @@ export function DayShortcut({ card, groupId, onJump, onReported }: { card: Card;
                 disabled={action.isPending}
                 accessibilityLabel={b.label}
                 onPress={() => tap() || action.mutate({ name: "reportReading", body: { groupId, dayKey: card.dayKey, choice: b.choice, key: `sc-${b.choice}`, toggle: "1" } }, { onSuccess: () => onReported?.() })}
-                style={({ pressed }) => [{ height: 32, minWidth: 34, paddingHorizontal: 7, borderRadius: 8, borderWidth: 1, borderColor: on ? b.color : c.border, backgroundColor: on ? b.color : c.card, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 3 }, pressFx(pressed)]}
+                style={({ pressed }) => [{ height: 27, minWidth: 32, paddingHorizontal: 6, borderRadius: 7, borderWidth: 1, borderColor: on ? b.color : c.border, backgroundColor: on ? b.color : c.card, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 3 }, pressFx(pressed)]}
               >
                 {b.corner && (
                   <View style={{ position: "absolute", top: -6, right: -3, backgroundColor: c.card, borderRadius: radius, borderWidth: 0.8, borderColor: b.color, paddingHorizontal: 2 }}>
