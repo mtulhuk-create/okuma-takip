@@ -105,8 +105,8 @@ export const MessageBubble = memo(function MessageBubble({ m, mine, showAuthor, 
           />
         )}
         {!mine && showAuthor && m.user && (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 }}>
-            <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: fonts.bold, fontSize: 12, color: nameColor(m.user.id) }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 2 }}>
+            <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: fonts.bold, fontSize: 12, lineHeight: 16, includeFontPadding: false, color: nameColor(m.user.id) }}>
               {m.user.name}
             </Text>
             {/* Seri: ismin hemen sağında, aynı hizada dik alev; içinde gün sayısı */}

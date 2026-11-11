@@ -70,9 +70,19 @@ export function ChatView({ initial }: { initial: Page }) {
     setTodayCard(page.todayCard);
     setMessages((prev) => {
       const first = page.messages[0]?.createdAt;
-      const older = first ? prev.filter((m) => !m.pending && m.createdAt < first) : [];
+      const ids = new Set(page.messages.map((m) => m.id));
+      // Sunucu sayfasında olanlar (ör. en alta taşınan gün kartı) eski mesajlardan düşer
+      const older = first ? prev.filter((m) => !m.pending && m.createdAt < first && !ids.has(m.id)) : [];
       const pending = prev.filter((m) => m.pending || m.failed);
-      return [...older, ...page.messages, ...pending.filter((p) => !page.messages.some((m) => m.text === p.text && m.user?.id === p.user?.id && m.createdAt >= p.createdAt))];
+      // Cihaz saati sunucudan farklı olabilir: içerik eşleşmesinde 2 dk pay (geçici balon asılı kalmasın)
+      const claimed = new Set<string>();
+      const still = pending.filter((p) => {
+        const since = new Date(Date.parse(p.createdAt) - 120_000).toISOString();
+        const hit = page.messages.find((m) => !claimed.has(m.id) && m.kind === p.kind && m.text === p.text && m.user?.id === p.user?.id && m.createdAt >= since);
+        if (hit) claimed.add(hit.id);
+        return !hit;
+      });
+      return [...older, ...page.messages, ...still];
     });
   }, [groupId]);
 
@@ -134,6 +144,24 @@ export function ChatView({ initial }: { initial: Page }) {
       await new Promise((r) => setTimeout(r, 120));
     }
   }
+
+  // Sohbet durulunca açık günün kartı en alta taşınır (sunucu yapar): sessizlik süresi dolunca sayfa yenilenir
+  const lastChatAt = [...messages].reverse().find((m) => m.kind !== "DAY" && !m.pending && !m.failed)?.createdAt;
+  const cardAtBottom = messages[messages.length - 1]?.kind === "DAY";
+  const cardOpen = !!todayCard?.open;
+  const sinkMs = initial.cardSinkMs ?? 180_000;
+  useEffect(() => {
+    if (!lastChatAt || cardAtBottom || !cardOpen) return;
+    let n = 0;
+    let t: ReturnType<typeof setTimeout>;
+    // Cihaz saati sunucudan farklıysa ilk denemede taşınmayabilir: birkaç kez yeniden denenir
+    const tick = () => {
+      refresh();
+      if (++n < 4) t = setTimeout(tick, 30_000);
+    };
+    t = setTimeout(tick, Math.max(5000, Date.parse(lastChatAt) + sinkMs + 2000 - Date.now()));
+    return () => clearTimeout(t);
+  }, [lastChatAt, cardAtBottom, cardOpen, sinkMs, refresh]);
 
   // Yeni mesaj gelince alttaysak aşağı kaydır
   useEffect(() => {
@@ -259,18 +287,18 @@ export function ChatView({ initial }: { initial: Page }) {
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-background">
       <header className="pt-safe z-20 bg-card shadow-sm">
-        <div className="mx-auto flex h-14 max-w-3xl items-center gap-1 px-1.5">
+        <div className="mx-auto flex h-12 max-w-3xl items-center gap-1 px-1.5">
           <Link href="/gruplar" className="btn-icon" aria-label="Geri">
             <ArrowLeft />
           </Link>
           <Link href={`/gruplar/${groupId}/bilgi`} className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-1 py-1 hover:bg-muted/60">
-            <span className="relative flex size-10 shrink-0 items-center justify-center rounded-full bg-primary font-serif text-base font-bold text-primary-foreground">
+            <span className="relative flex size-8 shrink-0 items-center justify-center rounded-full bg-primary font-serif text-sm font-bold text-primary-foreground">
               {group.name[0]?.toUpperCase()}
               <span className={`absolute bottom-0 right-0 size-2.5 rounded-full ring-2 ring-card ${live ? "bg-emerald-500" : "bg-muted-foreground/40"}`} />
             </span>
             <span className="min-w-0">
-              <span className="block truncate font-semibold leading-tight">{group.name}</span>
-              <span className="block truncate text-xs text-muted-foreground">
+              <span className="block truncate text-[15px] font-semibold leading-tight">{group.name}</span>
+              <span className="block truncate text-[11px] leading-tight text-muted-foreground">
                 {group.memberCount} üye{live ? " · çevrimiçi" : ""}
               </span>
             </span>
@@ -288,7 +316,7 @@ export function ChatView({ initial }: { initial: Page }) {
           )}
         </div>
         {kasa && (
-          <div className="mx-auto flex max-w-3xl items-center gap-2 border-t border-border px-3 py-1.5">
+          <div className="mx-auto flex max-w-3xl items-center gap-2 border-t border-border px-3 py-1">
             <button onClick={() => setKasaOpen((o) => !o)} className="flex min-w-0 flex-1 items-center gap-1.5 text-left" aria-expanded={kasaOpen} title="Grup kasası">
               <Landmark className="size-4 shrink-0 text-primary" />
               <span className="min-w-0 truncate text-xs text-muted-foreground">
@@ -303,7 +331,7 @@ export function ChatView({ initial }: { initial: Page }) {
                     <DueBadge due={kasa.myDue} compact />
                   </span>
                 )}
-                <button onClick={() => setPayOpen(true)} className="btn-danger btn-sm h-7 shrink-0 rounded-full px-3">
+                <button onClick={() => setPayOpen(true)} className="btn-danger btn-sm h-6 shrink-0 rounded-full px-2.5 text-[11px]">
                   Borcunu öde · {kasa.myDebt} TL
                 </button>
               </>
@@ -361,8 +389,8 @@ export function ChatView({ initial }: { initial: Page }) {
             const sep = day && day !== lastDay;
             if (day) lastDay = day;
             if (m.kind === "DAY" && m.day) {
+              // Kart sohbetin ortasına/altına taşınabildiği için tarih ayracını sıfırlamaz
               lastAuthor = null;
-              lastDay = trDay(m.day.start);
               return (
                 <div key={m.id} className="my-5">
                   <DayCardFull card={m.day} groupId={groupId} onReported={refresh} />

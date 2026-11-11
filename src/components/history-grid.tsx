@@ -1,6 +1,6 @@
 "use client";
 
-import { CELL_FRAME, type Tier } from "./tier";
+import { CELL_FRAME, TIER_COLOR, TIER_NOTCHES, type Tier } from "./tier";
 
 import { BookHeart, BookOpen, Check, CheckCheck, ChevronDown, Flame, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -38,6 +38,27 @@ function weeksOf(start: string, cells: string) {
   });
 }
 
+/**
+ * Ekip çerçevesinin çıkıntıları (avatardakiyle aynı): altın 4 kenar, gümüş üst + alt, bronz üst.
+ * Kutucuğun çevresindeki halkanın (1.5px) tam ortasına oturur.
+ */
+function CellNotches({ tier, d = 3 }: { tier: Tier; d?: number }) {
+  const o = "-0.75px";
+  const pos = { top: { left: "50%", top: o }, bottom: { left: "50%", top: `calc(100% + 0.75px)` }, left: { left: o, top: "50%" }, right: { left: `calc(100% + 0.75px)`, top: "50%" } } as const;
+  return (
+    <>
+      {TIER_NOTCHES[tier].map((p) => (
+        <span
+          key={p}
+          aria-hidden
+          className="pointer-events-none absolute rotate-45 rounded-[0.5px] border-[0.6px] border-card"
+          style={{ ...pos[p], width: d, height: d, marginLeft: -d / 2, marginTop: -d / 2, backgroundColor: TIER_COLOR[tier] }}
+        />
+      ))}
+    </>
+  );
+}
+
 /** Gün durumları kartın genişliğini boşluksuz doldurur: 7 gün şerit, 1 ay takvim, daha uzun aralık haftalık ısı haritası */
 /** frame: ekip çerçevesi (altın / gümüş / bronz) kutucukların çevresinde; gruba özel */
 export function HistoryGrid({ start, cells, frame }: { start: string; cells: string; frame?: Tier | null }) {
@@ -51,11 +72,12 @@ export function HistoryGrid({ start, cells, frame }: { start: string; cells: str
           return (
             <div key={key} className="flex flex-col items-center gap-0.5" title={`${fmt(key)} · ${TITLE[c]}`}>
               <span className={`text-[10px] font-semibold leading-none ${today ? "text-primary" : "text-muted-foreground"}`}>{DOW[new Date(Date.parse(key)).getUTCDay()]}</span>
-              <span className={`flex h-7 w-full items-center justify-center rounded-md ${COLOR[c]} ${c !== "-" ? fr : ""} ${today ? "outline-2 outline-offset-1 outline-primary/60" : ""}`}>
+              <span className={`relative flex h-7 w-full items-center justify-center rounded-md ${COLOR[c]} ${c !== "-" ? fr : ""} ${today ? "outline-2 outline-offset-1 outline-primary/60" : ""}`}>
                 {c === "r" && <CheckCheck className="size-3.5 text-white" strokeWidth={3} />}
                 {c === "k" && <BookHeart className="size-3.5 text-white" strokeWidth={2.5} />}
                 {c === "m" && <Check className="size-3.5 text-white" strokeWidth={3} />}
                 {c === "n" && <X className="size-3.5 text-white" strokeWidth={3} />}
+                {frame && c !== "-" && <CellNotches tier={frame} />}
               </span>
               <span className="text-[10px] leading-none text-muted-foreground">{Number(key.slice(8))}</span>
             </div>
@@ -81,9 +103,10 @@ export function HistoryGrid({ start, cells, frame }: { start: string; cells: str
           <span
             key={key}
             title={`${fmt(key)} · ${TITLE[c]}`}
-            className={`flex h-6 items-center justify-center rounded-md text-[11px] font-semibold ${COLOR[c]} ${TEXT[c]} ${c !== "-" && c !== "x" ? fr : ""} ${today ? "outline-2 outline-offset-1 outline-primary/60" : ""}`}
+            className={`relative flex h-6 items-center justify-center rounded-md text-[11px] font-semibold ${COLOR[c]} ${TEXT[c]} ${c !== "-" && c !== "x" ? fr : ""} ${today ? "outline-2 outline-offset-1 outline-primary/60" : ""}`}
           >
             {Number(key.slice(8))}
+            {frame && c !== "-" && c !== "x" && <CellNotches tier={frame} />}
           </span>
         ))}
       </div>

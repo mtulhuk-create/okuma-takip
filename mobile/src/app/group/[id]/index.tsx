@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, Stack, useFocusEffect, useLocalSearchParams, useNavigation } from "expo-router";
-import { BarChart3, CalendarRange, ChevronDown, ImagePlus, Info, Landmark, Lock, SendHorizontal, Settings } from "lucide-react-native";
+import { ArrowLeft, BarChart3, CalendarRange, ChevronDown, ImagePlus, Info, Landmark, Lock, SendHorizontal, Settings } from "lucide-react-native";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppState, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import Animated, { useAnimatedKeyboard, useAnimatedStyle } from "react-native-reanimated";
@@ -57,6 +57,28 @@ const DaySeparator = memo(function DaySeparator({ dayKey }: { dayKey: string }) 
     </View>
   );
 });
+
+/** Sohbetin kısa (kompakt) başlığı: geri, grup adı + üye sayısı, sağda kısayollar */
+function ChatHeader({ title, sub, onTitle, children }: { title: string; sub?: string; onTitle?: () => void; children?: React.ReactNode }) {
+  const c = useColors();
+  const insets = useSafeAreaInsets();
+  return (
+    <View style={{ backgroundColor: c.background, paddingTop: insets.top }}>
+      <View style={{ height: 44, flexDirection: "row", alignItems: "center", paddingLeft: 4, paddingRight: 12, gap: 4 }}>
+        <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))} hitSlop={6} accessibilityLabel="Geri" style={{ width: 38, height: 38, alignItems: "center", justifyContent: "center" }}>
+          <ArrowLeft size={22} color={c.primary} />
+        </Pressable>
+        <Pressable onPress={onTitle} disabled={!onTitle} style={{ flex: 1, justifyContent: "center" }}>
+          <Text numberOfLines={1} style={{ fontFamily: fonts.semibold, fontSize: 15, lineHeight: 19, includeFontPadding: false, color: c.foreground }}>
+            {title}
+          </Text>
+          {!!sub && <Text style={{ fontFamily: fonts.regular, fontSize: 10.5, lineHeight: 13, includeFontPadding: false, color: c.mutedForeground }}>{sub}</Text>}
+        </Pressable>
+        {children}
+      </View>
+    </View>
+  );
+}
 
 /** Mesaj yazma alanı: yazılan metin yalnızca burada tutulur, sohbet listesi her harfte yeniden çizilmez */
 function Composer({ canPost, onSend, onPoll, onPhoto }: { canPost: boolean; onSend: (text: string) => void; onPoll: () => void; onPhoto?: (draft: string, clear: () => void) => void }) {
@@ -194,11 +216,42 @@ export default function ChatScreen() {
   const messages = useMemo(() => {
     if (!latest) return [...older, ...pending];
     const first = latest[0]?.createdAt;
-    const old = first ? older.filter((m) => m.createdAt < first) : older;
-    const stillPending = pending.filter((p) => !latest.some((m) => m.kind === p.kind && m.text === p.text && m.user?.id === p.user?.id && m.createdAt >= p.createdAt));
+    const ids = new Set(latest.map((m) => m.id));
+    // Sunucu sayfasında olanlar (ör. en alta taşınan gün kartı) eski sayfalardan düşer
+    const old = (first ? older.filter((m) => m.createdAt < first) : older).filter((m) => !ids.has(m.id));
+    // Gönderilen mesaj sunucudan gelince geçici balon kalkar. Önce kimlikle (gönderim yanıtı), yanıt gelmeden
+    // sunucu sayfası yenilendiyse içerikle eşleşir. Telefon saati sunucudan ileri/geri olabilir: 2 dk pay bırakılır
+    // (eskiden saat farkında geçici balon "Gönderiliyor…" diye asılı kalıyordu).
+    const claimed = new Set(pending.filter((p) => !p.id.startsWith("tmp-")).map((p) => p.id));
+    const stillPending = pending.filter((p) => {
+      if (!p.id.startsWith("tmp-")) return !ids.has(p.id);
+      const since = new Date(Date.parse(p.createdAt) - 120_000).toISOString();
+      const hit = latest.find((m) => !claimed.has(m.id) && m.kind === p.kind && m.text === p.text && m.user?.id === p.user?.id && m.createdAt >= since);
+      if (hit) claimed.add(hit.id);
+      return !hit;
+    });
     return [...old, ...latest, ...stillPending];
   }, [latest, older, pending]);
   const reversed = useMemo(() => [...messages].reverse(), [messages]);
+
+  // Sohbet durulunca açık günün kartı en alta taşınır (sunucu yapar): sessizlik süresi dolunca sayfa yenilenir
+  const lastChatAt = latest ? [...latest].reverse().find((m) => m.kind !== "DAY")?.createdAt : undefined;
+  const cardAtBottom = !!latest && latest[latest.length - 1]?.kind === "DAY";
+  const sinkMs = chat.data?.cardSinkMs;
+  const cardOpen = !!chat.data?.todayCard?.open;
+  useEffect(() => {
+    if (!lastChatAt || cardAtBottom || !cardOpen || !sinkMs) return;
+    let n = 0;
+    let t: ReturnType<typeof setTimeout>;
+    // Telefon saati sunucudan farklıysa ilk denemede taşınmayabilir: birkaç kez yeniden denenir
+    const tick = () => {
+      chat.refetch();
+      if (++n < 4) t = setTimeout(tick, 30_000);
+    };
+    t = setTimeout(tick, Math.max(5000, Date.parse(lastChatAt) + sinkMs + 2000 - Date.now()));
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastChatAt, cardAtBottom, cardOpen, sinkMs]);
   const dayIndex = day ? reversed.findIndex((m) => m.kind === "DAY" && m.day?.dayKey === day) : -1;
 
   // Bugün ekranından gelindiyse ilgili gün kartına kaydır
@@ -242,7 +295,11 @@ export default function ChatScreen() {
     list.current?.scrollToOffset({ offset: 0, animated: true });
     action.mutate(
       { name: "sendMessage", body: { groupId: id, text: body } },
-      { onError: () => setPending((p) => p.map((m) => (m.id === tmp.id ? { ...m, pending: false, failed: true } : m))) },
+      {
+        // Sunucunun verdiği kimlik yazılır: sayfa yenilenince aynı mesaj iki kez görünmez
+        onSuccess: (res) => setPending((p) => p.map((m) => (m.id === tmp.id ? { ...m, id: res.id ?? m.id, pending: !res.id } : m))),
+        onError: () => setPending((p) => p.map((m) => (m.id === tmp.id ? { ...m, pending: false, failed: true } : m))),
+      },
     );
   }
 
@@ -293,7 +350,8 @@ export default function ChatScreen() {
           patch({ progress: step });
         }
       });
-      await fetcher("/api/m/action/sendImage", { method: "POST", body: JSON.stringify({ groupId: id, url, w: small.w, h: small.h, text: caption }) });
+      const res = await fetcher<{ id?: string }>("/api/m/action/sendImage", { method: "POST", body: JSON.stringify({ groupId: id, url, w: small.w, h: small.h, text: caption }) });
+      if (res.id) patch({ id: res.id, pending: false });
       chat.refetch();
     } catch (e) {
       patch({ pending: false, failed: true });
@@ -314,7 +372,11 @@ export default function ChatScreen() {
       const olderItem = reversed[index + 1];
       if (m.kind === "DAY" && m.day) return <DayCardFull card={m.day} groupId={id} highlight={m.day.dayKey === day} onReported={onReported} />;
       const dayKey = trDay(m.createdAt);
-      const sep = !olderItem || olderItem.kind === "DAY" || trDay(olderItem.createdAt) !== dayKey;
+      // Tarih ayracı: bir önceki mesaja göre (gün kartı sohbetin ortasında/altında olabilir, o sayılmaz)
+      let j = index + 1;
+      while (reversed[j]?.kind === "DAY") j++;
+      const prevMsg = reversed[j];
+      const sep = !prevMsg || trDay(prevMsg.createdAt) !== dayKey;
       if (m.kind === "BADGE") {
         if (!m.badge) return null;
         return (
@@ -336,11 +398,24 @@ export default function ChatScreen() {
     [reversed, id, day, meId, canDeleteAll, onReported],
   );
 
-  if (chat.isLoading) return <Loading />;
+  // Yüklenirken de aynı kısa başlık (sonradan yükseklik zıplamasın)
+  const bare = <Stack.Screen options={{ header: () => <ChatHeader title="" /> }} />;
+  if (chat.isLoading)
+    return (
+      <>
+        {bare}
+        <Loading />
+      </>
+    );
   // Önbellekte sohbet varsa internet yokken de gösterilir
   if (chat.error && !chat.data) {
     if (chat.error.message.includes("üyesi değilsiniz")) return <JoinView groupId={id} />;
-    return <ErrorView message={chat.error.message} onRetry={chat.refetch} />;
+    return (
+      <>
+        {bare}
+        <ErrorView message={chat.error.message} onRetry={chat.refetch} />
+      </>
+    );
   }
   const data = chat.data!;
   // Lite sürümde yönetici özellikleri yok
@@ -352,36 +427,30 @@ export default function ChatScreen() {
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: c.background }} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={90}>
       <Stack.Screen
         options={{
-          headerTitle: () => (
-            <Pressable onPress={() => router.push(`/group/${id}/info`)}>
-              <Text numberOfLines={1} style={{ fontFamily: fonts.semibold, fontSize: 16, color: c.foreground }}>
-                {data.group.name}
-              </Text>
-              <Text style={{ fontFamily: fonts.regular, fontSize: 11, color: c.mutedForeground }}>{data.group.memberCount} üye</Text>
-            </Pressable>
-          ),
-          headerRight: () => (
-            <Row gap={16}>
-              <Pressable onPress={() => setHistoryOpen(true)} hitSlop={10} accessibilityLabel="Okuma geçmişi">
-                <CalendarRange size={22} color={c.foreground} />
-              </Pressable>
-              <Pressable onPress={() => router.push(`/group/${id}/info`)} hitSlop={10}>
-                <Info size={22} color={c.foreground} />
-              </Pressable>
-              {isAdmin && (
-                <Pressable onPress={() => router.push(`/group/${id}/admin`)} hitSlop={10}>
-                  <Settings size={22} color={c.foreground} />
+          header: () => (
+            <ChatHeader title={data.group.name} sub={`${data.group.memberCount} üye`} onTitle={() => router.push(`/group/${id}/info`)}>
+              <Row gap={16}>
+                <Pressable onPress={() => setHistoryOpen(true)} hitSlop={10} accessibilityLabel="Okuma geçmişi">
+                  <CalendarRange size={21} color={c.foreground} />
                 </Pressable>
-              )}
-            </Row>
+                <Pressable onPress={() => router.push(`/group/${id}/info`)} hitSlop={10} accessibilityLabel="Grup bilgisi">
+                  <Info size={21} color={c.foreground} />
+                </Pressable>
+                {isAdmin && (
+                  <Pressable onPress={() => router.push(`/group/${id}/admin`)} hitSlop={10} accessibilityLabel="Grup yönetimi">
+                    <Settings size={21} color={c.foreground} />
+                  </Pressable>
+                )}
+              </Row>
+            </ChatHeader>
           ),
         }}
       />
       {kasa && (
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: c.card, borderBottomWidth: 1, borderBottomColor: c.border, paddingHorizontal: 12, paddingVertical: 6 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: c.card, borderBottomWidth: 1, borderBottomColor: c.border, paddingHorizontal: 12, paddingVertical: 3 }}>
           <Pressable onPress={() => setKasaOpen((o) => !o)} style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 6 }} accessibilityLabel="Grup kasası">
-            <Landmark size={15} color={c.primary} />
-            <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: fonts.regular, fontSize: 12, color: c.mutedForeground }}>
+            <Landmark size={14} color={c.primary} />
+            <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: fonts.regular, fontSize: 11.5, lineHeight: 16, includeFontPadding: false, color: c.mutedForeground }}>
               {kasa.paidTotal != null ? (
                 <>
                   Kasa <Text style={{ fontFamily: fonts.bold, color: c.foreground }}>{kasa.paidTotal} TL</Text> · bekleyen <Text style={{ fontFamily: fonts.bold, color: c.foreground }}>{kasa.expected} TL</Text>
@@ -396,8 +465,8 @@ export default function ChatScreen() {
           </Pressable>
           {kasa.myDebt > 0 && kasa.myDue && <DueBadge due={kasa.myDue} compact />}
           {kasa.myDebt > 0 ? (
-            <Pressable onPress={() => setPayOpen(true)} style={({ pressed }) => ({ backgroundColor: c.destructive, borderRadius: 99, paddingHorizontal: 10, paddingVertical: 5, opacity: pressed ? 0.8 : 1 })}>
-              <Text style={{ fontFamily: fonts.semibold, fontSize: 11, color: "#fff" }}>Borcunu öde · {kasa.myDebt} TL</Text>
+            <Pressable onPress={() => setPayOpen(true)} style={({ pressed }) => ({ backgroundColor: c.destructive, borderRadius: 99, paddingHorizontal: 9, paddingVertical: 3, opacity: pressed ? 0.8 : 1 })}>
+              <Text style={{ fontFamily: fonts.semibold, fontSize: 10.5, lineHeight: 14, includeFontPadding: false, color: "#fff" }}>Borcunu öde · {kasa.myDebt} TL</Text>
             </Pressable>
           ) : (
             <Text style={{ fontFamily: fonts.semibold, fontSize: 11, color: c.success }}>Borcun yok</Text>

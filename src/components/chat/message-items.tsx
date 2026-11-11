@@ -125,7 +125,7 @@ export function Bubble({
           <p className={`mb-0.5 flex items-center gap-1.5 text-[13px] font-bold leading-tight ${nameColor(m.user.id)}`}>
             <span className="truncate">{m.user.name}</span>
             {/* Seri: ismin hemen sağında, aynı hizada dik alev; içinde gün sayısı */}
-            <StreakFlame s={m.user.streak} className="relative -ml-0.5" />
+            <StreakFlame s={m.user.streak} className="relative -my-1 -ml-0.5 -translate-y-px" big />
             {m.user.badge && <BadgeChip tag={m.user.badge} />}
           </p>
         )}

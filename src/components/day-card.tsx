@@ -413,43 +413,29 @@ function BlinkBorder({ on }: { on: boolean }) {
 
 const CHIP_AVATAR = 24;
 
-/** Rozete sığan avatar sayısı: yuvayı doldurana kadar avatar, sonra "+N" */
-function chipCapacity(slot: number, label: string, count: number, interactive?: boolean) {
+/** Rozete sığan avatar sayısı: satırın tamamını doldurana kadar avatar, sonra "+N" (rozet boyutu değişmez) */
+function chipCapacity(row: number, count: number) {
   const step = CHIP_AVATAR - 8;
-  const text = 16 + (interactive ? label.length * 6.4 + 4 : 0) + String(count).length * 7 + 22;
-  return Math.max(1, Math.floor((slot - text - CHIP_AVATAR) / step) + 1);
+  const text = 16 + String(count).length * 7 + 22;
+  return Math.max(1, Math.floor((row - text - CHIP_AVATAR) / step) + 1);
 }
 
-/**
- * Rozetlerin satırlara dizilişi: iki rozet yan yana ancak ikisi de avatarlarının hepsini yarım satıra
- * sığdırabiliyorsa durur; sığmıyorsa (kalabalık rozet sıkışıp "+N" olmasın) rozetler alt alta tam satır olur.
- */
-function chipRows<T>(cats: T[], fitsHalf: (cat: T) => boolean) {
-  const full: boolean[] = [];
-  for (let i = 0; i < cats.length; ) {
-    if (i + 1 < cats.length && fitsHalf(cats[i]) && fitsHalf(cats[i + 1])) {
-      full.push(false, false);
-      i += 2;
-    } else {
-      full.push(true);
-      i += 1;
-    }
-  }
-  return full;
-}
-
-/** İsmin sağ üst köşesinde hafif eğik alev; içinde küçük gün sayısı (tam seri yeşil). Gün kartı ve sohbette aynı */
-export function StreakFlame({ s, className = "absolute -right-1.5 -top-2 rotate-12" }: { s: { n: number; full: boolean } | null | undefined; className?: string }) {
+/** İsmin sağ üst köşesinde hafif eğik alev; içinde küçük gün sayısı (tam seri yeşil). big: sohbette ismin yanında, bir tık büyük */
+export function StreakFlame({ s, className = "absolute -right-1.5 -top-2 rotate-12", big }: { s: { n: number; full: boolean } | null | undefined; className?: string; big?: boolean }) {
   if (!s || s.n < 3) return null;
   return (
-    <span className={`pointer-events-none flex size-4 shrink-0 items-center justify-center ${className}`} title={`${s.n} gün ${s.full ? "tam seri" : "seri"}`}>
-      <Flame className={`absolute size-4 ${s.full ? "text-emerald-500" : "text-orange-500"}`} fill="currentColor" strokeWidth={1.5} />
-      <span className="relative top-[2px] text-[6.5px] font-bold leading-none text-white">{s.n}</span>
+    <span className={`pointer-events-none flex shrink-0 items-center justify-center ${big ? "size-5" : "size-4"} ${className}`} title={`${s.n} gün ${s.full ? "tam seri" : "seri"}`}>
+      <Flame className={`absolute ${big ? "size-5" : "size-4"} ${s.full ? "text-emerald-500" : "text-orange-500"}`} fill="currentColor" strokeWidth={1.5} />
+      <span className={`relative font-bold leading-none text-white ${big ? "top-[2.5px] text-[8px]" : "top-[2px] text-[6.5px]"}`}>{s.n}</span>
     </span>
   );
 }
 
-/** Kim okudu rozetleri: sığdıkça satırda 2 rozet, sığmazsa alt alta; her biri yuvasının ortasında, avatar eklendikçe genişler */
+/**
+ * Kim okudu rozetleri: yalnızca avatarlar, simge ve sayı. Rozetler boyutlarını koruyup yan yana dizilir,
+ * satırı doldurur; ancak sığmayınca alt satıra geçer. En kalabalık rozet başta.
+ * Basınca açılan alanda rozetin adı (Okudu, Bekleniyor…) çerçevenin üstündeki küçük etikette yazar.
+ */
 function CategoryChips({ card, interactive }: { card: Card; interactive?: boolean }) {
   const [open, setOpen] = useState<CatKey | null>(null);
   const ref = useRef<HTMLDivElement>(null);
@@ -472,60 +458,56 @@ function CategoryChips({ card, interactive }: { card: Card; interactive?: boolea
   const cats = all.filter((c) => lists[c.key].length).sort((a, b) => lists[b.key].length - lists[a.key].length);
   const sel = cats.find((c) => c.key === open);
   if (!cats.length) return null;
-  const half = (width - 6) / 2;
-  // Ölçülmeden önce ikili düzen varsayılır
-  const fullRow = chipRows(cats, (c) => !width || lists[c.key].length <= chipCapacity(half, c.label, lists[c.key].length, interactive));
   return (
-    <div className="space-y-1.5">
-      <div ref={ref} className="grid grid-cols-2 gap-x-1.5 gap-y-1.5">
-        {cats.map(({ key, label, Icon, tone, bg }, i) => {
+    <div className={sel ? "space-y-2.5" : "space-y-1.5"}>
+      <div ref={ref} className="flex flex-wrap justify-center gap-1.5">
+        {cats.map(({ key, label, Icon, tone, bg }) => {
           const people = lists[key];
-          const alone = fullRow[i];
-          const slot = width ? (alone ? width : half) : 0;
-          const cap = slot ? chipCapacity(slot, label, people.length, interactive) : 4;
+          const cap = width ? chipCapacity(width, people.length) : 6;
           const max = people.length > cap ? Math.max(1, cap - 1) : people.length;
           const body = (
             <>
               <AvatarStack people={people} size={CHIP_AVATAR} max={max} />
               <span className={`flex shrink-0 items-center gap-0.5 text-[11px] font-bold ${tone}`}>
                 <Icon className="size-3.5" strokeWidth={2.5} />
-                {interactive && <span className="font-semibold">{label}</span>}
                 {people.length}
               </span>
             </>
           );
-          const cls = `inline-flex max-w-full items-center gap-1.5 rounded-full py-px pl-0.5 pr-2.5 ${bg}`;
-          return (
-            <div key={key} className={`flex justify-center ${alone ? "col-span-2" : ""}`}>
-              {interactive ? (
-                <button onClick={() => setOpen((o) => (o === key ? null : key))} aria-expanded={open === key} className={`${cls} transition-colors ${open === key ? "ring-1 ring-inset ring-current " + tone : "hover:brightness-95"}`}>
-                  {body}
-                </button>
-              ) : (
-                <span title={label} className={cls}>
-                  {body}
-                </span>
-              )}
-            </div>
+          const cls = `inline-flex items-center gap-1.5 rounded-full py-px pl-0.5 pr-2.5 ${bg}`;
+          return interactive ? (
+            <button key={key} onClick={() => setOpen((o) => (o === key ? null : key))} aria-expanded={open === key} aria-label={`${label} ${people.length}`} title={label} className={`${cls} transition-colors ${open === key ? "ring-1 ring-inset ring-current " + tone : "hover:brightness-95"}`}>
+              {body}
+            </button>
+          ) : (
+            <span key={key} title={label} className={cls}>
+              {body}
+            </span>
           );
         })}
       </div>
       {sel && (
-        // İsimler ortadan dizilir; ekip çerçevesi ince kenar, seri sağ üst köşede alev
-        <div className={`flex flex-wrap justify-center gap-x-1 gap-y-2 rounded-lg px-1.5 pb-1.5 pt-2 ${sel.bg}`}>
-          {lists[sel.key].map((p) => (
-            // Ekip çerçevesi: tüm kenar ince ve hafif saydam altın / gümüş / bronz
-            <span
-              key={p.id}
-              className={`relative inline-flex items-center gap-1 rounded-full border bg-card/70 px-1.5 py-px text-[11px] font-semibold ${p.tier ? "border-[0.75px]" : "border-border"} ${sel.tone}`}
-              style={p.tier ? { borderColor: TIER_COLOR[p.tier] + "cc" } : undefined}
-            >
-              {p.name}
-              {p.kefaret ? <BookHeart className="size-3 text-teal-600 dark:text-teal-400" aria-label="Kefaret okuması" /> : null}
-              {p.pages != null && p.pages > 0 && <span className="opacity-70">· {p.pages}</span>}
-              <StreakFlame s={p.streak} />
-            </span>
-          ))}
+        // İsimler ortadan dizilir; rozetin adı çerçevenin üst kenarındaki küçük etikette (yer kaplamaz)
+        <div className={`relative rounded-lg border border-current/25 px-1.5 pb-1.5 pt-2.5 ${sel.bg} ${sel.tone}`}>
+          <span className="absolute -top-2 left-1/2 flex h-4 -translate-x-1/2 items-center gap-0.5 rounded-full border border-current/25 bg-card px-1.5 text-[9px] font-semibold leading-none">
+            <sel.Icon className="size-2.5" strokeWidth={3} />
+            {sel.label}
+          </span>
+          <div className="flex flex-wrap justify-center gap-x-1 gap-y-2">
+            {lists[sel.key].map((p) => (
+              // Ekip çerçevesi: tüm kenar ince ve hafif saydam altın / gümüş / bronz; yazı kutunun tam ortasında
+              <span
+                key={p.id}
+                className={`relative inline-flex h-[21px] items-center justify-center gap-1 rounded-full border bg-card/70 px-2 text-center text-[11px] font-semibold leading-none ${p.tier ? "border-[0.75px]" : "border-border"}`}
+                style={p.tier ? { borderColor: TIER_COLOR[p.tier] + "cc" } : undefined}
+              >
+                {p.name}
+                {p.kefaret ? <BookHeart className="size-3 text-teal-600 dark:text-teal-400" aria-label="Kefaret okuması" /> : null}
+                {p.pages != null && p.pages > 0 && <span className="opacity-70">· {p.pages}</span>}
+                <StreakFlame s={p.streak} />
+              </span>
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -639,10 +621,10 @@ export function DayShortcut({ card, groupId, onJump, onReported }: { card: Card;
   ];
 
   return (
-    <div className="flex items-center gap-2 border-b border-border bg-card/95 px-3 py-1.5 backdrop-blur">
+    <div className="flex items-center gap-2 border-b border-border bg-card/95 px-3 py-0.5 backdrop-blur">
       <button onClick={onJump} className="flex min-w-0 flex-1 items-center gap-2 text-left" aria-label="Gün kartına git">
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-          <BookOpen className="size-4" />
+        <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+          <BookOpen className="size-3.5" />
         </span>
         <span className="min-w-0 leading-tight">
           <span className="block truncate text-xs font-bold">{formatDayLong(card.dayKey)}</span>
@@ -664,7 +646,7 @@ export function DayShortcut({ card, groupId, onJump, onReported }: { card: Card;
               onClick={() => send(key)}
               aria-pressed={myState === state}
               title={label}
-              className={`relative flex h-7 items-center gap-1 rounded-md border px-1.5 text-[10px] font-semibold disabled:opacity-60 ${press} ${myState === state ? on : "border-border bg-card hover:bg-muted"}`}
+              className={`relative flex h-6 items-center gap-1 rounded-md border px-1.5 text-[10px] font-semibold disabled:opacity-60 ${press} ${myState === state ? on : "border-border bg-card hover:bg-muted"}`}
             >
               {corner && <span className={`absolute -right-0.5 -top-1.5 rounded-md bg-card px-[3px] text-[7px] font-bold leading-[9px] ring-1 ${tone}`}>{corner}</span>}
               {fine && <span className="absolute -bottom-1.5 -right-0.5 rounded-md bg-card px-[3px] text-[7px] font-bold leading-[9px] text-rose-700 ring-1 ring-rose-500/60">{fine}</span>}

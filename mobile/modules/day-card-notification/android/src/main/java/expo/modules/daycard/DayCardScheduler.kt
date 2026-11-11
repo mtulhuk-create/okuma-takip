@@ -78,6 +78,9 @@ class DayCardAlarmReceiver : BroadcastReceiver() {
 /** Telefon yeniden başlayınca (ya da uygulama güncellenince) alarmlar silinir: yeniden kurulur */
 class DayCardBootReceiver : BroadcastReceiver() {
   override fun onReceive(context: Context, intent: Intent) {
-    if (intent.action == Intent.ACTION_BOOT_COMPLETED || intent.action == Intent.ACTION_MY_PACKAGE_REPLACED) DayCardScheduler.arm(context, showOpen = true)
+    if (intent.action == Intent.ACTION_BOOT_COMPLETED || intent.action == Intent.ACTION_MY_PACKAGE_REPLACED) {
+      DayCardScheduler.arm(context, showOpen = true)
+      runCatching { InboxPoller.arm(context) }
+    }
   }
 }

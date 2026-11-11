@@ -7,7 +7,7 @@ import { useApi, useApiFetch } from "@/lib/api";
 import { KAZA, type KazaState } from "@/lib/kaza";
 import { fonts, STATE, useColors } from "@/lib/theme";
 import type { GroupHistory, HistoryRange, MyHistory, Stats } from "@/lib/types";
-import { Avatar, Card, Muted, Row, TIER_COLORS, type Tier } from "./ui";
+import { Avatar, Card, Muted, Row, TIER_COLORS, TIER_NOTCHES, type Tier } from "./ui";
 
 export const RANGE_LABELS: Record<HistoryRange, string> = { "7d": "Son 7 gün", "1m": "Son 1 ay", "3m": "Son 3 ay", "1y": "Son 1 yıl", all: "Üye olduğumdan beri" };
 const DOW = ["Pz", "Pt", "Sa", "Ça", "Pe", "Cu", "Ct"];
@@ -33,6 +33,29 @@ function weeksOf(start: string, cells: string) {
 }
 
 /** Gün durumları kartın genişliğini boşluksuz doldurur: 7 gün şerit, 1 ay takvim, daha uzun aralık haftalık ısı haritası */
+/**
+ * Ekip çerçevesinin çıkıntıları (avatardakiyle aynı): altın 4 kenar, gümüş üst + alt, bronz üst.
+ * Kutucuğun kenar çizgisinin tam ortasına oturur. bw: kutucuğun kenar kalınlığı.
+ */
+function CellNotches({ tier, bw, d = 3 }: { tier: Tier; bw: number; d?: number }) {
+  const c = useColors();
+  const color = TIER_COLORS[tier];
+  const edge = -bw / 2 - d / 2;
+  const at = {
+    top: { top: edge, left: "50%", marginLeft: -d / 2 },
+    bottom: { bottom: edge, left: "50%", marginLeft: -d / 2 },
+    left: { left: edge, top: "50%", marginTop: -d / 2 },
+    right: { right: edge, top: "50%", marginTop: -d / 2 },
+  } as const;
+  return (
+    <>
+      {TIER_NOTCHES[tier].map((p) => (
+        <View key={p} pointerEvents="none" style={{ position: "absolute", ...at[p], width: d, height: d, backgroundColor: color, borderWidth: 0.6, borderColor: c.card, borderRadius: 0.5, transform: [{ rotate: "45deg" }] }} />
+      ))}
+    </>
+  );
+}
+
 /**
  * colorOf / labelOf: başka veri için (kaza geçmişi) hücre rengi ve 7 günlük şeritte hücre içi yazı.
  * Verilmezse okuma durumları (okudu / alt sınır / okumadı) gösterilir.
@@ -83,6 +106,7 @@ export function HistoryGrid({
                 ) : (
                   Icon && <Icon size={14} color="#fff" strokeWidth={3} />
                 )}
+                {frame && fr(ch) && <CellNotches tier={frame} bw={today ? 2 : 1.5} />}
               </View>
               <Text style={{ fontFamily: fonts.regular, fontSize: 10, color: c.mutedForeground }}>{Number(key.slice(8))}</Text>
             </View>
@@ -118,6 +142,7 @@ export function HistoryGrid({
                 ]}
               >
                 <Text style={{ fontFamily: fonts.semibold, fontSize: 11, color: strong(ch) ? "#fff" : ch === "x" ? c.mutedForeground + "66" : c.mutedForeground }}>{Number(key.slice(8))}</Text>
+                {frame && fr(ch) && <CellNotches tier={frame} bw={today ? 2 : 1.5} />}
               </View>
             ))}
           </Row>

@@ -5,8 +5,7 @@ import { useEffect, useState } from "react";
 import { AppState, Pressable, Text } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApi, useApiFetch } from "@/lib/api";
-import { checkInbox, getMessagePref, markInboxSeen, refreshInboxToken } from "@/lib/inbox";
-import { setInboxTask } from "@/lib/inbox-task";
+import { checkInbox, markInboxSeen, refreshInboxToken } from "@/lib/inbox";
 import { LITE } from "@/lib/variant";
 import { getKazaStickyPref, syncKazaCard, type KazaState } from "@/lib/kaza";
 import { exactAlarmsAllowed, handleReportAction, requestExactAlarms, setupNotifications, syncSchedule, type ReportData, SCHEDULE_PATH, setDayCards } from "@/lib/notifications";
@@ -55,7 +54,6 @@ export function NotificationBridge() {
   useEffect(() => {
     refreshInboxToken(fetcher).catch(() => {});
     markInboxSeen();
-    getMessagePref().then(setInboxTask).catch(() => {});
   }, [fetcher]);
 
   // Uygulama açıkken gruplara gelen mesajlar da bildirilir (açık olan sohbet hariç)
