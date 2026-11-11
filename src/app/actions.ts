@@ -14,7 +14,7 @@ import { parseLinks, saveBookLinks } from "@/lib/book-links";
 import { isCatalogBook } from "@/lib/catalog";
 import { discountPenalties, ensureAdmin, extendDue, kickForDue } from "@/lib/dues";
 import { groupAdminIds, notifyUsers } from "@/lib/notify";
-import { canPost } from "@/lib/chat";
+import { canPost, replyTarget, replyView } from "@/lib/chat";
 import { booksOf, teamsActive } from "@/lib/rules";
 import { publish } from "@/lib/realtime";
 import { checkMediaUrl, destroyMedia, mediaView, uploadTicket } from "@/lib/media";
@@ -662,12 +662,14 @@ export async function sendMessage(_: Prev, fd: FormData) {
     // Taşkın koruması: dakikada en fazla 20 mesaj
     const recent = await getDb().message.count({ where: { groupId, userId: user.id, createdAt: { gt: new Date(Date.now() - 60_000) } } });
     if (recent >= 20) throw new Error("Çok hızlı mesaj gönderiyorsun, biraz bekle");
-    const m = await getDb().message.create({ data: { groupId, userId: user.id, kind: "TEXT", text } });
+    const reply = await replyTarget(str(fd, "replyTo"), groupId);
+    const m = await getDb().message.create({ data: { groupId, userId: user.id, kind: "TEXT", text, replyToId: reply?.id ?? null } });
     await publish(groupId, {
       type: "message",
       message: {
         id: m.id,
         kind: "TEXT",
+        reply: replyView(reply, member.group.nameDisplay),
         text,
         createdAt: m.createdAt.toISOString(),
         user: { id: user.id, name: shownName(user, member.group.nameDisplay), imageUrl: user.imageUrl, initial: avatarInitial(user), badge: (await activeBadges(member.group)).get(user.id) ?? null },
@@ -698,12 +700,14 @@ export async function sendImage(_: Prev, fd: FormData) {
     const { user, member } = await chatMember(groupId);
     const recent = await getDb().message.count({ where: { groupId, userId: user.id, kind: "IMAGE", createdAt: { gt: new Date(Date.now() - 10 * 60_000) } } });
     if (recent >= 10) throw new Error("Kısa sürede çok fazla fotoğraf gönderdin, biraz bekle");
-    const m = await getDb().message.create({ data: { groupId, userId: user.id, kind: "IMAGE", text, media, mediaW: dim("w"), mediaH: dim("h") } });
+    const reply = await replyTarget(str(fd, "replyTo"), groupId);
+    const m = await getDb().message.create({ data: { groupId, userId: user.id, kind: "IMAGE", text, media, mediaW: dim("w"), mediaH: dim("h"), replyToId: reply?.id ?? null } });
     await publish(groupId, {
       type: "message",
       message: {
         id: m.id,
         kind: "IMAGE",
+        reply: replyView(reply, member.group.nameDisplay),
         text,
         createdAt: m.createdAt.toISOString(),
         user: { id: user.id, name: shownName(user, member.group.nameDisplay), imageUrl: user.imageUrl, initial: avatarInitial(user), badge: (await activeBadges(member.group)).get(user.id) ?? null },

@@ -1,5 +1,8 @@
+import { after } from "next/server";
 import { propagateLinkedBooks } from "./book-links";
 import { getDb } from "./db";
+import { shownName } from "./names";
+import { notifyUsers } from "./notify";
 import { parseBookLogs, penaltyFor, rulesFor, type BookLog } from "./rules";
 import { openPeriod, periodFor } from "./schedule";
 
@@ -16,6 +19,41 @@ export type ReportInput = {
   at?: Date;
   dayKey?: string;
 };
+
+/**
+ * Bir işaretlemenin kısa anlatımı (bildirimlerde): okudu / alt sınırı okudu / okumadı + sayfa.
+ * Grupta gün kartı ayrıntısı kapalıysa yalnızca "bildirimini yaptı" denir.
+ */
+export function markLabel(log: { pages: number; requiredPages: number; minPages: number; kefaret: number }, details: boolean) {
+  if (!details) return "📖 Bildirimini yaptı";
+  if (log.kefaret > 0) return `📗 Kefaret okuması yaptı · ${log.pages} sf`;
+  if (log.pages >= log.requiredPages && log.pages > 0) return `✅ Okudu · ${log.pages} sf`;
+  if (log.pages === 0) return "❌ Okumadı";
+  return log.pages >= log.minPages ? `☑️ Alt sınırı okudu · ${log.pages} sf` : `📖 ${log.pages} sf okudu`;
+}
+
+/** İşaretleme yapılınca grubun diğer okuyucularına bildirim (yanıttan sonra, arka planda) */
+function notifyMark(group: { id: string; name: string; nameDisplay: Parameters<typeof shownName>[1]; dayDetails: boolean }, userId: string, log: Parameters<typeof markLabel>[0]) {
+  const run = async () => {
+    const db = getDb();
+    const [user, others] = await Promise.all([
+      db.user.findUnique({ where: { id: userId }, select: { name: true, accountName: true } }),
+      db.groupMember.findMany({ where: { groupId: group.id, status: "ACTIVE", userId: { not: userId } }, select: { userId: true } }),
+    ]);
+    if (!user || !others.length) return;
+    await notifyUsers(
+      others.map((o) => o.userId),
+      // Aynı kişinin art arda işaretlemeleri tek bildirimde güncellenir
+      { title: `📖 ${group.name}`, body: `${shownName(user, group.nameDisplay)}: ${markLabel(log, group.dayDetails)}`, url: `/gruplar/${group.id}`, tag: `mark-${group.id}-${userId}`, renotify: true },
+      { push: true },
+    );
+  };
+  try {
+    after(() => run().catch((e) => console.error("işaretleme bildirimi", e)));
+  } catch {
+    // İstek dışında çağrıldıysa (test, cron) bildirim atlanır
+  }
+}
 
 /** Çevrimdışı işlemler gün kapandıktan en fazla bu kadar sonra kabul edilir */
 export const OFFLINE_GRACE_MS = 72 * 3_600_000;
@@ -112,6 +150,8 @@ export async function submitReading(userId: string, groupId: string, input: Repo
   if (late) await fixSettledPenalty(member.group, member, period.dayKey, log.pages, { ...rules, targetPages: log.requiredPages, minPages: log.minPages });
   // Diğer gruplarda "aynı eser" olarak bağlanan kitaplar da işaretlenir (orada hedef kadar)
   else await propagateLinkedBooks(userId, groupId, books).catch(() => {});
+  // Gün kapandıktan sonra gelen (çevrimdışı) işlemler bildirilmez
+  if (!late) notifyMark(member.group, userId, log);
   return { log, period, member, rules, undone: false as const };
 }
 

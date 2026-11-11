@@ -2,6 +2,7 @@
 // Oturum yerine imzalı token ile çalışır (yalnızca bu özeti okuyabilir).
 import { getDb } from "@/lib/db";
 import { shownName } from "@/lib/names";
+import { markLabel } from "@/lib/reading";
 import { verifyInboxToken } from "@/lib/token";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +17,7 @@ export async function GET(req: Request) {
   // En fazla son 24 saat
   const after = new Date(Math.max(isNaN(afterParam.getTime()) ? 0 : afterParam.getTime(), Date.now() - MAX_AGE_MS));
   const db = getDb();
-  const memberships = await db.groupMember.findMany({ where: { userId, status: "ACTIVE" }, select: { groupId: true, group: { select: { name: true, nameDisplay: true } } } });
+  const memberships = await db.groupMember.findMany({ where: { userId, status: "ACTIVE" }, select: { groupId: true, group: { select: { name: true, nameDisplay: true, dayDetails: true } } } });
   if (!memberships.length) return Response.json({ now: new Date().toISOString(), messages: [] });
   const groups = new Map(memberships.map((m) => [m.groupId, m.group]));
   const rows = await db.message.findMany({
@@ -25,9 +26,20 @@ export async function GET(req: Request) {
     take: 50,
     select: { id: true, groupId: true, kind: true, text: true, createdAt: true, user: { select: { name: true, accountName: true } }, poll: { select: { question: true } } },
   });
+  // Başkalarının okuma işaretlemeleri (okudu / alt sınır / okumadı) de aynı akışta bildirilir
+  const marks = await db.readingLog.findMany({
+    where: { groupId: { in: [...groups.keys()] }, userId: { not: userId }, updatedAt: { gt: after } },
+    orderBy: { updatedAt: "asc" },
+    take: 50,
+    select: { id: true, groupId: true, pages: true, requiredPages: true, minPages: true, kefaret: true, updatedAt: true, user: { select: { name: true, accountName: true } } },
+  });
+  const markItems = marks.map((l) => {
+    const g = groups.get(l.groupId)!;
+    return { id: `mark-${l.id}-${l.updatedAt.getTime()}`, groupId: l.groupId, groupName: g.name, author: shownName(l.user, g.nameDisplay), text: markLabel(l, g.dayDetails), createdAt: l.updatedAt.toISOString() };
+  });
   return Response.json({
     now: new Date().toISOString(),
-    messages: rows.map((m) => {
+    messages: [...markItems, ...rows.map((m) => {
       const g = groups.get(m.groupId)!;
       return {
         id: m.id,
@@ -37,6 +49,6 @@ export async function GET(req: Request) {
         text: m.kind === "POLL" ? `📊 ${m.poll?.question ?? "Anket"}` : m.kind === "IMAGE" ? `📷 ${m.text ?? "Fotoğraf"}`.slice(0, 200) : (m.text ?? "").slice(0, 200),
         createdAt: m.createdAt.toISOString(),
       };
-    }),
+    })].sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
   });
 }

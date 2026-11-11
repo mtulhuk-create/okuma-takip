@@ -1,13 +1,13 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, Stack, useFocusEffect, useLocalSearchParams, useNavigation } from "expo-router";
-import { ArrowLeft, BarChart3, CalendarRange, ChevronDown, ImagePlus, Info, Landmark, Lock, SendHorizontal, Settings } from "lucide-react-native";
+import { ArrowLeft, BarChart3, CalendarRange, ChevronDown, ImagePlus, Info, Landmark, Lock, SendHorizontal, Settings, X } from "lucide-react-native";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppState, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import Animated, { useAnimatedKeyboard, useAnimatedStyle } from "react-native-reanimated";
 import Svg, { Defs, Path, Pattern, Rect } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BadgeCard } from "@/components/chat/badge-card";
-import { MessageBubble } from "@/components/chat/message";
+import { MessageBubble, replySnippet } from "@/components/chat/message";
 import { PhotoSendSheet } from "@/components/chat/photo";
 import { PollModal } from "@/components/chat/poll-modal";
 import { DayCardFull, DayShortcut } from "@/components/day-card";
@@ -81,7 +81,22 @@ function ChatHeader({ title, sub, onTitle, children }: { title: string; sub?: st
 }
 
 /** Mesaj yazma alanı: yazılan metin yalnızca burada tutulur, sohbet listesi her harfte yeniden çizilmez */
-function Composer({ canPost, onSend, onPoll, onPhoto }: { canPost: boolean; onSend: (text: string) => void; onPoll: () => void; onPhoto?: (draft: string, clear: () => void) => void }) {
+function Composer({
+  canPost,
+  onSend,
+  onPoll,
+  onPhoto,
+  reply,
+  onCancelReply,
+}: {
+  canPost: boolean;
+  onSend: (text: string) => void;
+  onPoll: () => void;
+  onPhoto?: (draft: string, clear: () => void) => void;
+  /** Yanıtlanan mesajın özeti (yazma alanının üstünde) */
+  reply?: { name: string; text: string } | null;
+  onCancelReply?: () => void;
+}) {
   const c = useColors();
   const insets = useSafeAreaInsets();
   const [text, setText] = useState("");
@@ -98,17 +113,25 @@ function Composer({ canPost, onSend, onPoll, onPhoto }: { canPost: boolean; onSe
   };
   return (
     <Animated.View style={[{ backgroundColor: c.chatBg, paddingHorizontal: 6, paddingTop: 6 }, lift]}>
+      {canPost && reply && (
+        // Yanıtlanan mesajın önizlemesi
+        <Row gap={8} style={{ backgroundColor: c.card, borderRadius: 14, paddingLeft: 8, paddingRight: 4, paddingVertical: 5, marginBottom: 5, elevation: 1 }}>
+          <View style={{ flex: 1, borderLeftWidth: 3, borderLeftColor: c.primary, paddingLeft: 7 }}>
+            <Text numberOfLines={1} style={{ fontFamily: fonts.bold, fontSize: 11, lineHeight: 14, color: c.primary }}>
+              {reply.name || "Mesaj"}
+            </Text>
+            <Text numberOfLines={1} style={{ fontFamily: fonts.regular, fontSize: 12, lineHeight: 16, color: c.mutedForeground }}>
+              {reply.text}
+            </Text>
+          </View>
+          <Pressable onPress={onCancelReply} hitSlop={8} accessibilityLabel="Yanıtı iptal et" style={{ width: 30, height: 30, alignItems: "center", justifyContent: "center" }}>
+            <X size={17} color={c.mutedForeground} />
+          </Pressable>
+        </Row>
+      )}
       {canPost ? (
         <Row gap={6} style={{ alignItems: "flex-end" }}>
-          <View style={{ flex: 1, flexDirection: "row", alignItems: "flex-end", backgroundColor: c.card, borderRadius: 24, paddingLeft: 4, elevation: 1 }}>
-            <Pressable onPress={onPoll} hitSlop={6} accessibilityLabel="Anket oluştur" style={{ width: 40, height: 46, alignItems: "center", justifyContent: "center" }}>
-              <BarChart3 size={21} color={c.mutedForeground} />
-            </Pressable>
-            {onPhoto && (
-              <Pressable onPress={() => onPhoto(text.trim(), () => setText(""))} hitSlop={6} accessibilityLabel="Fotoğraf gönder" style={{ width: 36, height: 46, marginLeft: -4, alignItems: "center", justifyContent: "center" }}>
-                <ImagePlus size={21} color={c.mutedForeground} />
-              </Pressable>
-            )}
+          <View style={{ flex: 1, flexDirection: "row", alignItems: "flex-end", backgroundColor: c.card, borderRadius: 24, paddingLeft: 16, paddingRight: 4, elevation: 1 }}>
             <TextInput
               value={text}
               onChangeText={setText}
@@ -116,8 +139,17 @@ function Composer({ canPost, onSend, onPoll, onPhoto }: { canPost: boolean; onSe
               placeholderTextColor={c.mutedForeground}
               multiline
               maxLength={2000}
-              style={{ flex: 1, maxHeight: 120, minHeight: 46, paddingRight: 14, paddingTop: 12, paddingBottom: 12, fontFamily: fonts.regular, fontSize: 15, color: c.foreground }}
+              style={{ flex: 1, maxHeight: 120, minHeight: 46, paddingRight: 4, paddingTop: 12, paddingBottom: 12, fontFamily: fonts.regular, fontSize: 15, color: c.foreground }}
             />
+            {/* Yazının sağında: anket ve fotoğraf */}
+            <Pressable onPress={onPoll} hitSlop={6} accessibilityLabel="Anket oluştur" style={{ width: 38, height: 46, alignItems: "center", justifyContent: "center" }}>
+              <BarChart3 size={21} color={c.mutedForeground} />
+            </Pressable>
+            {onPhoto && (
+              <Pressable onPress={() => onPhoto(text.trim(), () => setText(""))} hitSlop={6} accessibilityLabel="Fotoğraf gönder" style={{ width: 38, height: 46, marginLeft: -4, alignItems: "center", justifyContent: "center" }}>
+                <ImagePlus size={21} color={c.mutedForeground} />
+              </Pressable>
+            )}
           </View>
           <Pressable onPress={send} disabled={!text.trim()} accessibilityLabel="Gönder" style={{ width: 46, height: 46, borderRadius: 23, backgroundColor: c.primary, opacity: text.trim() ? 1 : 0.6, alignItems: "center", justifyContent: "center", elevation: 2 }}>
             <SendHorizontal size={20} color={c.primaryForeground} />
@@ -144,6 +176,8 @@ export default function ChatScreen() {
   const [hasMoreOlder, setHasMoreOlder] = useState<boolean | null>(null);
   const [pollOpen, setPollOpen] = useState(false);
   const [photo, setPhoto] = useState<{ picked: Picked; draft: string; clear: () => void } | null>(null);
+  // Yanıtlanan mesaj (sağa kaydırınca ya da menüden seçilir)
+  const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [payOpen, setPayOpen] = useState(false);
   const [kasaOpen, setKasaOpen] = useState(false);
@@ -175,8 +209,13 @@ export default function ChatScreen() {
   useFocusEffect(
     useCallback(() => {
       setOpenChat(id);
-      return () => setOpenChat(null);
-    }, [id]),
+      return () => {
+        setOpenChat(null);
+        // Sohbet okundu: menüdeki ve grup kartındaki okunmamış sayıları tazelenir
+        qc.invalidateQueries({ queryKey: ["/api/m/me"] });
+        qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && q.queryKey[0].startsWith("/api/m/groups?") });
+      };
+    }, [id, qc]),
   );
 
   // Gerçek zamanlı: ekran açıkken 2 saniyede bir yeni olay var mı bak
@@ -194,7 +233,7 @@ export default function ChatScreen() {
             // İfade ya da silme yalnızca sohbeti değiştirir; diğer ekranlar yenilenmez
             const onlyChat = (e: unknown) => {
               const ev = e as { type?: string; reason?: string };
-              return ev.type === "message" || (ev.type === "refresh" && (ev.reason === "reaction" || ev.reason === "delete"));
+              return ev.type === "message" || (ev.type === "refresh" && (ev.reason === "reaction" || ev.reason === "delete" || ev.reason === "read"));
             };
             if (!res.events.every(onlyChat)) {
               qc.invalidateQueries({ queryKey: ["/api/m/me"] });
@@ -290,11 +329,13 @@ export default function ChatScreen() {
 
   async function send(body: string) {
     if (!body || !chat.data) return;
-    const tmp: ChatMessage = { id: `tmp-${Date.now()}`, kind: "TEXT", text: body, createdAt: new Date().toISOString(), user: { id: chat.data.me.userId, name: "", imageUrl: null }, day: null, poll: null, pending: true };
+    const reply = replyOf(replyTo);
+    setReplyTo(null);
+    const tmp: ChatMessage = { id: `tmp-${Date.now()}`, kind: "TEXT", text: body, createdAt: new Date().toISOString(), user: { id: chat.data.me.userId, name: "", imageUrl: null }, day: null, poll: null, reply, pending: true };
     setPending((p) => [...p, tmp]);
     list.current?.scrollToOffset({ offset: 0, animated: true });
     action.mutate(
-      { name: "sendMessage", body: { groupId: id, text: body } },
+      { name: "sendMessage", body: { groupId: id, text: body, ...(reply ? { replyTo: reply.id } : {}) } },
       {
         // Sunucunun verdiği kimlik yazılır: sayfa yenilenince aynı mesaj iki kez görünmez
         onSuccess: (res) => setPending((p) => p.map((m) => (m.id === tmp.id ? { ...m, id: res.id ?? m.id, pending: !res.id } : m))),
@@ -303,8 +344,15 @@ export default function ChatScreen() {
     );
   }
 
+  /** Yanıt önizlemesi: kim yazdı ve kısa metni */
+  const replyOf = (m: ChatMessage | null) => (m ? { id: m.id, userId: m.user?.id ?? null, name: m.user?.id === chat.data?.me.userId ? "Sen" : (m.user?.name ?? ""), text: replySnippet(m).slice(0, 140) } : null);
+
   /** Galeri ya da kamera: fotoğraf seçilince önizleme açılır */
   function choosePhoto(draft: string, clear: () => void) {
+    if (!chat.data?.me.canPhoto) {
+      showAlert("Fotoğraf paylaşımı henüz açılmadı", "Fotoğrafların saklanacağı depolama hesabı bağlanınca kullanılabilecek.");
+      return;
+    }
     const go = (source: "library" | "camera") =>
       pickPhoto(source)
         .then((picked) => picked && setPhoto({ picked, draft, clear }))
@@ -320,6 +368,8 @@ export default function ChatScreen() {
   async function sendPhoto(caption: string) {
     if (!photo || !chat.data) return;
     const { picked, draft, clear } = photo;
+    const reply = replyOf(replyTo);
+    setReplyTo(null);
     setPhoto(null);
     if (caption && caption === draft) clear();
     const tmpId = `tmp-${Date.now()}`;
@@ -333,6 +383,7 @@ export default function ChatScreen() {
       day: null,
       poll: null,
       image: { thumb: picked.uri, full: picked.uri, w: picked.w, h: picked.h },
+      reply,
       pending: true,
       progress: 0,
     };
@@ -350,7 +401,7 @@ export default function ChatScreen() {
           patch({ progress: step });
         }
       });
-      const res = await fetcher<{ id?: string }>("/api/m/action/sendImage", { method: "POST", body: JSON.stringify({ groupId: id, url, w: small.w, h: small.h, text: caption }) });
+      const res = await fetcher<{ id?: string }>("/api/m/action/sendImage", { method: "POST", body: JSON.stringify({ groupId: id, url, w: small.w, h: small.h, text: caption, ...(reply ? { replyTo: reply.id } : {}) }) });
       if (res.id) patch({ id: res.id, pending: false });
       chat.refetch();
     } catch (e) {
@@ -360,6 +411,17 @@ export default function ChatScreen() {
   }
 
   const meId = chat.data?.me.userId;
+  const canPost = !!chat.data?.me.canPost;
+  // Okundu bilgisi (kendi mesajlarımdaki tikler için)
+  const reads = chat.data?.reads ?? null;
+  /** Yanıtlanan mesaja kaydır (yüklenmişse) */
+  const jumpToMessage = useCallback(
+    (msgId: string) => {
+      const i = reversed.findIndex((x) => x.id === msgId);
+      if (i >= 0) list.current?.scrollToIndex({ index: i, viewPosition: 0.5, animated: true });
+    },
+    [reversed],
+  );
   const canDeleteAll = chat.data?.me.role === "ADMIN" && !LITE;
   const refetchRef = useRef(chat.refetch);
   refetchRef.current = chat.refetch;
@@ -391,11 +453,11 @@ export default function ChatScreen() {
       return (
         <View>
           {sep && <DaySeparator dayKey={dayKey} />}
-          <MessageBubble m={m} mine={mine} showAuthor={showAuthor} canDelete={mine || canDeleteAll} />
+          <MessageBubble m={m} mine={mine} showAuthor={showAuthor} canDelete={mine || canDeleteAll} onReply={canPost ? setReplyTo : undefined} onQuote={jumpToMessage} reads={mine ? reads : null} />
         </View>
       );
     },
-    [reversed, id, day, meId, canDeleteAll, onReported],
+    [reversed, id, day, meId, canDeleteAll, canPost, jumpToMessage, onReported, reads],
   );
 
   // Yüklenirken de aynı kısa başlık (sonradan yükseklik zıplamasın)
@@ -513,7 +575,7 @@ export default function ChatScreen() {
       />
       )}
       </View>
-      <Composer canPost={data.me.canPost} onSend={send} onPoll={() => setPollOpen(true)} onPhoto={data.me.canPhoto ? choosePhoto : undefined} />
+      <Composer canPost={data.me.canPost} onSend={send} onPoll={() => setPollOpen(true)} onPhoto={choosePhoto} reply={replyOf(replyTo)} onCancelReply={() => setReplyTo(null)} />
       <PhotoSendSheet photo={photo?.picked ?? null} initialCaption={photo?.draft ?? ""} onClose={() => setPhoto(null)} onSend={sendPhoto} />
       <PollModal groupId={id} visible={pollOpen} onClose={() => setPollOpen(false)} />
       <GroupHistoryModal groupId={id} visible={historyOpen} onClose={() => setHistoryOpen(false)} />

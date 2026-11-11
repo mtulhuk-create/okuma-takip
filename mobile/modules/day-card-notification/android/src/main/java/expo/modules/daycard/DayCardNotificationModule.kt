@@ -42,6 +42,15 @@ class DayCardNotificationModule : Module() {
       InboxPoller.setAfter(context, iso)
     }
 
+    // Grup mesajı bildirimi (WhatsApp grubu tarzı); uygulama açıkken JS de bunu kullanır
+    Function("showMessages") { json: String, skipGroupId: String ->
+      InboxPoller.showAll(context, JSONArray(json), skipGroupId.ifEmpty { null })
+    }
+
+    Function("dismissMessages") { groupId: String ->
+      InboxPoller.dismiss(context, groupId)
+    }
+
     Function("hideKaza") {
       KazaCard.hide(context)
     }

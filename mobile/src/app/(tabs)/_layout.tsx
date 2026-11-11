@@ -29,7 +29,8 @@ export default function TabsLayout() {
       }}
     >
       <Tabs.Screen name="index" options={{ title: "Bugün", tabBarIcon: icon(BookOpen) }} />
-      <Tabs.Screen name="groups" options={{ title: "Gruplar", tabBarIcon: icon(Users) }} />
+      {/* Okunmamış mesajı olan grup sayısı */}
+      <Tabs.Screen name="groups" options={{ title: "Gruplar", tabBarIcon: icon(Users), tabBarBadge: me.data?.unreadGroups || undefined, tabBarBadgeStyle: { backgroundColor: c.primary, color: c.primaryForeground, fontFamily: fonts.semibold, fontSize: 10 } }} />
       <Tabs.Screen name="kaza" options={{ title: "Kaza", tabBarIcon: icon(MoonStar) }} />
       <Tabs.Screen name="notifications" options={{ title: "Bildirimler", tabBarIcon: icon(Bell), tabBarBadge: me.data?.badge || undefined }} />
       <Tabs.Screen name="profile" options={{ title: "Profil", tabBarIcon: icon(User) }} />

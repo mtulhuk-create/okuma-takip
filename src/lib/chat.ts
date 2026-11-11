@@ -31,6 +31,24 @@ export async function ensureDayCard(group: Group, now = new Date()) {
   return res.count > 0;
 }
 
+/** Yanıtlanan mesajın balonda gösterilen özeti için gereken alanlar */
+export const replySelect = { select: { id: true, groupId: true, kind: true, text: true, user: { select: { id: true, name: true, accountName: true } }, poll: { select: { question: true } } } } as const;
+type ReplyRow = Prisma.MessageGetPayload<typeof replySelect>;
+
+/** Yanıtlanan mesajın özeti: kim yazdı ve kısa metni (fotoğraf / anket simgeyle) */
+export function replyView(r: ReplyRow | null | undefined, nameDisplay: Group["nameDisplay"]) {
+  if (!r) return null;
+  const text = r.kind === "IMAGE" ? `📷 ${r.text ?? "Fotoğraf"}` : r.kind === "POLL" ? `📊 ${r.poll?.question ?? "Anket"}` : (r.text ?? "");
+  return { id: r.id, userId: r.user?.id ?? null, name: r.user ? shownName(r.user, nameDisplay) : "", text: text.slice(0, 140) };
+}
+
+/** Yanıtlanacak mesaj: aynı grupta, metin / fotoğraf / anket olmalı (değilse yanıtsız gönderilir) */
+export async function replyTarget(id: string, groupId: string) {
+  if (!id) return null;
+  const r = await getDb().message.findUnique({ where: { id }, ...replySelect });
+  return r && r.groupId === groupId && (r.kind === "TEXT" || r.kind === "IMAGE" || r.kind === "POLL") ? r : null;
+}
+
 /** Sohbet bu kadar süre sessiz kalınca açık günün kartı en alta taşınır */
 export const CARD_SINK_MS = 3 * MIN;
 
@@ -92,10 +110,22 @@ export async function getChatPage(groupId: string, userId: string, before?: Date
       poll: { include: { options: { orderBy: { position: "asc" }, include: { votes: { include: { user: { select: { id: true, name: true, accountName: true } } } } } } } },
       badge: { include: { user: publicUser, options: { orderBy: { createdAt: "asc" }, include: { votes: { select: { userId: true } } } } } },
       reactions: { orderBy: { createdAt: "asc" }, select: { emoji: true, userId: true, user: { select: { name: true, accountName: true } } } },
+      replyTo: replySelect,
     },
   });
   const hasMore = rows.length > PAGE;
   const page = rows.slice(0, PAGE).reverse();
+  // Sohbeti açan kişi buraya kadar okumuş sayılır (okundu tikleri ve okunmamış sayısı). Yalnızca yeni mesaj varsa yazılır.
+  let myReadAt = me.lastReadAt;
+  if (!before) {
+    const newest = rows.find((m) => m.kind !== "DAY" && m.userId !== userId)?.createdAt;
+    if (newest && (!myReadAt || newest > myReadAt)) {
+      myReadAt = new Date();
+      await db.groupMember.update({ where: { id: me.id }, data: { lastReadAt: myReadAt } });
+      // Yazanların tikleri güncellensin
+      await publish(groupId, { type: "refresh", reason: "read" });
+    }
+  }
   const today = currentPeriod(new Date(), group).dayKey;
   const dayKeys = page.filter((m) => m.kind === "DAY" && m.dayKey).map((m) => m.dayKey!);
   // Bugünün kartı sayfada olmasa da (çok mesaj atıldıysa) sohbet başlığındaki kısayol için hesaplanır
@@ -126,6 +156,7 @@ export async function getChatPage(groupId: string, userId: string, before?: Date
       : null,
     badge: m.kind === "BADGE" && m.badge ? badgeView(m.badge, m.text, userId, me.role === "ADMIN", group) : null,
     image: m.kind === "IMAGE" ? mediaView(m) : null,
+    reply: replyView(m.replyTo, group.nameDisplay),
     reactions: reactionView(m.reactions, userId, group.nameDisplay),
   }));
 
@@ -146,6 +177,8 @@ export async function getChatPage(groupId: string, userId: string, before?: Date
     me: { userId, role: me.role, canPost: canPost(group, me.role), canPhoto: canPost(group, me.role) && mediaEnabled() },
     // Sohbet bu kadar sessiz kalınca gün kartı en alta taşınır (istemci süre dolunca sayfayı yeniler)
     cardSinkMs: CARD_SINK_MS,
+    // Okundu bilgisi: her üyenin sohbeti en son okuduğu an (bir mesajı, o andan önce yazıldıysa okumuştur)
+    reads: before ? null : group.members.map((m) => ({ id: m.userId, name: m.user.name, at: (m.userId === userId ? myReadAt : m.lastReadAt)?.toISOString() ?? null })),
     messages,
     hasMore,
   };

@@ -5,7 +5,7 @@ import * as Notifications from "expo-notifications";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 import { API_URL } from "./config";
-import { configureInboxPoller, setInboxPollerAfter } from "../../modules/day-card-notification";
+import { configureInboxPoller, dismissInboxMessages, setInboxPollerAfter, showInboxMessages } from "../../modules/day-card-notification";
 
 const TOKEN_KEY = "inbox-token";
 const AFTER_KEY = "inbox-after";
@@ -30,7 +30,10 @@ async function syncPoller() {
 let openChat: string | null = null;
 export function setOpenChat(groupId: string | null) {
   openChat = groupId;
-  if (groupId) Notifications.dismissNotificationAsync(`msg-${groupId}`).catch(() => {});
+  if (groupId) {
+    dismissInboxMessages(groupId);
+    Notifications.dismissNotificationAsync(`msg-${groupId}`).catch(() => {});
+  }
 }
 
 type InboxMessage = { id: string; groupId: string; groupName: string; author: string; text: string; createdAt: string };
@@ -76,6 +79,8 @@ async function checkOnce() {
   if (!body) return 0;
   await AsyncStorage.setItem(AFTER_KEY, body.now).catch(() => {});
   setInboxPollerAfter(body.now);
+  // Android: WhatsApp grubu tarzı bildirim (grup adı + "kişi: mesaj" satırları; yeni mesajlar aynı bildirime eklenir)
+  if (body.messages.length && showInboxMessages(body.messages, openChat)) return body.messages.length;
   const byGroup = new Map<string, InboxMessage[]>();
   for (const m of body.messages) byGroup.set(m.groupId, [...(byGroup.get(m.groupId) ?? []), m]);
   for (const [groupId, list] of byGroup) {

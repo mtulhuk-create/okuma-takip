@@ -178,17 +178,18 @@ model Group {
 }
 
 model GroupMember {
-  id       String       @id @default(cuid())
-  groupId  String
-  group    Group        @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  userId   String
-  user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role     MemberRole   @default(MEMBER)
-  status   MemberStatus @default(ACTIVE)
-  teamId   String?
-  team     Team?        @relation(fields: [teamId], references: [id], onDelete: SetNull)
-  joinedAt DateTime     @default(now())
-  leftAt   DateTime?
+  id         String       @id @default(cuid())
+  groupId    String
+  group      Group        @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role       MemberRole   @default(MEMBER)
+  status     MemberStatus @default(ACTIVE)
+  teamId     String?
+  team       Team?        @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  joinedAt   DateTime     @default(now())
+  leftAt     DateTime?
+  lastReadAt DateTime? // sohbeti en son okuduğu an (okundu tikleri ve okunmamış sayısı)
 
   @@unique([groupId, userId])
   @@index([userId, status])
@@ -339,6 +340,9 @@ model Message {
   media     String? // IMAGE: Cloudinary adresi (dosya uygulamanın sunucusunda tutulmaz)
   mediaW    Int?
   mediaH    Int?
+  replyToId String? // yanıtlanan mesaj (silinirse boşalır)
+  replyTo   Message?          @relation("Reply", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies   Message[]         @relation("Reply")
   createdAt DateTime          @default(now())
   poll      Poll?
   badgeId   String? // BADGE mesajları: text = VOTE | AWARD | END

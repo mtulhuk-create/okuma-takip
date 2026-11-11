@@ -38,6 +38,8 @@ type Native = {
   getAppIcon?(): string;
   configureInbox?(apiUrl: string, token: string, enabled: boolean): void;
   setInboxAfter?(iso: string): void;
+  showMessages?(json: string, skipGroupId: string): void;
+  dismissMessages?(groupId: string): void;
   setAppIcon?(name: string): void;
 };
 const native = requireOptionalNativeModule<Native>("DayCardNotification");
@@ -98,5 +100,24 @@ export function configureInboxPoller(apiUrl: string, token: string, enabled: boo
 export function setInboxPollerAfter(iso: string) {
   try {
     native?.setInboxAfter?.(iso);
+  } catch {}
+}
+
+/**
+ * Grup mesajlarını WhatsApp grubu tarzında bildirir (grup adı + "kişi: mesaj" satırları, yeni mesajlar eklenir).
+ * Yerel modül yoksa false döner; çağıran basit bildirime düşer.
+ */
+export function showInboxMessages(messages: unknown[], skipGroupId: string | null) {
+  if (!native?.showMessages) return false;
+  try {
+    native.showMessages(JSON.stringify(messages), skipGroupId ?? "");
+    return true;
+  } catch {
+    return false;
+  }
+}
+export function dismissInboxMessages(groupId: string) {
+  try {
+    native?.dismissMessages?.(groupId);
   } catch {}
 }

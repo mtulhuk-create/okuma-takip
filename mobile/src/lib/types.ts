@@ -122,6 +122,8 @@ export type Due = DueInfo & { id: string; userId: string; amount: number; paymen
 export type MeResponse = {
   user: Me;
   badge: number;
+  /** Okunmamış mesajı olan grup sayısı (eski sunucuda yok) */
+  unreadGroups?: number;
   money: {
     unpaidTotal: number;
     dues: (Due & { groupId: string; group: { name: string; tzOffset: number } })[];
@@ -152,6 +154,9 @@ export type GroupToday = {
   /** Kişinin bu gruptaki eserleri (eski sunucuda yok) */
   books?: string[];
   penalty: string;
+  /** Kartta tek satırlık özet için kısa ceza yazısı; okunmamış mesaj sayısı (eski sunucuda yok) */
+  penaltyShort?: string;
+  unread?: number;
   debt: number;
   due?: (DueInfo & { id: string; amount: number }) | null;
 };
@@ -240,6 +245,8 @@ export type ChatMessage = {
   reactions?: { emoji: string; count: number; mine: boolean; names: string[] }[];
   /** Fotoğraf: küçük ve büyük sürüm adresi, gerçek boyut (oran için) */
   image?: { thumb: string; full: string; w: number; h: number } | null;
+  /** Yanıtlanan mesajın özeti (eski sunucuda yok) */
+  reply?: { id: string; userId: string | null; name: string; text: string } | null;
   pending?: boolean;
   failed?: boolean;
   /** Fotoğraf yüklenirken ilerleme (0-1) */
@@ -265,6 +272,8 @@ export type ChatResponse = {
   kasa?: GroupCash | null;
   todayCard?: DayCard | null;
   me: { userId: string; role: Member["role"]; canPost: boolean; canPhoto?: boolean };
+  /** Okundu bilgisi: her üyenin sohbeti en son okuduğu an (eski sunucuda yok) */
+  reads?: { id: string; name: string; at: string | null }[] | null;
   /** Sohbet bu kadar sessiz kalınca gün kartı en alta taşınır (eski sunucuda yok) */
   cardSinkMs?: number;
   messages: ChatMessage[];

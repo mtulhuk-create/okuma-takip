@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, SmilePlus, Trash2, X } from "lucide-react";
+import { Check, CheckCheck, Reply, SmilePlus, Trash2, X } from "lucide-react";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { deleteMessage, reactMessage, votePoll } from "@/app/actions";
 import type { ChatMessage } from "@/lib/chat";
@@ -17,6 +17,32 @@ function nameColor(id: string) {
 }
 
 export type UiMessage = ChatMessage & { pending?: boolean; failed?: boolean; progress?: number };
+
+/** Okundu bilgisi: her üyenin sohbeti en son okuduğu an */
+export type Reads = { id: string; name: string; at: string | null }[];
+
+/** Mesajı kimler okudu / okumadı (yazan hariç): üye sohbeti mesajdan sonra okuduysa okumuştur */
+export function readState(m: Pick<UiMessage, "createdAt" | "user">, reads: Reads | null | undefined) {
+  const others = (reads ?? []).filter((r) => r.id !== m.user?.id);
+  const read = others.filter((r) => r.at && r.at >= m.createdAt);
+  return { read, unread: others.filter((r) => !read.includes(r)), all: others.length > 0 && read.length === others.length };
+}
+
+/** Yanıt önizlemesi için mesajın kısa metni */
+export function replySnippet(m: Pick<UiMessage, "kind" | "text" | "poll">) {
+  if (m.kind === "IMAGE") return `📷 ${m.text ?? "Fotoğraf"}`;
+  if (m.kind === "POLL") return `📊 ${m.poll?.question ?? "Anket"}`;
+  return m.text ?? "";
+}
+
+/** Yanıtlanan mesaja git ve kısa süre vurgula */
+function jumpToMessage(id: string) {
+  const el = document.getElementById(`msg-${id}`);
+  if (!el) return;
+  el.scrollIntoView({ block: "center", behavior: "smooth" });
+  el.classList.add("bg-primary/10");
+  setTimeout(() => el.classList.remove("bg-primary/10"), 1400);
+}
 
 function DeleteButton({ id, onDone }: { id: string; onDone: () => void }) {
   const [pending, start] = useTransition();
@@ -62,6 +88,8 @@ export function Bubble({
   showAuthor,
   canDelete,
   onChanged,
+  onReply,
+  reads,
   children,
 }: {
   m: UiMessage;
@@ -69,8 +97,14 @@ export function Bubble({
   showAuthor: boolean;
   canDelete: boolean;
   onChanged: () => void;
+  /** Bu mesajı yanıtla (yazma izni yoksa verilmez) */
+  onReply?: () => void;
+  /** Okundu bilgisi (kendi mesajlarımda tik ve "kim okudu" için) */
+  reads?: Reads | null;
   children: React.ReactNode;
 }) {
+  const [info, setInfo] = useState(false);
+  const seen = mine && reads ? readState(m, reads) : null;
   const [picker, setPicker] = useState(false);
   const [, start] = useTransition();
   // Sunucudan yeni veri gelene kadar benim ifadem anında görünür
@@ -129,10 +163,26 @@ export function Bubble({
             {m.user.badge && <BadgeChip tag={m.user.badge} />}
           </p>
         )}
+        {m.reply && (
+          // Yanıtlanan mesaj: tıklayınca o mesaja gider
+          <button
+            type="button"
+            onClick={() => jumpToMessage(m.reply!.id)}
+            className={`mb-1 block w-full min-w-32 rounded-md border-l-[3px] border-primary px-2 py-1 text-left ${mine ? "bg-black/10" : "bg-muted"}`}
+          >
+            <span className="block truncate text-[11px] font-bold leading-tight text-primary">{m.reply.name || "Mesaj"}</span>
+            <span className={`block truncate text-xs leading-snug ${mine ? "opacity-80" : "text-muted-foreground"}`}>{m.reply.text}</span>
+          </button>
+        )}
         {children}
-        <p className={`-mt-0.5 flex items-center justify-end gap-0.5 text-[10px] leading-4 ${mine ? "opacity-60" : "text-muted-foreground"}`}>
-          {m.failed ? "Gönderilemedi" : m.pending ? "Gönderiliyor…" : formatClock(m.createdAt)}
-          {mine && !m.pending && !m.failed && <Check className="size-3" strokeWidth={2.5} />}
+        <p className={`-mt-0.5 flex items-center justify-end gap-0.5 text-[10px] leading-4 ${mine ? "" : "text-muted-foreground"}`}>
+          <span className={mine ? "opacity-60" : ""}>{m.failed ? "Gönderilemedi" : m.pending ? "Gönderiliyor…" : formatClock(m.createdAt)}</span>
+          {/* Tikler: tek = gönderildi, çift = okuyan var, mavi çift = herkes okudu; tıklayınca kim okudu */}
+          {mine && !m.pending && !m.failed && (
+            <button type="button" onClick={() => seen && setInfo(true)} aria-label="Mesaj bilgisi" title="Kimler okudu" className="-m-1 p-1">
+              {seen && seen.read.length > 0 ? <CheckCheck className={`size-3.5 ${seen.all ? "text-sky-400" : "opacity-60"}`} strokeWidth={2.5} /> : <Check className="size-3 opacity-60" strokeWidth={2.5} />}
+            </button>
+          )}
         </p>
       </div>
       {/* İfadeler: baloncuğun altına hafif biner; tıkla: ekle/kaldır, üstüne gel: kimler */}
@@ -154,6 +204,17 @@ export function Bubble({
         </div>
       )}
       </div>
+      {canReact && onReply && (
+        <button
+          type="button"
+          className="btn-icon size-7 opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100 [@media(hover:none)]:opacity-60 [&_svg]:size-3.5"
+          aria-label="Yanıtla"
+          title="Yanıtla"
+          onClick={onReply}
+        >
+          <Reply />
+        </button>
+      )}
       {canReact && (
         <button
           type="button"
@@ -165,6 +226,38 @@ export function Bubble({
         </button>
       )}
       {canDelete && !m.pending && <DeleteButton id={m.id} onDone={onChanged} />}
+      {info && seen && (
+        // Mesaj bilgisi: kimler okudu, kimler okumadı
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-6" onClick={() => setInfo(false)} role="dialog" aria-label="Mesaj bilgisi">
+          <div className="max-h-[80dvh] w-full max-w-xs space-y-3 overflow-y-auto rounded-xl border border-border bg-card p-4 text-left text-foreground shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <p className="font-semibold">Mesaj bilgisi</p>
+            {[
+              { title: "Okuyanlar", list: seen.read, Icon: CheckCheck, tone: "text-sky-500" },
+              { title: "Okumayanlar", list: seen.unread, Icon: Check, tone: "text-muted-foreground" },
+            ].map(({ title, list, Icon, tone }) => (
+              <div key={title}>
+                <p className={`flex items-center gap-1 text-xs font-bold ${tone}`}>
+                  <Icon className="size-3.5" strokeWidth={2.5} /> {title} · {list.length}
+                </p>
+                {list.length ? (
+                  <ul className="mt-1 space-y-0.5 text-sm">
+                    {list.map((r) => (
+                      <li key={r.id} className="truncate">
+                        {r.name}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-1 text-xs text-muted-foreground">Kimse yok</p>
+                )}
+              </div>
+            ))}
+            <button type="button" className="btn-ghost btn-sm w-full" onClick={() => setInfo(false)}>
+              Kapat
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
