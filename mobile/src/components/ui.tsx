@@ -255,7 +255,30 @@ export function isRealPhoto(uri?: string | null): uri is string {
  */
 export const TIER_COLORS = { gold: "#D4A017", silver: "#A7B1BC", bronze: "#B07040" } as const;
 export type Tier = "gold" | "silver" | "bronze";
-export const TIER_NOTCHES: Record<Tier, ("top" | "bottom" | "left" | "right")[]> = { gold: ["top", "bottom", "left", "right"], silver: ["top", "bottom"], bronze: ["top"] };
+const TIER_NOTCHES: Record<Tier, ("top" | "bottom" | "left" | "right")[]> = { gold: ["top", "bottom", "left", "right"], silver: ["top", "bottom"], bronze: ["top"] };
+
+/**
+ * Ekip çerçevesinin çıkıntıları (avatardakiyle aynı): altın 4 kenar, gümüş üst + alt, bronz üst.
+ * Kenarlıklı bir kutunun (geçmiş kutucuğu, isim rozeti) kenar çizgisinin tam ortasına oturur. bw: kenar kalınlığı.
+ */
+export function EdgeNotches({ tier, bw, d = 3 }: { tier: Tier; bw: number; d?: number }) {
+  const c = useColors();
+  const color = TIER_COLORS[tier];
+  const edge = -bw / 2 - d / 2;
+  const at = {
+    top: { top: edge, left: "50%", marginLeft: -d / 2 },
+    bottom: { bottom: edge, left: "50%", marginLeft: -d / 2 },
+    left: { left: edge, top: "50%", marginTop: -d / 2 },
+    right: { right: edge, top: "50%", marginTop: -d / 2 },
+  } as const;
+  return (
+    <>
+      {TIER_NOTCHES[tier].map((p) => (
+        <View key={p} pointerEvents="none" style={{ position: "absolute", ...at[p], width: d, height: d, backgroundColor: color, borderWidth: 0.6, borderColor: c.card, borderRadius: 0.5, transform: [{ rotate: "45deg" }] }} />
+      ))}
+    </>
+  );
+}
 
 export function Avatar({ name, uri, size = 36, initial, seed, frame }: { name: string; uri?: string | null; size?: number; initial?: string; seed?: string; frame?: Tier | null }) {
   const c = useColors();

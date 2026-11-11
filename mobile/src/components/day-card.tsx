@@ -8,7 +8,7 @@ import { formatDayLong, formatClock } from "@/lib/format";
 import { fonts, KEFARET, radius, STATE, useColors } from "@/lib/theme";
 import type { DayCard as Card } from "@/lib/types";
 import { Countdown } from "./countdown";
-import { Avatar, Row, TIER_COLORS } from "./ui";
+import { Avatar, EdgeNotches, Row, TIER_COLORS } from "./ui";
 
 type Cat = { key: "kefaret" | "read" | "min" | "none" | "pending"; label: string; Icon: LucideIcon; color: (c: ReturnType<typeof useColors>) => string };
 const CATS: Cat[] = [
@@ -390,8 +390,9 @@ export function StreakFlame({ s, top = -9, right = -5, inline }: { s: { n: numbe
   // Sohbette: ismin hemen sağında, isimle aynı hizada, bir tık büyük
   if (inline)
     return (
-      <View pointerEvents="none" accessibilityLabel={`${s.n} gün ${s.full ? "tam seri" : "seri"}`} style={{ width: 20, height: 16, alignItems: "center", justifyContent: "center" }}>
-        <View style={{ position: "absolute", top: -4.5, width: 20, height: 20, alignItems: "center", justifyContent: "center" }}>
+      // Alev simgesinin solunda boşluk var: -4 ile isme yaklaştırılır; ağırlık merkezi ismin ortasına gelecek şekilde yerleşir
+      <View pointerEvents="none" accessibilityLabel={`${s.n} gün ${s.full ? "tam seri" : "seri"}`} style={{ width: 20, height: 16, marginLeft: -4, alignItems: "center", justifyContent: "center" }}>
+        <View style={{ position: "absolute", top: -3, width: 20, height: 20, alignItems: "center", justifyContent: "center" }}>
           <Flame size={20} color={color} fill={color} strokeWidth={1.5} />
           <Text style={{ position: "absolute", top: 7, fontFamily: fonts.bold, fontSize: 8, lineHeight: 10, includeFontPadding: false, color: "#fff" }}>{s.n}</Text>
         </View>
@@ -497,6 +498,7 @@ function CategoryChips({ card, interactive }: { card: Card; interactive?: boolea
                   {p.pages ? ` · ${p.pages}` : ""}
                 </Text>
                 {p.kefaret ? <BookHeart size={11} color={KEFARET} /> : null}
+                {p.tier && <EdgeNotches tier={p.tier} bw={0.75} d={2.8} />}
                 <StreakFlame s={p.streak} top={-8} />
               </View>
             ))}

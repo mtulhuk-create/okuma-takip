@@ -7,6 +7,7 @@ import { reportReading } from "@/app/actions";
 import type { DayCard as Card } from "@/lib/day";
 import { formatClock, formatDayLong } from "@/lib/schedule";
 import { AvatarStack } from "./avatar";
+import { EdgeNotches } from "./edge-notches";
 import { TIER_COLOR } from "./tier";
 import { Countdown } from "./countdown";
 
@@ -504,6 +505,7 @@ function CategoryChips({ card, interactive }: { card: Card; interactive?: boolea
                 {p.name}
                 {p.kefaret ? <BookHeart className="size-3 text-teal-600 dark:text-teal-400" aria-label="Kefaret okuması" /> : null}
                 {p.pages != null && p.pages > 0 && <span className="opacity-70">· {p.pages}</span>}
+                {p.tier && <EdgeNotches tier={p.tier} offset={0.375} d={2.8} />}
                 <StreakFlame s={p.streak} />
               </span>
             ))}

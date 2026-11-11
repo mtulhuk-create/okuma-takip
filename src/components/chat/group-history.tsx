@@ -2,7 +2,8 @@
 
 import { CalendarRange, EyeOff, X } from "lucide-react";
 import { Avatar } from "../avatar";
-import { HistoryGrid, RANGE_LABELS, RangePicker, StatsLine, StreakChip, useHistory, type Range, type Stats } from "../history-grid";
+import { StreakFlame } from "../day-card";
+import { HistoryGrid, RANGE_LABELS, RangePicker, StatsLine, useHistory, type Range, type Stats } from "../history-grid";
 import type { Tier } from "../tier";
 
 type Data = {
@@ -46,8 +47,8 @@ export function GroupHistory({ groupId, onClose }: { groupId: string; onClose: (
                   {r.user.name}
                   {r.me && <span className="font-normal text-muted-foreground"> (sen)</span>}
                 </span>
-                {/* Seri bu grubun okumalarından */}
-                <StreakChip s={r.streak} />
+                {/* Seri bu grubun okumalarından: ismin hemen sağında, alev içinde gün sayısı */}
+                <StreakFlame s={r.streak} className="relative -ml-2" big />
               </div>
               <HistoryGrid start={r.start} cells={r.cells} frame={r.tier} />
               <StatsLine stats={r.stats} />
