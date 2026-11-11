@@ -15,8 +15,27 @@ const items = [
 // Sohbet ekranı tam ekrandır; alt menü gizlenir
 const CHAT = /^\/gruplar\/(?!yeni$)[^/]+$/;
 
-export function BottomNav({ unread }: { unread: number }) {
+export function BottomNav({ unread, unreadGroups: initialGroups = 0 }: { unread: number; unreadGroups?: number }) {
   const pathname = usePathname();
+  // Okunmamış mesajı olan grup sayısı: sayfa değiştikçe (ör. sohbetten çıkınca) ve sekmeye dönünce tazelenir
+  const [unreadGroups, setUnreadGroups] = useState(initialGroups);
+  useEffect(() => {
+    let alive = true;
+    const load = () =>
+      fetch("/api/m/unread", { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d: { groups?: number } | null) => alive && d && setUnreadGroups(d.groups ?? 0))
+        .catch(() => {});
+    load();
+    const onVisible = () => document.visibilityState === "visible" && load();
+    document.addEventListener("visibilitychange", onVisible);
+    const t = setInterval(onVisible, 60_000);
+    return () => {
+      alive = false;
+      document.removeEventListener("visibilitychange", onVisible);
+      clearInterval(t);
+    };
+  }, [pathname]);
   // Bildirimler açılınca rozet hemen sıfırlanır (sunucu da okundu işaretler); yeni bildirim gelirse yeniden görünür
   const onNotes = pathname.startsWith("/bildirimler");
   const [seen, setSeen] = useState<number | null>(null);
@@ -43,6 +62,12 @@ export function BottomNav({ unread }: { unread: number }) {
                   <Icon className="size-5" strokeWidth={active ? 2.4 : 2} />
                 </span>
                 {label}
+                {/* Okunmamış mesajı olan grup sayısı */}
+                {href === "/gruplar" && unreadGroups > 0 && (
+                  <span className="absolute left-1/2 top-1.5 ml-2 min-w-4 rounded-full bg-primary px-1 text-center text-[10px] font-bold leading-4 text-primary-foreground">
+                    {unreadGroups > 99 ? "99+" : unreadGroups}
+                  </span>
+                )}
                 {href === "/bildirimler" && badge > 0 && (
                   <span className="absolute left-1/2 top-1.5 ml-2 min-w-4 rounded-full bg-destructive px-1 text-center text-[10px] leading-4 text-white">
                     {badge > 99 ? "99+" : badge}

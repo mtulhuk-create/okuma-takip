@@ -1,6 +1,6 @@
 import { memo, useMemo, useState } from "react";
-import { Check, Copy, Reply, Trash2 } from "lucide-react-native";
-import { Animated, Modal, PanResponder, Pressable, Text, View } from "react-native";
+import { Check, CheckCheck, Copy, Info, Reply, Trash2 } from "lucide-react-native";
+import { Animated, Modal, PanResponder, Pressable, ScrollView, Text, View } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { toast, useAction } from "@/lib/api";
 import { formatClock } from "@/lib/format";
@@ -41,6 +41,16 @@ export function replySnippet(m: Pick<ChatMessage, "kind" | "text" | "poll">) {
   return m.text ?? "";
 }
 
+/** Okundu bilgisi: her üyenin sohbeti en son okuduğu an */
+export type Reads = { id: string; name: string; at: string | null }[];
+
+/** Mesajı kimler okudu / okumadı (yazan hariç): üye sohbeti mesajdan sonra okuduysa okumuştur */
+function readState(m: Pick<ChatMessage, "createdAt" | "user">, reads: Reads) {
+  const others = reads.filter((r) => r.id !== m.user?.id);
+  const read = others.filter((r) => r.at && r.at >= m.createdAt);
+  return { read, unread: others.filter((r) => !read.includes(r)), all: others.length > 0 && read.length === others.length };
+}
+
 /** Sağa kaydırma bu kadar olunca (dp) bırakıldığında yanıt başlar */
 const SWIPE_REPLY = 46;
 
@@ -51,6 +61,7 @@ export const MessageBubble = memo(function MessageBubble({
   canDelete,
   onReply,
   onQuote,
+  reads,
 }: {
   m: ChatMessage;
   mine: boolean;
@@ -60,8 +71,12 @@ export const MessageBubble = memo(function MessageBubble({
   onReply?: (m: ChatMessage) => void;
   /** Yanıtlanan mesaja git */
   onQuote?: (id: string) => void;
+  /** Okundu bilgisi (yalnızca kendi mesajlarımda: tikler ve "kim okudu") */
+  reads?: Reads | null;
 }) {
   const c = useColors();
+  const [info, setInfo] = useState(false);
+  const seen = mine && reads && !m.pending && !m.failed ? readState(m, reads) : null;
   const action = useAction();
   const [menu, setMenu] = useState(false);
   // Sunucudan yeni veri gelene kadar benim ifadem anında görünür
@@ -208,7 +223,12 @@ export const MessageBubble = memo(function MessageBubble({
         )}
         <View style={{ flexDirection: "row", alignItems: "center", gap: 2, alignSelf: "flex-end", marginTop: 1 }}>
           <Text style={{ fontFamily: fonts.regular, fontSize: 10, color: sub }}>{m.failed ? "Gönderilemedi" : m.pending ? (m.kind === "IMAGE" ? "Yükleniyor…" : "Gönderiliyor…") : formatClock(m.createdAt)}</Text>
-          {mine && !m.pending && !m.failed && <Check size={11} color={sub} strokeWidth={2.5} />}
+          {/* Tikler: tek = gönderildi, çift = okuyan var, mavi çift = herkes okudu; dokununca kim okudu */}
+          {mine && !m.pending && !m.failed && (
+            <Pressable onPress={() => seen && setInfo(true)} hitSlop={10} accessibilityLabel="Mesaj bilgisi">
+              {seen && seen.read.length > 0 ? <CheckCheck size={14} color={seen.all ? "#38bdf8" : sub} strokeWidth={2.5} /> : <Check size={11} color={sub} strokeWidth={2.5} />}
+            </Pressable>
+          )}
         </View>
       </Pressable>
       {/* İfadeler: baloncuğun altına hafif biner; dokun: ekle/kaldır, uzun bas: kimler */}
@@ -261,7 +281,7 @@ export const MessageBubble = memo(function MessageBubble({
                 })}
               </View>
             )}
-            {(canReply || !!m.text || canDelete) && <View style={{ height: 1, backgroundColor: c.border, marginVertical: 4 }} />}
+            {(canReply || !!m.text || canDelete || !!seen) && <View style={{ height: 1, backgroundColor: c.border, marginVertical: 4 }} />}
             {canReply && (
               <Pressable
                 onPress={() => {
@@ -286,6 +306,18 @@ export const MessageBubble = memo(function MessageBubble({
                 <Text style={{ fontFamily: fonts.medium, fontSize: 14, color: c.foreground }}>Kopyala</Text>
               </Pressable>
             )}
+            {seen && (
+              <Pressable
+                onPress={() => {
+                  setMenu(false);
+                  setInfo(true);
+                }}
+                style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 11, backgroundColor: pressed ? c.muted : "transparent" })}
+              >
+                <Info size={17} color={c.foreground} />
+                <Text style={{ fontFamily: fonts.medium, fontSize: 14, color: c.foreground }}>Mesaj bilgisi</Text>
+              </Pressable>
+            )}
             {canDelete && (
               <Pressable onPress={remove} style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 11, backgroundColor: pressed ? c.muted : "transparent" })}>
                 <Trash2 size={17} color={c.destructive} />
@@ -295,6 +327,43 @@ export const MessageBubble = memo(function MessageBubble({
           </Pressable>
         </Pressable>
       </Modal>
+      {/* Mesaj bilgisi: kimler okudu, kimler okumadı */}
+      {seen && (
+        <Modal visible={info} transparent animationType="fade" onRequestClose={() => setInfo(false)} statusBarTranslucent>
+          <Pressable onPress={() => setInfo(false)} style={{ flex: 1, backgroundColor: "#000a", justifyContent: "center", padding: 28 }}>
+            <Pressable onPress={() => {}} style={{ backgroundColor: c.card, borderRadius: 14, borderWidth: 1, borderColor: c.border, padding: 18, gap: 12, maxHeight: "75%", elevation: 10 }}>
+              <Text style={{ fontFamily: fonts.semibold, fontSize: 16, color: c.foreground }}>Mesaj bilgisi</Text>
+              <ScrollView style={{ flexGrow: 0 }} contentContainerStyle={{ gap: 12 }}>
+                {[
+                  { title: "Okuyanlar", list: seen.read, Icon: CheckCheck, color: "#38bdf8" },
+                  { title: "Okumayanlar", list: seen.unread, Icon: Check, color: c.mutedForeground },
+                ].map(({ title, list, Icon, color }) => (
+                  <View key={title} style={{ gap: 4 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                      <Icon size={14} color={color} strokeWidth={2.5} />
+                      <Text style={{ fontFamily: fonts.bold, fontSize: 12, color }}>
+                        {title} · {list.length}
+                      </Text>
+                    </View>
+                    {list.length ? (
+                      list.map((r) => (
+                        <Text key={r.id} numberOfLines={1} style={{ fontFamily: fonts.regular, fontSize: 14, color: c.foreground }}>
+                          {r.name}
+                        </Text>
+                      ))
+                    ) : (
+                      <Text style={{ fontFamily: fonts.regular, fontSize: 12, color: c.mutedForeground }}>Kimse yok</Text>
+                    )}
+                  </View>
+                ))}
+              </ScrollView>
+              <Pressable onPress={() => setInfo(false)} style={({ pressed }) => ({ height: 40, borderRadius: 9, borderWidth: 1, borderColor: c.border, alignItems: "center", justifyContent: "center", opacity: pressed ? 0.7 : 1 })}>
+                <Text style={{ fontFamily: fonts.semibold, fontSize: 14, color: c.foreground }}>Kapat</Text>
+              </Pressable>
+            </Pressable>
+          </Pressable>
+        </Modal>
+      )}
     </Animated.View>
   );
 });

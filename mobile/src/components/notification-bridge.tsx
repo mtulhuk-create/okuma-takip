@@ -59,10 +59,18 @@ export function NotificationBridge() {
   // Uygulama açıkken gruplara gelen mesajlar da bildirilir (açık olan sohbet hariç)
   useEffect(() => {
     const t = setInterval(() => {
-      if (AppState.currentState === "active") checkInbox().catch(() => {});
+      if (AppState.currentState !== "active") return;
+      checkInbox()
+        .then((n) => {
+          // Yeni mesaj geldi: menüdeki ve grup kartlarındaki okunmamış sayıları tazelenir
+          if (!n) return;
+          qc.invalidateQueries({ queryKey: ["/api/m/me"] });
+          qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && q.queryKey[0].startsWith("/api/m/groups?") });
+        })
+        .catch(() => {});
     }, LITE ? 60_000 : 30_000);
     return () => clearInterval(t);
-  }, []);
+  }, [qc]);
 
   useEffect(() => {
     const sub = AppState.addEventListener("change", (s) => {

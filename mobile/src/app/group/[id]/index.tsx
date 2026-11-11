@@ -209,8 +209,13 @@ export default function ChatScreen() {
   useFocusEffect(
     useCallback(() => {
       setOpenChat(id);
-      return () => setOpenChat(null);
-    }, [id]),
+      return () => {
+        setOpenChat(null);
+        // Sohbet okundu: menüdeki ve grup kartındaki okunmamış sayıları tazelenir
+        qc.invalidateQueries({ queryKey: ["/api/m/me"] });
+        qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && q.queryKey[0].startsWith("/api/m/groups?") });
+      };
+    }, [id, qc]),
   );
 
   // Gerçek zamanlı: ekran açıkken 2 saniyede bir yeni olay var mı bak
@@ -228,7 +233,7 @@ export default function ChatScreen() {
             // İfade ya da silme yalnızca sohbeti değiştirir; diğer ekranlar yenilenmez
             const onlyChat = (e: unknown) => {
               const ev = e as { type?: string; reason?: string };
-              return ev.type === "message" || (ev.type === "refresh" && (ev.reason === "reaction" || ev.reason === "delete"));
+              return ev.type === "message" || (ev.type === "refresh" && (ev.reason === "reaction" || ev.reason === "delete" || ev.reason === "read"));
             };
             if (!res.events.every(onlyChat)) {
               qc.invalidateQueries({ queryKey: ["/api/m/me"] });
@@ -407,6 +412,8 @@ export default function ChatScreen() {
 
   const meId = chat.data?.me.userId;
   const canPost = !!chat.data?.me.canPost;
+  // Okundu bilgisi (kendi mesajlarımdaki tikler için)
+  const reads = chat.data?.reads ?? null;
   /** Yanıtlanan mesaja kaydır (yüklenmişse) */
   const jumpToMessage = useCallback(
     (msgId: string) => {
@@ -446,11 +453,11 @@ export default function ChatScreen() {
       return (
         <View>
           {sep && <DaySeparator dayKey={dayKey} />}
-          <MessageBubble m={m} mine={mine} showAuthor={showAuthor} canDelete={mine || canDeleteAll} onReply={canPost ? setReplyTo : undefined} onQuote={jumpToMessage} />
+          <MessageBubble m={m} mine={mine} showAuthor={showAuthor} canDelete={mine || canDeleteAll} onReply={canPost ? setReplyTo : undefined} onQuote={jumpToMessage} reads={mine ? reads : null} />
         </View>
       );
     },
-    [reversed, id, day, meId, canDeleteAll, canPost, jumpToMessage, onReported],
+    [reversed, id, day, meId, canDeleteAll, canPost, jumpToMessage, onReported, reads],
   );
 
   // Yüklenirken de aynı kısa başlık (sonradan yükseklik zıplamasın)

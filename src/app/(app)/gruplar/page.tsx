@@ -68,7 +68,7 @@ function CardHead({ id, name, admin, meta, right }: { id: string; name: string; 
   );
 }
 
-const cardCls = "card relative block space-y-2.5 overflow-hidden py-3 pl-4 pr-3";
+const cardCls = "card relative block space-y-2 overflow-hidden py-2.5 pl-4 pr-3";
 const Spine = ({ id }: { id: string }) => <span className="absolute inset-y-0 left-0 w-1.5" style={{ background: coverColor(id) }} aria-hidden />;
 
 export default async function GroupsPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
@@ -113,7 +113,17 @@ export default async function GroupsPage({ searchParams }: { searchParams: Promi
                   id={group.id}
                   name={group.name}
                   admin={role === "ADMIN"}
-                  right={<ChevronRight className="mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />}
+                  right={
+                    <>
+                      {/* Sohbette okunmamış mesaj sayısı */}
+                      {t.unread > 0 && (
+                        <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-bold leading-none text-primary-foreground" aria-label={`${t.unread} okunmamış mesaj`}>
+                          {t.unread > 99 ? "99+" : t.unread}
+                        </span>
+                      )}
+                      <ChevronRight className="mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                    </>
+                  }
                   meta={
                     <>
                       <span className="inline-flex items-center gap-1">
@@ -130,13 +140,20 @@ export default async function GroupsPage({ searchParams }: { searchParams: Promi
                     </>
                   }
                 />
-                <InfoRows
-                  rows={[
-                    { Icon: BookOpen, label: "Eserler", value: t.books.join(", ") },
-                    { Icon: Target, label: "Günlük", value: `${t.myTarget} sayfa · alt sınır ${t.myMin}` },
-                    { Icon: Coins, label: "Ceza", value: t.penalty },
-                  ]}
-                />
+                {/* Tek satırlık özet: eser · günlük sayfa · ceza (ayrıntı grubun içinde) */}
+                <p className="flex items-center gap-x-2.5 text-[11px] text-muted-foreground">
+                  <span className="inline-flex min-w-0 items-center gap-1">
+                    <BookOpen className="size-3 shrink-0 text-primary" />
+                    <span className="truncate">{t.books[0]}</span>
+                    {t.books.length > 1 && <span className="shrink-0">+{t.books.length - 1}</span>}
+                  </span>
+                  <span className="inline-flex shrink-0 items-center gap-1">
+                    <Target className="size-3 text-primary" /> {t.myTarget} sf
+                  </span>
+                  <span className="inline-flex shrink-0 items-center gap-1">
+                    <Coins className="size-3 text-primary" /> {t.penaltyShort}
+                  </span>
+                </p>
                 {/* Bugün */}
                 <div className="flex items-center gap-2 rounded-lg bg-muted/50 px-2 py-1.5">
                   <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold ${status.cls}`}>

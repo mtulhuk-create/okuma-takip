@@ -139,25 +139,51 @@ export default function GroupsScreen() {
         const books = t?.books?.length ? t.books : booksOf(group).map((x) => x.title);
         return (
           <Pressable key={group.id} onPress={() => router.push(`/group/${group.id}`)} style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}>
-            <Card style={{ gap: 8, paddingVertical: 11, paddingLeft: 14, paddingRight: 11, overflow: "hidden" }}>
+            <Card style={{ gap: 7, paddingVertical: 9, paddingLeft: 14, paddingRight: 11, overflow: "hidden" }}>
               <Spine id={group.id} />
               <CardHead
                 id={group.id}
                 name={group.name}
                 admin={role === "ADMIN"}
-                right={<ChevronRight size={16} color={c.mutedForeground} style={{ marginTop: 2 }} />}
+                right={
+                  <Row gap={4}>
+                    {/* Sohbette okunmamış mesaj sayısı */}
+                    {!!t?.unread && (
+                      <View accessibilityLabel={`${t.unread} okunmamış mesaj`} style={{ minWidth: 20, height: 20, borderRadius: 10, backgroundColor: c.primary, paddingHorizontal: 5, alignItems: "center", justifyContent: "center" }}>
+                        <Text style={{ fontFamily: fonts.bold, fontSize: 11, lineHeight: 14, includeFontPadding: false, color: c.primaryForeground }}>{t.unread > 99 ? "99+" : t.unread}</Text>
+                      </View>
+                    )}
+                    <ChevronRight size={16} color={c.mutedForeground} />
+                  </Row>
+                }
                 meta={[
                   { Icon: Users, text: `${members} üye` },
                   { Icon: group.visibility === "PUBLIC" ? Globe : Lock, text: group.visibility === "PUBLIC" ? "Herkese açık" : "Özel" },
                   ...(t?.teamName ? [{ Icon: Shield, text: t.teamName }] : []),
                 ]}
               />
-              <InfoRows
-                rows={[
-                  { Icon: BookOpen, label: "Eserler", value: books.join(", ") },
-                  ...(t ? [{ Icon: Target, label: "Günlük", value: `${t.myTarget} sayfa · alt sınır ${t.myMin}` }, { Icon: Coins, label: "Ceza", value: t.penalty }] : []),
-                ]}
-              />
+              {/* Tek satırlık özet: eser · günlük sayfa · ceza (ayrıntı grubun içinde) */}
+              <Row gap={10}>
+                <Row gap={4} style={{ flexShrink: 1 }}>
+                  <BookOpen size={12} color={c.primary} />
+                  <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: fonts.regular, fontSize: 11.5, color: c.mutedForeground }}>
+                    {books[0]}
+                  </Text>
+                  {books.length > 1 && <Text style={{ fontFamily: fonts.regular, fontSize: 11.5, color: c.mutedForeground }}>+{books.length - 1}</Text>}
+                </Row>
+                {t && (
+                  <>
+                    <Row gap={4}>
+                      <Target size={12} color={c.primary} />
+                      <Text style={{ fontFamily: fonts.regular, fontSize: 11.5, color: c.mutedForeground }}>{t.myTarget} sf</Text>
+                    </Row>
+                    <Row gap={4}>
+                      <Coins size={12} color={c.primary} />
+                      <Text style={{ fontFamily: fonts.regular, fontSize: 11.5, color: c.mutedForeground }}>{t.penaltyShort ?? t.penalty.split(" · ")[0]}</Text>
+                    </Row>
+                  </>
+                )}
+              </Row>
               {t && status ? (
                 // Bugün
                 <Row gap={7} style={{ backgroundColor: c.muted + "99", borderRadius: 9, paddingHorizontal: 8, paddingVertical: 6 }}>

@@ -11,6 +11,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import androidx.core.app.NotificationCompat
+import androidx.core.app.Person
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
@@ -85,42 +86,68 @@ object InboxPoller {
       val body = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
       setAfter(context, body.optString("now", after))
       val list = body.optJSONArray("messages") ?: return
-      // Grup başına: son 3 mesaj, toplam sayı
-      val groups = LinkedHashMap<String, MutableList<JSONObject>>()
-      for (i in 0 until list.length()) {
-        val m = list.optJSONObject(i) ?: continue
-        groups.getOrPut(m.optString("groupId")) { mutableListOf() }.add(m)
-      }
-      for ((groupId, msgs) in groups) show(context, groupId, msgs)
+      showAll(context, list)
     } finally {
       conn.disconnect()
     }
   }
 
+  private fun parseTime(iso: String): Long = runCatching {
+    val f = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US)
+    f.timeZone = java.util.TimeZone.getTimeZone("UTC")
+    f.parse(iso)?.time
+  }.getOrNull() ?: System.currentTimeMillis()
+
+  /** Mesajları grup başına ayırıp gösterir (JS de uygulama açıkken bunu kullanır) */
+  fun showAll(context: Context, list: org.json.JSONArray, skipGroupId: String? = null) {
+    val groups = LinkedHashMap<String, MutableList<JSONObject>>()
+    for (i in 0 until list.length()) {
+      val m = list.optJSONObject(i) ?: continue
+      val gid = m.optString("groupId")
+      if (gid.isEmpty() || gid == skipGroupId) continue
+      groups.getOrPut(gid) { mutableListOf() }.add(m)
+    }
+    for ((groupId, msgs) in groups) show(context, groupId, msgs)
+  }
+
+  fun dismiss(context: Context, groupId: String) {
+    (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).cancel("msg-$groupId", 0)
+  }
+
+  /**
+   * Grup sohbeti bildirimi (WhatsApp grubu gibi): başlıkta grup adı, altında "kişi: mesaj" satırları.
+   * Aynı grubun bildirimi duruyorsa yeni mesajlar ona eklenir.
+   */
   private fun show(context: Context, groupId: String, msgs: List<JSONObject>) {
     val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && nm.getNotificationChannel(CHANNEL) == null) {
       nm.createNotificationChannel(NotificationChannel(CHANNEL, "Grup mesajları", NotificationManager.IMPORTANCE_HIGH))
     }
+    val tag = "msg-$groupId"
     val name = msgs.first().optString("groupName")
-    val title = "💬 $name" + if (msgs.size > 1) " · ${msgs.size} yeni mesaj" else ""
-    val lines = msgs.takeLast(3).map { "${it.optString("author")}: ${it.optString("text")}" }
+    val existing = runCatching { nm.activeNotifications.firstOrNull { it.tag == tag && it.id == 0 }?.notification }.getOrNull()
+    val style = existing?.let { runCatching { NotificationCompat.MessagingStyle.extractMessagingStyleFromNotification(it) }.getOrNull() }
+      ?: NotificationCompat.MessagingStyle(Person.Builder().setName("Sen").build())
+    style.setConversationTitle(name).setGroupConversation(true)
+    for (m in msgs) {
+      val author = m.optString("author").ifEmpty { name }
+      style.addMessage(m.optString("text"), parseTime(m.optString("createdAt")), Person.Builder().setName(author).setKey("$groupId:$author").build())
+    }
     val open = Intent(Intent.ACTION_VIEW, Uri.parse("okumatakip://group/$groupId")).setPackage(context.packageName).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     val pi = PendingIntent.getActivity(context, groupId.hashCode(), open, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
     val icon = context.resources.getIdentifier("notification_icon", "drawable", context.packageName).takeIf { it != 0 } ?: android.R.drawable.ic_dialog_info
     val n = NotificationCompat.Builder(context, CHANNEL)
       .setSmallIcon(icon)
       .setColor(0xFF9B2C2C.toInt())
-      .setContentTitle(title)
-      .setContentText(lines.joinToString("  "))
-      .setStyle(NotificationCompat.BigTextStyle().bigText(lines.joinToString("\n")))
+      .setStyle(style)
+      .setNumber(style.messages.size)
       .setContentIntent(pi)
       .setAutoCancel(true)
       .setPriority(NotificationCompat.PRIORITY_HIGH)
       .setCategory(NotificationCompat.CATEGORY_MESSAGE)
       .build()
-    // Uygulamanın kendi mesaj bildirimiyle aynı yer (etiket msg-grup, kimlik 0): açılınca kaldırılabilsin
-    nm.notify("msg-$groupId", 0, n)
+    // Uygulamanın kendi mesaj bildirimiyle aynı yer (etiket msg-grup, kimlik 0): sohbet açılınca kaldırılır
+    nm.notify(tag, 0, n)
   }
 }
 

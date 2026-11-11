@@ -14,6 +14,7 @@ const publicUser = { select: { id: true, name: true, username: true, imageUrl: t
 // Grup içinde gösterilen kullanıcılar: ad, grup ayarına göre (girdiği / hesap adı / ikisi)
 const groupUser = { select: { id: true, name: true, accountName: true, username: true, imageUrl: true } } as const;
 import { currentPeriod, defaultDueAt, openPeriod, periodFor, shiftDayKey } from "./schedule";
+import { unreadCounts } from "./unread";
 
 /** Bugün sayfası: her grup için güncel gün kartı ve son 7 günün özeti. */
 export async function myGroupsToday(userId: string) {
@@ -189,13 +190,14 @@ export async function getGroupsOverview(userId: string, q: string) {
   const now = new Date();
   const periods = new Map(mine.map((m) => [m.groupId, currentPeriod(now, m.group)]));
   const ids = mine.map((m) => m.groupId);
-  const [logs, debts, openDues] = ids.length
+  const [logs, debts, openDues, unread] = ids.length
     ? await Promise.all([
         db.readingLog.findMany({ where: { groupId: { in: ids }, dayKey: { in: [...new Set([...periods.values()].map((p) => p.dayKey))] } }, select: { groupId: true, userId: true, dayKey: true, pages: true, minPages: true } }),
         db.penalty.groupBy({ by: ["groupId"], where: { userId, groupId: { in: ids }, status: { in: ["UNPAID", "IN_DUE"] } }, _sum: { amount: true } }),
         db.paymentDue.findMany({ where: { userId, groupId: { in: ids }, status: { in: ["PENDING", "SUBMITTED", "OVERDUE"] } }, orderBy: { dueAt: "asc" } }),
+        unreadCounts(userId, mine),
       ])
-    : [[], [], []];
+    : [[], [], [], new Map<string, number>()];
   const today = mine.map((m) => {
     const p = periods.get(m.groupId)!;
     const dayLogs = logs.filter((l) => l.groupId === m.groupId && l.dayKey === p.dayKey);
@@ -213,7 +215,11 @@ export async function getGroupsOverview(userId: string, q: string) {
       teamName: rules.teamName,
       books: rules.books.map((b) => b.title),
       penalty: describePenalty(rules),
+      // Kartta tek satırlık özet için kısa ceza yazısı
+      penaltyShort: rules.penaltyMode === "PER_PAGE" ? `${rules.penaltyAmount} TL/sf` : `${rules.penaltyAmount} TL`,
       debt: debts.find((d) => d.groupId === m.groupId)?._sum.amount ?? 0,
+      // Sohbette okunmamış mesaj sayısı
+      unread: unread.get(m.groupId) ?? 0,
       due: (() => {
         const d = openDues.find((x) => x.groupId === m.groupId);
         return d ? dueView(d) : null;

@@ -40,6 +40,8 @@ export function ChatView({ initial }: { initial: Page }) {
   const [messages, setMessages] = useState<UiMessage[]>(initial.messages);
   const [hasMore, setHasMore] = useState(initial.hasMore);
   const [me, setMe] = useState(initial.me!);
+  // Okundu bilgisi (tikler için): her üyenin sohbeti en son okuduğu an
+  const [reads, setReads] = useState(initial.reads);
   const [text, setText] = useState("");
   const [pollOpen, setPollOpen] = useState(false);
   const [photo, setPhoto] = useState<{ file: File; preview: string } | null>(null);
@@ -53,6 +55,7 @@ export function ChatView({ initial }: { initial: Page }) {
   const [atBottom, setAtBottom] = useState(true);
   const [live, setLive] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
+  const meId = useRef(initial.me!.userId);
   const cursor = useRef(initial.cursor);
   const loadingOlder = useRef(false);
   const stickBottom = useRef(true);
@@ -68,6 +71,7 @@ export function ChatView({ initial }: { initial: Page }) {
     if (!res.ok) return;
     const page = (await res.json()) as Page;
     setMe(page.me!);
+    if (page.reads) setReads(page.reads);
     // Ayarlar (ad, kurallar, eserler), kasa ve bugünün kartı da güncellenir
     setGroup(page.group);
     setKasa(page.kasa);
@@ -192,6 +196,8 @@ export function ChatView({ initial }: { initial: Page }) {
           const tmp = prev.find((m) => m.pending && m.kind === ev.message.kind && m.text === ev.message.text && m.user?.id === ev.message.user.id);
           return tmp ? prev.map((m) => (m === tmp ? ev.message : m)) : [...prev, ev.message];
         });
+        // Başkasının mesajı ekrandayken geldi: okundu sayılması için sayfa tazelenir
+        if (ev.message.user?.id !== meId.current && document.visibilityState === "visible") scheduleRefresh();
       } else scheduleRefresh();
     };
     const onVisible = () => document.visibilityState === "visible" && refresh();
@@ -440,6 +446,7 @@ export function ChatView({ initial }: { initial: Page }) {
                   showAuthor={!!showAuthor}
                   canDelete={canDelete}
                   onChanged={refresh}
+                  reads={mine ? reads : null}
                   onReply={
                     me.canPost
                       ? () => {

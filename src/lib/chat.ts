@@ -115,6 +115,17 @@ export async function getChatPage(groupId: string, userId: string, before?: Date
   });
   const hasMore = rows.length > PAGE;
   const page = rows.slice(0, PAGE).reverse();
+  // Sohbeti açan kişi buraya kadar okumuş sayılır (okundu tikleri ve okunmamış sayısı). Yalnızca yeni mesaj varsa yazılır.
+  let myReadAt = me.lastReadAt;
+  if (!before) {
+    const newest = rows.find((m) => m.kind !== "DAY" && m.userId !== userId)?.createdAt;
+    if (newest && (!myReadAt || newest > myReadAt)) {
+      myReadAt = new Date();
+      await db.groupMember.update({ where: { id: me.id }, data: { lastReadAt: myReadAt } });
+      // Yazanların tikleri güncellensin
+      await publish(groupId, { type: "refresh", reason: "read" });
+    }
+  }
   const today = currentPeriod(new Date(), group).dayKey;
   const dayKeys = page.filter((m) => m.kind === "DAY" && m.dayKey).map((m) => m.dayKey!);
   // Bugünün kartı sayfada olmasa da (çok mesaj atıldıysa) sohbet başlığındaki kısayol için hesaplanır
@@ -166,6 +177,8 @@ export async function getChatPage(groupId: string, userId: string, before?: Date
     me: { userId, role: me.role, canPost: canPost(group, me.role), canPhoto: canPost(group, me.role) && mediaEnabled() },
     // Sohbet bu kadar sessiz kalınca gün kartı en alta taşınır (istemci süre dolunca sayfayı yeniler)
     cardSinkMs: CARD_SINK_MS,
+    // Okundu bilgisi: her üyenin sohbeti en son okuduğu an (bir mesajı, o andan önce yazıldıysa okumuştur)
+    reads: before ? null : group.members.map((m) => ({ id: m.userId, name: m.user.name, at: (m.userId === userId ? myReadAt : m.lastReadAt)?.toISOString() ?? null })),
     messages,
     hasMore,
   };
