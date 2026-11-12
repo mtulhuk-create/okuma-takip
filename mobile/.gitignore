@@ -46,3 +46,6 @@ example
 # Yerel modüllerin derleme çıktıları
 modules/*/android/build/
 modules/*/android/.cxx/
+
+# Firebase ayar dosyası depoya eklenmez (depo herkese açık); derleme için bu klasöre elle konur
+google-services.json
