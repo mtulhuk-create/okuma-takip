@@ -12,6 +12,7 @@ import { exactAlarmsAllowed, getLastSync, getStickyPref, requestExactAlarms, sch
 import { useThemePref } from "@/lib/theme-pref";
 import { setKazaStickyPref } from "@/lib/kaza";
 import { getMessagePref, markInboxSeen, setMessagePref } from "@/lib/inbox";
+import { unregisterPushDevice } from "@/lib/push";
 import { hideAllDayCardNotifications, hideKazaNotification, scheduleDayCardNotificationsJson } from "../../../modules/day-card-notification";
 import { Bell, BookOpen, CalendarCheck, LogOut, Monitor, Moon, Palette, Pencil, Sun, Users, Wallet } from "lucide-react-native";
 import { fonts, useColors } from "@/lib/theme";
@@ -161,7 +162,7 @@ export default function ProfileScreen() {
           <Row style={{ justifyContent: "space-between", borderTopWidth: 1, borderTopColor: c.border, paddingTop: 10 }}>
             <View style={{ flex: 1 }}>
               <Text style={{ fontFamily: fonts.semibold, fontSize: 14, color: c.foreground }}>Grup mesajları</Text>
-              <Muted>Okuyucuların grup sohbetine yazdığı mesajlar, fotoğraflar ve anketler bildirim olarak gelir. Uygulama kapalıyken telefon izin verdikçe (yaklaşık 15 dakikada bir) kontrol edilir.</Muted>
+              <Muted>Okuyucuların grup sohbetine yazdığı mesajlar, fotoğraflar, anketler ve okuma işaretlemeleri bildirim olarak gelir.</Muted>
             </View>
             <Switch
               value={msgNotify}
@@ -237,6 +238,8 @@ export default function ProfileScreen() {
                 scheduleDayCardNotificationsJson("[]");
                 hideKazaNotification();
                 await setKazaStickyPref(false);
+                // Bu telefona artık bu hesabın anlık bildirimi gelmesin (oturum kapanmadan önce)
+                await unregisterPushDevice(fetcher);
                 await signOut();
               },
             },

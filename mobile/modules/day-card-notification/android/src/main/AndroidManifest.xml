@@ -5,6 +5,12 @@
     <receiver android:name="expo.modules.daycard.DayCardAlarmReceiver" android:exported="false" />
     <receiver android:name="expo.modules.daycard.KazaReceiver" android:exported="false" />
     <receiver android:name="expo.modules.daycard.InboxReceiver" android:exported="false" />
+    <!-- Anlık bildirim: expo-notifications'ın servisi -1 önceliklidir, mesajlar buraya gelir -->
+    <service android:name="expo.modules.daycard.PushService" android:exported="false">
+      <intent-filter>
+        <action android:name="com.google.firebase.MESSAGING_EVENT" />
+      </intent-filter>
+    </service>
     <receiver android:name="expo.modules.daycard.DayCardBootReceiver" android:exported="true">
       <intent-filter>
         <action android:name="android.intent.action.BOOT_COMPLETED" />

@@ -14,6 +14,15 @@ android {
   }
 }
 
+// expo-notifications hazır derlenmiş paket olarak gelir (kaynak proje değil): kendi yerel deposundan çözülür
+repositories {
+  maven { url new File(rootDir, "../node_modules/expo-notifications/local-maven-repo") }
+}
+
 dependencies {
   implementation "androidx.core:core-ktx:1.17.0"
+  // Anlık bildirim (Firebase): sürüm expo-notifications ile aynı
+  implementation 'com.google.firebase:firebase-messaging:25.0.1'
+  // Planlı hatırlatmaları yerelden iptal edebilmek için (uygulamada zaten var)
+  compileOnly "host.exp.exponent:expo.modules.notifications:+"
 }

@@ -17,6 +17,7 @@ import { groupAdminIds, notifyUsers } from "@/lib/notify";
 import { canPost, replyTarget, replyView } from "@/lib/chat";
 import { booksOf, teamsActive } from "@/lib/rules";
 import { publish } from "@/lib/realtime";
+import { pushData } from "@/lib/fcm";
 import { checkMediaUrl, destroyMedia, mediaView, uploadTicket } from "@/lib/media";
 import { submitReading, type ReportChoice } from "@/lib/reading";
 import { DAY, MIN, formatDateTime, timeToMinute } from "@/lib/schedule";
@@ -678,7 +679,7 @@ export async function sendMessage(_: Prev, fd: FormData) {
         badge: null,
       },
     });
-    notifyChat(member.group, user.id, `💬 ${member.group.name}`, `${shownName(user, member.group.nameDisplay)}: ${text}`);
+    notifyChat(member.group, user.id, `💬 ${member.group.name}`, `${shownName(user, member.group.nameDisplay)}: ${text}`, { id: m.id, author: shownName(user, member.group.nameDisplay), text, createdAt: m.createdAt });
     return { id: m.id };
   });
 }
@@ -717,7 +718,7 @@ export async function sendImage(_: Prev, fd: FormData) {
         image: mediaView(m),
       },
     });
-    notifyChat(member.group, user.id, `📷 ${member.group.name}`, `${shownName(user, member.group.nameDisplay)}: ${text ?? "Fotoğraf gönderdi"}`);
+    notifyChat(member.group, user.id, `📷 ${member.group.name}`, `${shownName(user, member.group.nameDisplay)}: ${text ?? "Fotoğraf gönderdi"}`, { id: m.id, author: shownName(user, member.group.nameDisplay), text: `📷 ${text ?? "Fotoğraf"}`, createdAt: m.createdAt });
     return { id: m.id };
   });
 }
@@ -741,7 +742,7 @@ export async function createPoll(_: Prev, fd: FormData) {
     const poll = await db.poll.create({ data: { messageId: m.id, question, multiple: str(fd, "multiple") === "1" } });
     await db.pollOption.createMany({ data: options.map((text, position) => ({ pollId: poll.id, text, position })) });
     await publish(groupId, { type: "refresh", reason: "poll" });
-    notifyChat(member.group, user.id, `📊 ${member.group.name}`, `${shownName(user, member.group.nameDisplay)} anket açtı: ${question}`);
+    notifyChat(member.group, user.id, `📊 ${member.group.name}`, `${shownName(user, member.group.nameDisplay)} anket açtı: ${question}`, { id: m.id, author: shownName(user, member.group.nameDisplay), text: `📊 ${question}`, createdAt: m.createdAt });
     return { id: m.id, message: "Anket gönderildi" };
   });
 }
@@ -803,14 +804,15 @@ export async function reactMessage(_: Prev, fd: FormData) {
 }
 
 /** Gruba yazılan mesaj diğer üyelere bildirim olarak gider (yanıttan sonra, arka planda) */
-function notifyChat(group: { id: string; name: string }, authorId: string, title: string, body: string) {
+function notifyChat(group: { id: string; name: string }, authorId: string, title: string, body: string, item: { id: string; author: string; text: string; createdAt: Date }) {
   after(async () => {
-    const others = await getDb().groupMember.findMany({ where: { groupId: group.id, status: "ACTIVE", userId: { not: authorId } }, select: { userId: true } });
-    await notifyUsers(
-      others.map((o) => o.userId),
-      { title, body: body.length > 140 ? `${body.slice(0, 137)}…` : body, url: `/gruplar/${group.id}`, tag: `msg-${group.id}`, renotify: true },
-      { push: true },
-    ).catch((e) => console.error("mesaj bildirimi", e));
+    const others = (await getDb().groupMember.findMany({ where: { groupId: group.id, status: "ACTIVE", userId: { not: authorId } }, select: { userId: true } })).map((o) => o.userId);
+    await Promise.all([
+      // Tarayıcı bildirimi
+      notifyUsers(others, { title, body: body.length > 140 ? `${body.slice(0, 137)}…` : body, url: `/gruplar/${group.id}`, tag: `msg-${group.id}`, renotify: true }, { push: true }).catch((e) => console.error("mesaj bildirimi", e)),
+      // Telefondaki uygulamaya anında (uygulama grup bildirimi olarak gösterir)
+      pushData(others, { type: "msg", id: item.id, groupId: group.id, groupName: group.name, author: item.author, text: item.text.slice(0, 200), createdAt: item.createdAt.toISOString() }),
+    ]);
   });
 }
 

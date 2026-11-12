@@ -6,6 +6,7 @@ import { AppState, Pressable, Text } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApi, useApiFetch } from "@/lib/api";
 import { checkInbox, markInboxSeen, refreshInboxToken } from "@/lib/inbox";
+import { registerPushDevice } from "@/lib/push";
 import { LITE } from "@/lib/variant";
 import { getKazaStickyPref, syncKazaCard, type KazaState } from "@/lib/kaza";
 import { exactAlarmsAllowed, handleReportAction, requestExactAlarms, setupNotifications, syncSchedule, type ReportData, SCHEDULE_PATH, setDayCards } from "@/lib/notifications";
@@ -53,6 +54,8 @@ export function NotificationBridge() {
   // Mesaj bildirimi için arka plan token'ı; uygulama açıkken görülen mesajlar sonradan bildirilmez
   useEffect(() => {
     refreshInboxToken(fetcher).catch(() => {});
+    // Anlık bildirim için cihaz kaydı (Firebase ayarlıysa)
+    registerPushDevice(fetcher).catch(() => {});
     markInboxSeen();
   }, [fetcher]);
 

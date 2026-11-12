@@ -3,6 +3,9 @@ package expo.modules.daycard
 import android.content.ComponentName
 import android.content.pm.PackageManager
 import androidx.core.app.NotificationManagerCompat
+import com.google.firebase.FirebaseApp
+import com.google.firebase.messaging.FirebaseMessaging
+import expo.modules.kotlin.Promise
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import org.json.JSONArray
@@ -49,6 +52,26 @@ class DayCardNotificationModule : Module() {
 
     Function("dismissMessages") { groupId: String ->
       InboxPoller.dismiss(context, groupId)
+    }
+
+    // Ekranda açık olan sohbet: onun anlık mesajları bildirilmez
+    Function("setOpenChat") { groupId: String ->
+      InboxPoller.openChat = groupId.ifEmpty { null }
+    }
+
+    // Anlık bildirim (Firebase) cihaz kaydı; Firebase ayarlı değilse boş döner
+    AsyncFunction("getPushToken") { promise: Promise ->
+      try {
+        if (FirebaseApp.getApps(context).isEmpty()) {
+          promise.resolve("")
+        } else {
+          FirebaseMessaging.getInstance().token
+            .addOnSuccessListener { promise.resolve(it ?: "") }
+            .addOnFailureListener { promise.resolve("") }
+        }
+      } catch (_: Throwable) {
+        promise.resolve("")
+      }
     }
 
     Function("hideKaza") {
