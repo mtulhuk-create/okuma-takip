@@ -5,7 +5,7 @@ import * as Notifications from "expo-notifications";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 import { API_URL } from "./config";
-import { configureInboxPoller, dismissInboxMessages, setInboxPollerAfter, showInboxMessages } from "../../modules/day-card-notification";
+import { configureInboxPoller, dismissInboxMessages, setInboxPollerAfter, setNativeOpenChat, showInboxMessages } from "../../modules/day-card-notification";
 
 const TOKEN_KEY = "inbox-token";
 const AFTER_KEY = "inbox-after";
@@ -30,6 +30,7 @@ async function syncPoller() {
 let openChat: string | null = null;
 export function setOpenChat(groupId: string | null) {
   openChat = groupId;
+  setNativeOpenChat(groupId);
   if (groupId) {
     dismissInboxMessages(groupId);
     Notifications.dismissNotificationAsync(`msg-${groupId}`).catch(() => {});

@@ -29,6 +29,33 @@ object InboxPoller {
 
   private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
+  /** Uygulamada şu an açık olan sohbet (onun mesajları bildirilmez) */
+  @Volatile
+  var openChat: String? = null
+
+  /** Daha önce bildirilen mesaj kimlikleri: anlık mesaj ile aralıklı kontrol aynı mesajı iki kez göstermesin */
+  @Synchronized
+  private fun firstTime(context: Context, id: String): Boolean {
+    if (id.isEmpty()) return true
+    val p = prefs(context)
+    val seen = (p.getString("shown", "") ?: "").split('|').filter { it.isNotEmpty() }
+    if (id in seen) return false
+    p.edit().putString("shown", (seen + id).takeLast(200).joinToString("|")).apply()
+    return true
+  }
+
+  /** Sunucudan anında gelen mesaj (Firebase) */
+  fun onPush(context: Context, d: Map<String, String>) {
+    if (!prefs(context).getBoolean("enabled", false)) return
+    val groupId = d["groupId"] ?: return
+    val m = JSONObject()
+    for ((k, v) in d) m.put(k, v)
+    // Sohbet ekranda açıksa bildirim gösterilmez (yine de görülmüş sayılır)
+    val skip = if (appInForeground(context)) openChat else null
+    showAll(context, org.json.JSONArray().put(m), skip)
+    if (skip == groupId) firstTime(context, d["id"] ?: "")
+  }
+
   private fun intent(context: Context): PendingIntent {
     val i = Intent(context, InboxReceiver::class.java).setAction(ACTION_POLL)
     return PendingIntent.getBroadcast(context, 7301, i, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
@@ -105,6 +132,7 @@ object InboxPoller {
       val m = list.optJSONObject(i) ?: continue
       val gid = m.optString("groupId")
       if (gid.isEmpty() || gid == skipGroupId) continue
+      if (!firstTime(context, m.optString("id"))) continue
       groups.getOrPut(gid) { mutableListOf() }.add(m)
     }
     for ((groupId, msgs) in groups) show(context, groupId, msgs)

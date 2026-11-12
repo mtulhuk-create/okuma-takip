@@ -110,6 +110,7 @@ model User {
   invitesSent       Invitation[]        @relation("Inviter")
   joinRequests      JoinRequest[]
   pushSubscriptions PushSubscription[]
+  pushDevices       PushDevice[]
   notifications     Notification[]
   messages          Message[]
   reactions         MessageReaction[]
@@ -574,4 +575,16 @@ model MessageReaction {
 
   @@unique([messageId, userId])
   @@index([messageId])
+}
+
+/// Mobil uygulamanın anlık bildirim (Firebase) cihaz kaydı
+model PushDevice {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }

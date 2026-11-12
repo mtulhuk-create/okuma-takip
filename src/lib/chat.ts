@@ -8,6 +8,7 @@ import { memberStreaks, streakTag } from "./history";
 import { teamTiers } from "./rules";
 import { dueView } from "./due-view";
 import { mediaEnabled, mediaView } from "./media";
+import { pushLater } from "./fcm";
 import { publish } from "./realtime";
 import { MIN, currentPeriod, defaultDueAt, openPeriod } from "./schedule";
 
@@ -124,6 +125,8 @@ export async function getChatPage(groupId: string, userId: string, before?: Date
       await db.groupMember.update({ where: { id: me.id }, data: { lastReadAt: myReadAt } });
       // Yazanların tikleri güncellensin
       await publish(groupId, { type: "refresh", reason: "read" });
+      // Sohbet başka cihazda okundu: telefondaki mesaj bildirimi kalkar (yanıtı bekletmeden)
+      pushLater([userId], { type: "read", groupId });
     }
   }
   const today = currentPeriod(new Date(), group).dayKey;

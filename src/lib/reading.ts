@@ -1,6 +1,8 @@
+import type { Group, Team } from "@prisma/client";
 import { after } from "next/server";
 import { propagateLinkedBooks } from "./book-links";
 import { getDb } from "./db";
+import { fcmEnabled, pushData } from "./fcm";
 import { shownName } from "./names";
 import { notifyUsers } from "./notify";
 import { parseBookLogs, penaltyFor, rulesFor, type BookLog } from "./rules";
@@ -32,21 +34,49 @@ export function markLabel(log: { pages: number; requiredPages: number; minPages:
   return log.pages >= log.minPages ? `☑️ Alt sınırı okudu · ${log.pages} sf` : `📖 ${log.pages} sf okudu`;
 }
 
-/** İşaretleme yapılınca grubun diğer okuyucularına bildirim (yanıttan sonra, arka planda) */
-function notifyMark(group: { id: string; name: string; nameDisplay: Parameters<typeof shownName>[1]; dayDetails: boolean }, userId: string, log: Parameters<typeof markLabel>[0]) {
+type MarkLog = Parameters<typeof markLabel>[0] & { id: string; updatedAt: Date; books: unknown };
+
+/**
+ * İşaretleme yapılınca (ya da geri alınınca), yanıttan sonra arka planda:
+ * - diğer okuyuculara bildirim: "Ad: Okudu · 50 sf" (tarayıcı + telefondaki uygulama)
+ * - herkesin telefonundaki sabit gün kartı anında güncellenir (kaç kişi okudu çubuğu)
+ * - işaretleyenin diğer cihazlarında o günün hatırlatmaları iptal edilir, kartı güncellenir
+ * log null: bildirim geri alındı (yalnızca kartlar güncellenir).
+ */
+function notifyMark(group: Group & { teams: Team[] }, userId: string, dayKey: string, log: MarkLog | null) {
   const run = async () => {
     const db = getDb();
-    const [user, others] = await Promise.all([
+    const [user, members] = await Promise.all([
       db.user.findUnique({ where: { id: userId }, select: { name: true, accountName: true } }),
-      db.groupMember.findMany({ where: { groupId: group.id, status: "ACTIVE", userId: { not: userId } }, select: { userId: true } }),
+      db.groupMember.findMany({ where: { groupId: group.id, status: "ACTIVE" }, include: { user: { select: { id: true, name: true, accountName: true, imageUrl: true } } } }),
     ]);
-    if (!user || !others.length) return;
-    await notifyUsers(
-      others.map((o) => o.userId),
+    if (!user) return;
+    const others = members.filter((m) => m.userId !== userId).map((m) => m.userId);
+    const name = shownName(user, group.nameDisplay);
+    const jobs: Promise<unknown>[] = [];
+    if (log && others.length) {
+      const label = markLabel(log, group.dayDetails);
       // Aynı kişinin art arda işaretlemeleri tek bildirimde güncellenir
-      { title: `📖 ${group.name}`, body: `${shownName(user, group.nameDisplay)}: ${markLabel(log, group.dayDetails)}`, url: `/gruplar/${group.id}`, tag: `mark-${group.id}-${userId}`, renotify: true },
-      { push: true },
-    );
+      jobs.push(notifyUsers(others, { title: `📖 ${group.name}`, body: `${name}: ${label}`, url: `/gruplar/${group.id}`, tag: `mark-${group.id}-${userId}`, renotify: true }, { push: true }));
+      // Kimlik, mesaj akışındaki (aralıklı kontrol) kimlikle aynı: telefonda iki kez gösterilmez
+      jobs.push(pushData(others, { type: "msg", id: `mark-${log.id}-${log.updatedAt.getTime()}`, groupId: group.id, groupName: group.name, author: name, text: label, createdAt: log.updatedAt.toISOString() }));
+    }
+    if (fcmEnabled()) {
+      // Sabit gün kartı: gruptaki herkesin kartındaki çubuk ve sayılar
+      const { getDayCards } = await import("./day");
+      const card = (await getDayCards(group, members.map((m) => ({ ...m, user: { ...m.user, name: shownName(m.user, group.nameDisplay) } })), [dayKey], userId))[dayKey];
+      if (card) {
+        const kef = card.read.filter((p) => p.kefaret).length;
+        const seg = { kef, read: card.read.length - kef, min: card.min.length, none: card.none.length, pending: card.pending.length };
+        jobs.push(
+          pushData(members.map((m) => m.userId), { type: "card", groupId: group.id, dayKey, seg: JSON.stringify(seg), done: String(card.read.length + card.min.length), total: String(seg.kef + seg.read + seg.min + seg.none + seg.pending), kefCount: String(kef) }),
+        );
+      }
+      // İşaretleyenin kendi cihazları: hatırlatmalar iptal, kartındaki seçili butonlar güncel
+      const books = parseBookLogs(log?.books).map((b) => ({ id: b.id, pages: b.pages }));
+      jobs.push(pushData([userId], { type: "reported", groupId: group.id, dayKey, reported: log ? "1" : "0", books: JSON.stringify(books), kefaretOn: log && log.kefaret > 0 ? "1" : "0" }));
+    }
+    await Promise.allSettled(jobs);
   };
   try {
     after(() => run().catch((e) => console.error("işaretleme bildirimi", e)));
@@ -130,6 +160,7 @@ export async function submitReading(userId: string, groupId: string, input: Repo
   if ((input.toggle && unchanged && existing) || (existing && books.every((b) => b.pages == null))) {
     await db.readingLog.delete({ where: { id: existing.id } });
     if (late) await fixSettledPenalty(member.group, member, period.dayKey, 0, rules);
+    else notifyMark(member.group, userId, period.dayKey, null);
     return { log: null, period, member, rules, undone: true as const };
   }
 
@@ -151,7 +182,7 @@ export async function submitReading(userId: string, groupId: string, input: Repo
   // Diğer gruplarda "aynı eser" olarak bağlanan kitaplar da işaretlenir (orada hedef kadar)
   else await propagateLinkedBooks(userId, groupId, books).catch(() => {});
   // Gün kapandıktan sonra gelen (çevrimdışı) işlemler bildirilmez
-  if (!late) notifyMark(member.group, userId, log);
+  if (!late) notifyMark(member.group, userId, period.dayKey, log);
   return { log, period, member, rules, undone: false as const };
 }
 

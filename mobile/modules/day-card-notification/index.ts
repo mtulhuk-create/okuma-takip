@@ -39,6 +39,8 @@ type Native = {
   configureInbox?(apiUrl: string, token: string, enabled: boolean): void;
   setInboxAfter?(iso: string): void;
   showMessages?(json: string, skipGroupId: string): void;
+  setOpenChat?(groupId: string): void;
+  getPushToken?(): Promise<string>;
   dismissMessages?(groupId: string): void;
   setAppIcon?(name: string): void;
 };
@@ -120,4 +122,19 @@ export function dismissInboxMessages(groupId: string) {
   try {
     native?.dismissMessages?.(groupId);
   } catch {}
+}
+
+/** Ekranda açık olan sohbeti yerel tarafa bildirir (onun anlık mesajları bildirim olmaz) */
+export function setNativeOpenChat(groupId: string | null) {
+  try {
+    native?.setOpenChat?.(groupId ?? "");
+  } catch {}
+}
+/** Anlık bildirim (Firebase) cihaz kaydı; Firebase ayarlı değilse ya da alınamazsa null */
+export async function getPushToken() {
+  try {
+    return (await native?.getPushToken?.()) || null;
+  } catch {
+    return null;
+  }
 }
