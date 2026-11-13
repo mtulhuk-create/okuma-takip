@@ -5,8 +5,9 @@ import { useAction, useApi } from "@/lib/api";
 import { fonts, KEFARET, useColors } from "@/lib/theme";
 import { Card, Muted, Row } from "./ui";
 import { showAlert } from "@/lib/dialog";
+import { formatAmount } from "@/lib/types";
 
-type KRow = { userId: string; name: string; teamName: string | null; penaltyTotal: number; discountTotal: number; pages: number; target: number; dailyExtra: number; days: number; active: boolean };
+type KRow = { userId: string; name: string; teamName: string | null; penaltyTotal: number; discountTotal: number; pages: number; target: number; unit?: "PAGES" | "MINUTES"; dailyExtra: number; days: number; active: boolean };
 type KPlan = { id: string; name: string; status: "ACTIVE" | "DONE"; discountPercent: number; discountTotal: number; earned: number; dailyExtra: number; days: number; doneDays: number };
 type KData = { discount: number; raise: number; maxDays: number; pageValue: number; rows: KRow[]; plans: KPlan[] };
 
@@ -86,13 +87,13 @@ export function KefaretPanel({ groupId }: { groupId: string }) {
                   {r.name}
                 </Text>
                 <Text numberOfLines={1} style={{ fontFamily: fonts.regular, fontSize: 9, color: c.mutedForeground }}>
-                  {r.active ? "süren kefareti var" : `${r.pages} sf kefaret${r.teamName ? ` · ${r.teamName}` : ""}`}
+                  {r.active ? "süren kefareti var" : `${formatAmount(r.pages, r.unit)} kefaret${r.teamName ? ` · ${r.teamName}` : ""}`}
                 </Text>
               </View>
               <Text style={{ ...cell, flex: 1, textAlign: "right" }}>{r.penaltyTotal} TL</Text>
               <Text style={{ ...cell, flex: 1, textAlign: "right", fontFamily: fonts.bold, color: KEFARET }}>{r.discountTotal} TL</Text>
               <Text style={{ ...cell, flex: 1, textAlign: "right" }}>
-                {r.target + r.dailyExtra} sf
+                {formatAmount(r.target + r.dailyExtra, r.unit)}
               </Text>
               <Text style={{ ...cell, flex: 1, textAlign: "right", fontFamily: fonts.bold, color: r.days > data.maxDays ? c.destructive : c.foreground }}>{r.days}</Text>
             </Row>

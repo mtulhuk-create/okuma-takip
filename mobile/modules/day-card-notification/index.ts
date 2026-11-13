@@ -26,6 +26,8 @@ export type DayCardPayload = {
   fineMin: number;
   fineNone: number;
   kefaretLine: string | null;
+  /** Okuma hesabı: saat hesabında target/min/pages dakika */
+  unit?: "PAGES" | "MINUTES";
 };
 
 type Native = {

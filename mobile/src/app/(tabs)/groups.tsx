@@ -11,7 +11,7 @@ import { useAction, useApi } from "@/lib/api";
 import { LITE } from "@/lib/variant";
 import { minuteToTime } from "@/lib/format";
 import { fonts, STATE, useColors } from "@/lib/theme";
-import { booksOf, describePenalty, teamsActive, type GroupsResponse } from "@/lib/types";
+import { booksOf, describePenalty, formatAmount, teamsActive, type GroupsResponse } from "@/lib/types";
 
 const MONTHS = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"];
 const shortDate = (iso: string) => {
@@ -132,7 +132,7 @@ export default function GroupsScreen() {
           : done
             ? { text: "Okudun", bg: STATE.read, fg: "#fff", Icon: Check }
             : partial
-              ? { text: `${t.myPages}/${t.myTarget} sf`, bg: STATE.min, fg: "#fff", Icon: BookOpen }
+              ? { text: t.unit === "MINUTES" ? `${formatAmount(t.myPages ?? 0, t.unit)} / ${formatAmount(t.myTarget, t.unit)}` : `${t.myPages}/${t.myTarget} sf`, bg: STATE.min, fg: "#fff", Icon: BookOpen }
               : t.open
                 ? { text: "Bekliyor", bg: c.primary + "1a", fg: c.primary, Icon: Clock }
                 : { text: "Kapandı", bg: c.muted, fg: c.mutedForeground, Icon: Clock };
@@ -175,7 +175,7 @@ export default function GroupsScreen() {
                   <>
                     <Row gap={4}>
                       <Target size={12} color={c.primary} />
-                      <Text style={{ fontFamily: fonts.regular, fontSize: 11.5, color: c.mutedForeground }}>{t.myTarget} sf</Text>
+                      <Text style={{ fontFamily: fonts.regular, fontSize: 11.5, color: c.mutedForeground }}>{formatAmount(t.myTarget, t.unit)}</Text>
                     </Row>
                     <Row gap={4}>
                       <Coins size={12} color={c.primary} />
@@ -255,7 +255,7 @@ export default function GroupsScreen() {
                   ...(hasTeams
                     ? []
                     : [
-                        { Icon: Target, label: "Günlük", value: `${g.targetPages} sayfa · alt sınır ${g.minPages}` },
+                        { Icon: Target, label: "Günlük", value: `${formatAmount(g.targetPages, g.readUnit, true)} · alt sınır ${formatAmount(g.minPages, g.readUnit)}` },
                         { Icon: Coins, label: "Ceza", value: describePenalty(g) },
                       ]),
                   { Icon: AlarmClock, label: "Son bildirim", value: minuteToTime(g.deadlineMinute) },
@@ -269,7 +269,7 @@ export default function GroupsScreen() {
                       <Shield size={12} color={c.primary} style={{ marginTop: 2 }} />
                       <Text style={{ flex: 1, fontFamily: fonts.regular, fontSize: 11.5, color: c.foreground }}>
                         <Text style={{ fontFamily: fonts.semibold }}>{t.name}: </Text>
-                        günde {t.targetPages} sayfa · alt sınır {t.minPages} · {describePenalty(t)}
+                        günde {formatAmount(t.targetPages, t.readUnit, true)} · alt sınır {formatAmount(t.minPages, t.readUnit)} · {describePenalty(t)}
                       </Text>
                     </Row>
                   ))}

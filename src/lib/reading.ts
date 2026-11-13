@@ -2,10 +2,11 @@ import type { Group, Team } from "@prisma/client";
 import { after } from "next/server";
 import { propagateLinkedBooks } from "./book-links";
 import { getDb } from "./db";
+import { authorBadge } from "./author-badge";
 import { fcmEnabled, pushData } from "./fcm";
 import { shownName } from "./names";
 import { notifyUsers } from "./notify";
-import { parseBookLogs, penaltyFor, rulesFor, type BookLog } from "./rules";
+import { MINUTE_STEP, formatAmount, parseBookLogs, penaltyFor, rulesFor, type BookLog, type ReadUnit } from "./rules";
 import { openPeriod, periodFor } from "./schedule";
 
 /** all/min/none: tüm eserler için · pages: toplam sayfa (eserlere sırayla dağıtılır) · book: tek eser */
@@ -26,12 +27,13 @@ export type ReportInput = {
  * Bir işaretlemenin kısa anlatımı (bildirimlerde): okudu / alt sınırı okudu / okumadı + sayfa.
  * Grupta gün kartı ayrıntısı kapalıysa yalnızca "bildirimini yaptı" denir.
  */
-export function markLabel(log: { pages: number; requiredPages: number; minPages: number; kefaret: number }, details: boolean) {
+export function markLabel(log: { pages: number; requiredPages: number; minPages: number; kefaret: number; unit?: ReadUnit | null }, details: boolean) {
   if (!details) return "📖 Bildirimini yaptı";
-  if (log.kefaret > 0) return `📗 Kefaret okuması yaptı · ${log.pages} sf`;
-  if (log.pages >= log.requiredPages && log.pages > 0) return `✅ Okudu · ${log.pages} sf`;
+  const f = formatAmount(log.pages, log.unit);
+  if (log.kefaret > 0) return `📗 Kefaret okuması yaptı · ${f}`;
+  if (log.pages >= log.requiredPages && log.pages > 0) return `✅ Okudu · ${f}`;
   if (log.pages === 0) return "❌ Okumadı";
-  return log.pages >= log.minPages ? `☑️ Alt sınırı okudu · ${log.pages} sf` : `📖 ${log.pages} sf okudu`;
+  return log.pages >= log.minPages ? `☑️ Alt sınırı okudu · ${f}` : `📖 ${f} okudu`;
 }
 
 type MarkLog = Parameters<typeof markLabel>[0] & { id: string; updatedAt: Date; books: unknown };
@@ -59,7 +61,8 @@ function notifyMark(group: Group & { teams: Team[] }, userId: string, dayKey: st
       // Aynı kişinin art arda işaretlemeleri tek bildirimde güncellenir
       jobs.push(notifyUsers(others, { title: `📖 ${group.name}`, body: `${name}: ${label}`, url: `/gruplar/${group.id}`, tag: `mark-${group.id}-${userId}`, renotify: true }, { push: true }));
       // Kimlik, mesaj akışındaki (aralıklı kontrol) kimlikle aynı: telefonda iki kez gösterilmez
-      jobs.push(pushData(others, { type: "msg", id: `mark-${log.id}-${log.updatedAt.getTime()}`, groupId: group.id, groupName: group.name, author: name, text: label, createdAt: log.updatedAt.toISOString() }));
+      const badge = await authorBadge(group.id, userId).catch(() => null);
+      jobs.push(pushData(others, { type: "msg", id: `mark-${log.id}-${log.updatedAt.getTime()}`, groupId: group.id, groupName: group.name, author: name, text: label, createdAt: log.updatedAt.toISOString(), ...(badge ?? {}) }));
     }
     if (fcmEnabled()) {
       // Sabit gün kartı: gruptaki herkesin kartındaki çubuk ve sayılar
@@ -132,7 +135,9 @@ export async function submitReading(userId: string, groupId: string, input: Repo
     const total = books.reduce((s, b) => s + b.target, 0) || 1;
     let left = plan.dailyExtra;
     books = books.map((b, i) => {
-      const share = i === books.length - 1 ? left : Math.min(left, Math.floor((plan.dailyExtra * b.target) / total));
+      // Saat hesabında paylar 15 dakikanın katı
+      const step = rules.readUnit === "MINUTES" ? MINUTE_STEP : 1;
+      const share = i === books.length - 1 ? left : Math.min(left, Math.floor((plan.dailyExtra * b.target) / total / step) * step);
       left -= share;
       return { ...b, pages: b.target + share };
     });
@@ -147,7 +152,10 @@ export async function submitReading(userId: string, groupId: string, input: Repo
   else if (input.choice === "none") books = books.map((b) => ({ ...b, pages: 0 }));
   else {
     let left = Math.floor(Number(input.pages));
-    if (!Number.isFinite(left) || left < 0 || left > 5000) throw new Error("Geçerli bir sayfa sayısı girin");
+    if (rules.readUnit === "MINUTES") {
+      // Saat hesabı: 15 dakikalık adımlar
+      if (!Number.isFinite(left) || left < 0 || left > 1440 || left % MINUTE_STEP) throw new Error("Süreyi 15 dakikanın katı olarak girin (15, 30, 45, 1 saat…)");
+    } else if (!Number.isFinite(left) || left < 0 || left > 5000) throw new Error("Geçerli bir sayfa sayısı girin");
     books = books.map((b, i) => {
       const p = i === books.length - 1 ? left : Math.min(left, b.target);
       left -= p;
@@ -168,6 +176,7 @@ export async function submitReading(userId: string, groupId: string, input: Repo
     pages: books.reduce((s, b) => s + (b.pages ?? 0), 0),
     requiredPages: rules.targetPages,
     minPages: rules.minPages,
+    unit: rules.readUnit,
     books,
     kefaret: kefaret.extra,
     kefaretPlanId: kefaret.planId,
@@ -180,7 +189,7 @@ export async function submitReading(userId: string, groupId: string, input: Repo
   // Gün kapandıktan sonra gelen çevrimdışı işlem: yazılmış cezayı yeni bildirime göre düzelt
   if (late) await fixSettledPenalty(member.group, member, period.dayKey, log.pages, { ...rules, targetPages: log.requiredPages, minPages: log.minPages });
   // Diğer gruplarda "aynı eser" olarak bağlanan kitaplar da işaretlenir (orada hedef kadar)
-  else await propagateLinkedBooks(userId, groupId, books).catch(() => {});
+  else await propagateLinkedBooks(userId, groupId, books, rules.readUnit).catch(() => {});
   // Gün kapandıktan sonra gelen (çevrimdışı) işlemler bildirilmez
   if (!late) notifyMark(member.group, userId, period.dayKey, log);
   return { log, period, member, rules, undone: false as const };

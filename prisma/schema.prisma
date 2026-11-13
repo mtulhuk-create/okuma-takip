@@ -55,6 +55,12 @@ enum ChatPolicy {
   ADMINS // yalnızca yöneticiler yazabilir
 }
 
+/// Okuma hesabı: sayfa ya da süre (dakika; 15'in katları)
+enum ReadUnit {
+  PAGES
+  MINUTES
+}
+
 enum MessageKind {
   TEXT
   DAY // her okuma günü için otomatik gün kartı
@@ -136,7 +142,8 @@ model Group {
   // Okuma kuralları
   // Okuma kuralları (ekipler kapalıyken tüm grup için geçerli)
   penaltyMode    PenaltyMode @default(FIXED)
-  targetPages    Int         @default(20) // günlük okuma hedefi
+  readUnit       ReadUnit    @default(PAGES) // okuma hesabı: sayfa ya da süre (MINUTES: hedef/alt sınır dakika)
+  targetPages    Int         @default(20) // günlük okuma hedefi (sayfa ya da dakika)
   minPages       Int         @default(10) // alt sınır
   penaltyAmount  Int         @default(20) // TL (sabit) ya da eksik sayfa başına TL
   minDiscount    Int         @default(50) // alt sınırı okuyanlara cezada % indirim (sabit cezada)
@@ -207,6 +214,7 @@ model ReadingLog {
   pages         Int
   requiredPages Int // o günkü hedef
   minPages      Int      @default(0) // o günkü alt sınır
+  unit          ReadUnit @default(PAGES) // o günkü okuma hesabı (pages/requiredPages/minPages dakika olabilir)
   books         Json? // eser bazında: [{id, title, pages, target, min}]
   kefaret       Int      @default(0) // kefaret okumasıyla hedefin üstüne okunan ek sayfa
   kefaretPlanId String?
@@ -397,6 +405,7 @@ model Team {
   name          String
   position      Int                 @default(0)
   penaltyMode   PenaltyMode         @default(FIXED)
+  readUnit      ReadUnit            @default(PAGES)
   targetPages   Int                 @default(20)
   minPages      Int                 @default(10)
   penaltyAmount Int                 @default(20)

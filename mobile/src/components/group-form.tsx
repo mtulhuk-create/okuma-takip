@@ -3,7 +3,7 @@ import { AlarmClock, AtSign, BookOpen, ChevronDown, Globe, Landmark, Lock, Penci
 import { useState } from "react";
 import { Pressable, Switch, Text, View } from "react-native";
 import { fonts, useColors } from "@/lib/theme";
-import { booksOf, type Group, type Rules } from "@/lib/types";
+import { booksOf, formatAmount, type Group, type Rules } from "@/lib/types";
 import { TimeField } from "./pickers";
 import { RulesEditor } from "./rules-editor";
 import { Button, Card, Input, Muted, Row, Segmented } from "./ui";
@@ -11,10 +11,10 @@ import { showAlert } from "@/lib/dialog";
 
 export type GroupFormValues = Record<string, string | number>;
 type TeamDraft = Rules & { id?: string; name: string; key: string };
-const DEFAULT_RULES: Rules = { penaltyMode: "FIXED", targetPages: 20, minPages: 10, penaltyAmount: 20, minDiscount: 50, books: [{ id: "kitap1", title: "Risale-i Nur Külliyatı", targetPages: 20, minPages: 10 }] };
+const DEFAULT_RULES: Rules = { penaltyMode: "FIXED", readUnit: "PAGES", targetPages: 20, minPages: 10, penaltyAmount: 20, minDiscount: 50, books: [{ id: "kitap1", title: "Risale-i Nur Külliyatı", targetPages: 20, minPages: 10 }] };
 const pick = (r: Omit<Rules, "books"> & { books?: unknown }): Rules => {
   const books = booksOf(r);
-  return { penaltyMode: r.penaltyMode, targetPages: books.reduce((s, b) => s + b.targetPages, 0), minPages: books.reduce((s, b) => s + b.minPages, 0), penaltyAmount: r.penaltyAmount, minDiscount: r.minDiscount, books };
+  return { penaltyMode: r.penaltyMode, readUnit: r.readUnit === "MINUTES" ? "MINUTES" : "PAGES", targetPages: books.reduce((s, b) => s + b.targetPages, 0), minPages: books.reduce((s, b) => s + b.minPages, 0), penaltyAmount: r.penaltyAmount, minDiscount: r.minDiscount, books };
 };
 
 /** Ayar bölümü: başlıkta güncel ayarın özeti; düzenlemede kapalı başlar, dokununca açılır */
@@ -61,7 +61,8 @@ function TeamCard({ team, index, canRemove, onChange, onRemove }: { team: TeamDr
         <RulesEditor value={team} onChange={(r) => onChange({ ...team, ...r })} />
       ) : (
         <Muted>
-          {team.books.length} eser · günde {team.targetPages} sayfa · alt sınır {team.minPages} · {team.penaltyMode === "FIXED" ? `${team.penaltyAmount} TL (%${team.minDiscount} indirim)` : `${team.penaltyAmount} TL/eksik sayfa`}
+          {team.readUnit === "MINUTES" ? "Saat hesabı" : "Sayfa hesabı"} · {team.books.length} eser · günde {formatAmount(team.targetPages, team.readUnit, true)} · alt sınır {formatAmount(team.minPages, team.readUnit)} ·{" "}
+          {team.penaltyMode === "FIXED" ? `${team.penaltyAmount} TL (%${team.minDiscount} indirim)` : `${team.penaltyAmount} TL/eksik ${team.readUnit === "MINUTES" ? "15 dk" : "sayfa"}`}
         </Muted>
       )}
     </View>
@@ -148,7 +149,7 @@ export function GroupForm({ group, onSubmit, submitting, submitLabel }: { group?
         icon={BookOpen}
         title="Okuma ve ceza kuralları"
         hint="Eserleri, günlük hedefi ve cezayı belirle. İstersen grubu ekiplere ayır."
-        summary={teamsEnabled ? `${teams.length} ekip · her ekibin kendi kuralı` : `${rules.books.map((x) => x.title).join(", ")} · günde ${rules.targetPages} sf · ${rules.penaltyMode === "FIXED" ? `${rules.penaltyAmount} TL/gün` : `${rules.penaltyAmount} TL/sayfa`}`}
+        summary={teamsEnabled ? `${teams.length} ekip · her ekibin kendi kuralı` : `${rules.books.map((x) => x.title).join(", ")} · günde ${formatAmount(rules.targetPages, rules.readUnit)} · ${rules.penaltyMode === "FIXED" ? `${rules.penaltyAmount} TL/gün` : `${rules.penaltyAmount} TL/${rules.readUnit === "MINUTES" ? "15 dk" : "sayfa"}`}`}
         collapsible={edit}
       >
         <Row style={{ justifyContent: "space-between" }}>
@@ -325,6 +326,7 @@ export function GroupForm({ group, onSubmit, submitting, submitLabel }: { group?
             shareProgress: shareProgress ? "1" : "0",
             ...rules,
             books: JSON.stringify(rules.books),
+            readUnit: rules.readUnit ?? "PAGES",
             teamsEnabled: teamsEnabled ? "1" : "0",
             teams: JSON.stringify(teams.map(({ key: _k, ...t }) => t)),
             startTime: time(startMinute),

@@ -3,8 +3,8 @@
 import { BOOK_CATALOG, DEFAULT_BOOK, isCatalogBook } from "@/lib/catalog";
 import { BookSuggestions, useAutoLink } from "./book-suggest";
 
-import { BookOpen, CalendarX2, Check, CheckCheck, FileMinus2, Minus, Percent, Plus, Trash2, X } from "lucide-react";
-import { penaltyFor, type Book, type Rules } from "@/lib/rules";
+import { BookOpen, CalendarX2, Check, CheckCheck, Clock, FileMinus2, Minus, Percent, Plus, Trash2, X } from "lucide-react";
+import { formatAmount, formatMinutes, penaltyFor, type Book, type ReadUnit, type Rules } from "@/lib/rules";
 
 export function Tiles<T extends string>({ value, onChange, options }: { value: T; onChange: (v: T) => void; options: { value: T; Icon: typeof Check; title: string; desc: string }[] }) {
   return (
@@ -98,10 +98,31 @@ function NumberField({ label, value, onChange, min, max }: { label: string; valu
   );
 }
 
+/** Saat hesabında süre seçimi: 15 dakikalık adımlar (15 dk, 30 dk, … 1 sa 15 dk …) */
+function DurationField({ label, value, onChange, min, max }: { label: string; value: number; onChange: (v: number) => void; min: number; max: number }) {
+  const options: number[] = [];
+  for (let m = min; m <= max; m += 15) options.push(m);
+  return (
+    <div className="min-w-0 flex-1">
+      <p className="mb-1 text-[11px] font-semibold text-muted-foreground">{label}</p>
+      <select value={value} onChange={(e) => onChange(Number(e.target.value))} className="input h-10 text-center font-bold">
+        {options.map((m) => (
+          <option key={m} value={m}>
+            {m === 0 ? "Yok" : formatMinutes(m)}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+/** Hesap değişince eserlerin hedefleri yeni birimin varsayılanlarına döner */
+const unitDefaults = (unit: ReadUnit) => (unit === "MINUTES" ? { targetPages: 60, minPages: 30 } : { targetPages: 20, minPages: 10 });
+
 const newBook = (): Book => ({ id: Math.random().toString(36).slice(2, 10), title: "", targetPages: 20, minPages: 10 });
 void DEFAULT_BOOK;
 
-function BooksEditor({ books, onChange }: { books: Book[]; onChange: (b: Book[]) => void }) {
+function BooksEditor({ books, unit, onChange }: { books: Book[]; unit: ReadUnit; onChange: (b: Book[]) => void }) {
   const autoLink = useAutoLink();
   const update = (id: string, patch: Partial<Book>) =>
     onChange(
@@ -156,13 +177,22 @@ function BooksEditor({ books, onChange }: { books: Book[]; onChange: (b: Book[])
           </div>
           <BookSuggestions bookId={b.id} title={b.title} />
           <div className="flex gap-2">
-            <NumberField label="Günlük hedef (sayfa)" value={b.targetPages} onChange={(targetPages) => update(b.id, { targetPages })} min={1} max={2000} />
-            <NumberField label="Alt sınır (sayfa)" value={b.minPages} onChange={(minPages) => update(b.id, { minPages })} min={0} max={b.targetPages} />
+            {unit === "MINUTES" ? (
+              <>
+                <DurationField label="Günlük hedef (süre)" value={b.targetPages} onChange={(targetPages) => update(b.id, { targetPages })} min={15} max={600} />
+                <DurationField label="Alt sınır (süre)" value={b.minPages} onChange={(minPages) => update(b.id, { minPages })} min={0} max={b.targetPages} />
+              </>
+            ) : (
+              <>
+                <NumberField label="Günlük hedef (sayfa)" value={b.targetPages} onChange={(targetPages) => update(b.id, { targetPages })} min={1} max={2000} />
+                <NumberField label="Alt sınır (sayfa)" value={b.minPages} onChange={(minPages) => update(b.id, { minPages })} min={0} max={b.targetPages} />
+              </>
+            )}
           </div>
         </div>
       ))}
       {books.length < 10 && (
-        <button type="button" className="btn-ghost btn-sm" onClick={() => onChange([...books, newBook()])}>
+        <button type="button" className="btn-ghost btn-sm" onClick={() => onChange([...books, { ...newBook(), ...unitDefaults(unit) }])}>
           <Plus /> Eser ekle
         </button>
       )}
@@ -189,37 +219,50 @@ export function RulesEditor({ value, onChange }: { value: Rules; onChange: (r: R
     onChange(next);
   };
   const fixed = value.penaltyMode === "FIXED";
+  const minutes = value.readUnit === "MINUTES";
   const t = value.targetPages;
+  const f = (n: number) => formatAmount(n, value.readUnit, true);
   const outcomes = [
-    { Icon: CheckCheck, tone: "text-emerald-700 dark:text-emerald-400 bg-emerald-500/10", label: `Hedefi okudu (${t}+ sayfa)`, pay: 0 },
-    { Icon: Check, tone: "text-amber-700 dark:text-amber-400 bg-amber-500/10", label: `Alt sınırı okudu (${value.minPages} sayfa)`, pay: penaltyFor(value, value.minPages) },
+    { Icon: CheckCheck, tone: "text-emerald-700 dark:text-emerald-400 bg-emerald-500/10", label: `Hedefi okudu (${f(t)}${minutes ? " ya da fazlası" : "+"})`, pay: 0 },
+    { Icon: Check, tone: "text-amber-700 dark:text-amber-400 bg-amber-500/10", label: `Alt sınırı okudu (${f(value.minPages)})`, pay: penaltyFor(value, value.minPages) },
     { Icon: X, tone: "text-rose-700 dark:text-rose-400 bg-rose-500/10", label: "Hiç okumadı", pay: penaltyFor(value, 0) },
   ];
 
   return (
     <div className="space-y-6">
-      <Step n={1} title="Ceza türü">
+      <Step n={1} title="Okuma hesabı">
+        <Tiles
+          value={value.readUnit}
+          onChange={(readUnit) => readUnit !== value.readUnit && set({ readUnit, books: value.books.map((b) => ({ ...b, ...unitDefaults(readUnit) })) })}
+          options={[
+            { value: "PAGES", Icon: BookOpen, title: "Sayfa hesabı", desc: "Günlük hedef ve alt sınır sayfa olarak" },
+            { value: "MINUTES", Icon: Clock, title: "Saat hesabı", desc: "Günlük hedef süre olarak (15 dk adımlarla)" },
+          ]}
+        />
+      </Step>
+
+      <Step n={2} title="Ceza türü">
         <Tiles
           value={value.penaltyMode}
           onChange={(penaltyMode) => set({ penaltyMode })}
           options={[
             { value: "FIXED", Icon: CalendarX2, title: "Günlük ceza", desc: "Hedef tutmazsa günlük sabit tutar" },
-            { value: "PER_PAGE", Icon: FileMinus2, title: "Eksik sayfa başına", desc: "Hedefe kalan her sayfa için" },
+            { value: "PER_PAGE", Icon: FileMinus2, title: minutes ? "Eksik süre başına" : "Eksik sayfa başına", desc: minutes ? "Hedefe kalan her 15 dakika için" : "Hedefe kalan her sayfa için" },
           ]}
         />
       </Step>
 
-      <Step n={2} title="Okunacak eserler">
-        <BooksEditor books={value.books} onChange={(books) => set({ books })} />
+      <Step n={3} title="Okunacak eserler">
+        <BooksEditor books={value.books} unit={value.readUnit} onChange={(books) => set({ books })} />
         <p className="mt-2 text-xs text-muted-foreground">
-          Günlük toplam: hedef <b className="text-foreground">{t}</b> sayfa · alt sınır <b className="text-foreground">{value.minPages}</b> sayfa.{" "}
-          {fixed ? "Alt sınırı okuyan indirimli, altında kalan tam ceza öder." : "Hedefe eksik kalan her sayfa için ceza yazılır."}
+          Günlük toplam: hedef <b className="text-foreground">{f(t)}</b> · alt sınır <b className="text-foreground">{f(value.minPages)}</b>.{" "}
+          {fixed ? "Alt sınırı okuyan indirimli, altında kalan tam ceza öder." : minutes ? "Hedefe eksik kalan her 15 dakika için ceza yazılır." : "Hedefe eksik kalan her sayfa için ceza yazılır."}
         </p>
       </Step>
 
-      <Step n={3} title={fixed ? "Günlük ceza" : "Eksik sayfa başına ceza"}>
+      <Step n={4} title={fixed ? "Günlük ceza" : minutes ? "Eksik 15 dakika başına ceza" : "Eksik sayfa başına ceza"}>
         <Stepper
-          label={fixed ? "Hedefi tutmayan öder" : "Hedefe eksik kalan her sayfa için"}
+          label={fixed ? "Hedefi tutmayan öder" : minutes ? "Hedefe eksik kalan her 15 dakika için" : "Hedefe eksik kalan her sayfa için"}
           value={value.penaltyAmount}
           onChange={(penaltyAmount) => set({ penaltyAmount })}
           min={0}
@@ -231,7 +274,7 @@ export function RulesEditor({ value, onChange }: { value: Rules; onChange: (r: R
       </Step>
 
       {fixed && (
-        <Step n={4} title="Alt sınırı okuyana indirim">
+        <Step n={5} title="Alt sınırı okuyana indirim">
           <div className="flex items-center gap-3">
             <Percent className="size-5 shrink-0 text-primary" />
             <input type="range" min={0} max={100} step={5} value={value.minDiscount} onChange={(e) => set({ minDiscount: Number(e.target.value) })} className="flex-1 accent-primary" />

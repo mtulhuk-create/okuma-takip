@@ -24,6 +24,19 @@ object DayCardRenderer {
 
   fun notificationId(id: String) = 7000 + (id.hashCode() and 0x7fffffff) % 100000
 
+  /** Miktar: sayfa hesabında "50 sf", saat hesabında "1 sa 15 dk" (short: çentiğe sığsın diye "1sa15") */
+  fun amount(n: Int, unit: String, short: Boolean = false): String {
+    if (unit != "MINUTES") return "$n sf"
+    val h = n / 60
+    val m = n % 60
+    return when {
+      h == 0 -> "$m dk"
+      m == 0 -> "$h sa"
+      short -> "${h}sa$m"
+      else -> "$h sa $m dk"
+    }
+  }
+
   fun save(context: Context, p: JSONObject) {
     context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(p.getString("id"), p.toString()).apply()
   }
@@ -130,11 +143,12 @@ object DayCardRenderer {
       val min = b.optInt("min")
       val kefPages = if (b.has("kefPages")) b.optInt("kefPages") else target
       val pages = if (b.isNull("pages")) null else b.optInt("pages")
+      val unit = p.optString("unit", "PAGES")
       row.setTextViewText(R.id.book_title, b.optString("title"))
       if (wide) {
         val info = buildString {
-          append("Hedef $target sf · alt sınır $min sf")
-          if (pages != null) append(" · okunan $pages sf")
+          append("Hedef ${amount(target, unit)} · alt sınır ${amount(min, unit)}")
+          if (pages != null) append(" · okunan ${amount(pages, unit)}")
         }
         row.setTextViewText(R.id.book_info, info)
       }
@@ -157,9 +171,9 @@ object DayCardRenderer {
         }
         // Uygulamadaki gün kartı gibi: sağ üst köşeden çıkan çentik sayfa, sağ alttan çıkan çentik ceza
         val corner = when (btn.key) {
-          "kefaret" -> "$kefPages sf"
-          "read" -> "$target sf"
-          "min" -> "$min sf"
+          "kefaret" -> amount(kefPages, unit, short = true)
+          "read" -> amount(target, unit, short = true)
+          "min" -> amount(min, unit, short = true)
           else -> null
         }
         if (btn.notch != 0) {

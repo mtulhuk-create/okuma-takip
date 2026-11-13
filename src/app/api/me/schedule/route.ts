@@ -42,6 +42,8 @@ export async function GET(req: Request) {
       groupId: g.id,
       name: g.name,
       dailyPages: rulesFor(g, m).targetPages,
+      // Saat hesabında dailyPages / minPages dakikadır
+      unit: rulesFor(g, m).readUnit,
       minPages: rulesFor(g, m).minPages,
       books: rulesFor(g, m).books.map((b) => b.title),
       reminderHours: g.reminderHours,

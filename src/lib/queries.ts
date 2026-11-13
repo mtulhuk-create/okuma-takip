@@ -157,7 +157,7 @@ export async function getAdminData(id: string, userId: string) {
   return { group, members, requests, invites, dues, unpaidPenalties, money, teamChanges, defaultDueAt: defaultDueAt(group) };
 }
 
-const teamRules = { id: true, name: true, penaltyMode: true, targetPages: true, minPages: true, penaltyAmount: true, minDiscount: true, books: true } as const;
+const teamRules = { id: true, name: true, penaltyMode: true, readUnit: true, targetPages: true, minPages: true, penaltyAmount: true, minDiscount: true, books: true } as const;
 
 /** Gruplar sayfası: üye olduğum gruplar (bugünkü durumla) ve keşfedilecek herkese açık gruplar (kurallar ve ekip hedefleriyle) */
 export async function getGroupsOverview(userId: string, q: string) {
@@ -218,7 +218,9 @@ export async function getGroupsOverview(userId: string, q: string) {
       books: rules.books.map((b) => b.title),
       penalty: describePenalty(rules),
       // Kartta tek satırlık özet için kısa ceza yazısı
-      penaltyShort: rules.penaltyMode === "PER_PAGE" ? `${rules.penaltyAmount} TL/sf` : `${rules.penaltyAmount} TL`,
+      penaltyShort: rules.penaltyMode === "PER_PAGE" ? `${rules.penaltyAmount} TL/${rules.readUnit === "MINUTES" ? "15 dk" : "sf"}` : `${rules.penaltyAmount} TL`,
+      // Okuma hesabı (saat hesabında myTarget / myMin / myPages dakika)
+      unit: rules.readUnit,
       debt: debts.find((d) => d.groupId === m.groupId)?._sum.amount ?? 0,
       // Sohbette okunmamış mesaj sayısı
       unread: unread.get(m.groupId) ?? 0,
@@ -250,12 +252,14 @@ export async function getNotificationsData(userId: string) {
 export async function getProfileStats(userId: string) {
   const db = getDb();
   const [pages, days, penalties, groups] = await Promise.all([
-    db.readingLog.aggregate({ where: { userId }, _sum: { pages: true } }),
+    db.readingLog.aggregate({ where: { userId, unit: "PAGES" }, _sum: { pages: true } }),
     db.readingLog.count({ where: { userId, pages: { gt: 0 } } }),
     db.penalty.aggregate({ where: { userId, status: { in: ["PAID", "UNPAID", "IN_DUE"] } }, _sum: { amount: true } }),
     db.groupMember.count({ where: { userId, status: "ACTIVE" } }),
   ]);
-  return { totalPages: pages._sum.pages ?? 0, readDays: days, totalPenalty: penalties._sum.amount ?? 0, activeGroups: groups };
+  // Saat hesabıyla okunan toplam süre (dakika)
+  const minutes = await db.readingLog.aggregate({ where: { userId, unit: "MINUTES" }, _sum: { pages: true } });
+  return { totalMinutes: minutes._sum.pages ?? 0, totalPages: pages._sum.pages ?? 0, readDays: days, totalPenalty: penalties._sum.amount ?? 0, activeGroups: groups };
 }
 
 export async function getBadgeCounts(userId: string) {

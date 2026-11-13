@@ -3,7 +3,7 @@ import { ensureDayCard } from "./chat";
 import { getDb } from "./db";
 import { notifyEach } from "./notify";
 import { publish } from "./realtime";
-import { penaltyFor, rulesFor } from "./rules";
+import { formatAmount, penaltyFor, rulesFor } from "./rules";
 import { DAY, MIN, currentPeriod, lastClosedPeriod, minuteToTime, openPeriod, periodFor, shiftDayKey } from "./schedule";
 import { DAY_ACTIONS, sendDayStart } from "./day-push";
 import { processDues } from "./dues";
@@ -47,7 +47,7 @@ async function settleDay(g: G, dayKey: string) {
   for (const m of members) {
     const log = byUser.get(m.userId);
     const r = rulesFor(g, m);
-    const rules = log ? { ...r, targetPages: log.requiredPages, minPages: log.minPages } : r;
+    const rules = log ? { ...r, targetPages: log.requiredPages, minPages: log.minPages, readUnit: log.unit } : r;
     const read = log?.pages ?? 0;
     const amount = penaltyFor(rules, read);
     if (amount > 0) rows.push({ groupId: g.id, userId: m.userId, dayKey, amount, pagesRead: read, requiredPages: rules.targetPages });
@@ -95,7 +95,7 @@ export async function runCron(now = new Date()) {
         const token = await signQuickToken(m.userId, g.id, open.dayKey, open.deadline);
         const msg =
           kind === "REMINDER"
-            ? { title: `📚 ${g.name}: okuma hatırlatması`, body: `Bugünkü ${r.targetPages} sayfanı henüz bildirmedin. Son bildirim saati ${deadlineText}.`, tag: `rem-${g.id}` }
+            ? { title: `📚 ${g.name}: okuma hatırlatması`, body: `Bugünkü ${formatAmount(r.targetPages, r.readUnit, true)} okumanı henüz bildirmedin. Son bildirim saati ${deadlineText}.`, tag: `rem-${g.id}` }
             : { title: `⏳ ${minsLeft} dakika kaldı · ${g.name}`, body: `Son bildirim ${deadlineText}. Okuduysan hemen bildir, yoksa ceza yazılacak!`, tag: `cd-${g.id}`, renotify: true };
         return { userId: m.userId, msg: { ...msg, url: `/bildir/${g.id}?t=${encodeURIComponent(token)}`, token, actions: DAY_ACTIONS } };
       }),

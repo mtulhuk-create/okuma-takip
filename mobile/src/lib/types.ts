@@ -7,7 +7,22 @@ export type Period = { dayKey: string; start: string; deadline: string; nextStar
 export type PenaltyMode = "FIXED" | "PER_PAGE";
 
 export type Book = { id: string; title: string; targetPages: number; minPages: number };
-export type Rules = { penaltyMode: PenaltyMode; targetPages: number; minPages: number; penaltyAmount: number; minDiscount: number; books: Book[] };
+/** Okuma hesabı: sayfa ya da süre (MINUTES: hedef / alt sınır / okunan dakika, 15'in katları; eski sunucuda yok) */
+export type ReadUnit = "PAGES" | "MINUTES";
+export type Rules = { penaltyMode: PenaltyMode; readUnit?: ReadUnit; targetPages: number; minPages: number; penaltyAmount: number; minDiscount: number; books: Book[] };
+
+/** Süreyi okunur yazar: 45 dk, 1 sa, 1 sa 15 dk */
+export function formatMinutes(min: number) {
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  if (!h) return `${m} dk`;
+  return m ? `${h} sa ${m} dk` : `${h} sa`;
+}
+/** Miktarı birimiyle yazar: "50 sf" ya da "1 sa 15 dk"; long: "50 sayfa" */
+export function formatAmount(n: number, unit: ReadUnit | null | undefined, long = false) {
+  if (unit === "MINUTES") return formatMinutes(n);
+  return long ? `${n} sayfa` : `${n} sf`;
+}
 export type BookLog = { id: string; title: string; pages: number | null; target: number; min: number; /** başka gruplarla "aynı eser" bağı */ linked?: string[] };
 
 /** Eser listesi yoksa (eski gruplar) toplam hedef tek eser sayılır */
@@ -60,7 +75,7 @@ export type Member = {
 
 export type ReadingLog = { userId: string; dayKey: string; pages: number; requiredPages: number; minPages: number };
 
-export type DayPerson = { id: string; name: string; imageUrl: string | null; initial?: string; pages: number | null; required: number; kefaret?: number; tier?: Tier; streak?: StreakTag | null };
+export type DayPerson = { id: string; name: string; imageUrl: string | null; initial?: string; pages: number | null; required: number; unit?: ReadUnit; kefaret?: number; tier?: Tier; streak?: StreakTag | null };
 /** Süren kefaret okuması: hedefin üstüne ek sayfa, her gün indirimin bir payını kazandırır */
 export type DayKefaret = {
   planId: string;
@@ -88,6 +103,8 @@ export type DayCard = {
     pages: number | null;
     target: number;
     min: number;
+    /** Okuma hesabı (saat hesabında pages/target/min dakika; eski sunucuda yok) */
+    unit?: ReadUnit;
     teamName: string | null;
     books: BookLog[];
     /** Bu gün kefaret okuması bildirildiyse ek sayfa (eski sunucuda yok) */
@@ -103,7 +120,7 @@ export type DayCard = {
   simple?: boolean;
 };
 
-export type Stats = { read: number; min: number; none: number; pages: number };
+export type Stats = { read: number; min: number; none: number; pages: number; minutes?: number };
 export type HistoryRow = { start: string; cells: string; stats: Stats };
 export type HistoryRange = "7d" | "1m" | "3m" | "1y" | "all";
 /** streak: bugünden geriye kesintisiz okunan gün sayısı */
@@ -150,6 +167,8 @@ export type GroupToday = {
   myPages: number | null;
   myTarget: number;
   myMin: number;
+  /** Okuma hesabı (eski sunucuda yok) */
+  unit?: ReadUnit;
   teamName: string | null;
   /** Kişinin bu gruptaki eserleri (eski sunucuda yok) */
   books?: string[];
@@ -209,7 +228,7 @@ export type NotificationsResponse = {
 
 export type ProfileResponse = {
   user: Me & { email: string | null };
-  stats: { totalPages: number; readDays: number; totalPenalty: number; activeGroups: number };
+  stats: { totalPages: number; totalMinutes?: number; readDays: number; totalPenalty: number; activeGroups: number };
 };
 
 export type ActionResult = { ok?: boolean; error?: string; message?: string; id?: string };
@@ -284,11 +303,12 @@ export const teamsActive = (g: { teamsEnabled: boolean; teams?: unknown[] }) => 
 
 export function penaltyFor(r: Rules, pages: number) {
   if (pages >= r.targetPages) return 0;
-  if (r.penaltyMode === "PER_PAGE") return r.penaltyAmount * (r.targetPages - pages);
+  // Saat hesabında eksik her 15 dakika (başlanan dilim tam sayılır)
+  if (r.penaltyMode === "PER_PAGE") return r.penaltyAmount * (r.readUnit === "MINUTES" ? Math.ceil((r.targetPages - pages) / 15) : r.targetPages - pages);
   return pages >= r.minPages ? Math.round((r.penaltyAmount * (100 - r.minDiscount)) / 100) : r.penaltyAmount;
 }
 
-export function describePenalty(r: Pick<Rules, "penaltyMode" | "penaltyAmount" | "minDiscount">) {
-  if (r.penaltyMode === "PER_PAGE") return `Eksik sayfa başına ${r.penaltyAmount} TL`;
+export function describePenalty(r: Pick<Rules, "penaltyMode" | "penaltyAmount" | "minDiscount" | "readUnit">) {
+  if (r.penaltyMode === "PER_PAGE") return r.readUnit === "MINUTES" ? `Eksik 15 dk başına ${r.penaltyAmount} TL` : `Eksik sayfa başına ${r.penaltyAmount} TL`;
   return r.minDiscount > 0 ? `${r.penaltyAmount} TL · alt sınırda %${r.minDiscount} indirim` : `${r.penaltyAmount} TL / gün`;
 }

@@ -3,8 +3,9 @@
 import { BookOpenCheck, Check, X } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
+import { formatAmount, formatMinutes, type ReadUnit } from "@/lib/rules";
 
-export function QuickReport({ token }: { token: string }) {
+export function QuickReport({ token, unit = "PAGES" }: { token: string; unit?: ReadUnit }) {
   const [pages, setPages] = useState("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
@@ -17,7 +18,7 @@ export function QuickReport({ token }: { token: string }) {
       body: JSON.stringify({ token, choice, pages: choice === "pages" ? Number(pages) : undefined }),
     });
     const data = await res.json().catch(() => ({}));
-    setResult(res.ok ? { ok: true, text: `${data.pages} sayfa bildirildi ✓` } : { ok: false, text: data.error ?? "Bir hata oluştu" });
+    setResult(res.ok ? { ok: true, text: `${formatAmount(data.pages ?? 0, unit, true)} bildirildi ✓` } : { ok: false, text: data.error ?? "Bir hata oluştu" });
     setBusy(false);
   }
 
@@ -34,15 +35,19 @@ export function QuickReport({ token }: { token: string }) {
   return (
     <div className="space-y-3">
       <div className="flex gap-2">
-        <input
-          type="number"
-          inputMode="numeric"
-          min={0}
-          className="input text-lg"
-          placeholder="Kaç sayfa?"
-          value={pages}
-          onChange={(e) => setPages(e.target.value)}
-        />
+        {unit === "MINUTES" ? (
+          // Saat hesabı: 15 dakikalık adımlarla süre
+          <select className="input text-lg" value={pages} onChange={(e) => setPages(e.target.value)} aria-label="Ne kadar okudun?">
+            <option value="">Ne kadar okudun?</option>
+            {Array.from({ length: 40 }, (_, i) => (i + 1) * 15).map((m) => (
+              <option key={m} value={m}>
+                {formatMinutes(m)}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input type="number" inputMode="numeric" min={0} className="input text-lg" placeholder="Kaç sayfa?" value={pages} onChange={(e) => setPages(e.target.value)} />
+        )}
         <button className="btn-success shrink-0" disabled={busy || pages === ""} onClick={() => send("pages")}>
           <BookOpenCheck /> Okudum
         </button>

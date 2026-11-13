@@ -5,8 +5,9 @@ import { useCallback, useEffect, useState } from "react";
 import { requestJoin } from "@/app/actions";
 import { SubmitButton } from "./action-form";
 import { JoinForm } from "./join-form";
+import { formatAmount, type ReadUnit } from "@/lib/rules";
 
-type TeamInfo = { id: string; name: string; targetPages: number; minPages: number; penalty: string };
+type TeamInfo = { id: string; name: string; targetPages: number; minPages: number; penalty: string; readUnit?: ReadUnit };
 
 /**
  * Katılma isteği: kartta yalnızca buton; ekip seçimi ve yöneticiye not bu pencerede.
@@ -64,7 +65,7 @@ export function JoinDialog({ groupId, groupName, teams }: { groupId: string; gro
                       <span className="min-w-0 flex-1">
                         <span className="block text-sm font-semibold">{t.name}</span>
                         <span className="block text-xs text-muted-foreground">
-                          Günde {t.targetPages} sayfa · alt sınır {t.minPages} · {t.penalty}
+                          Günde {formatAmount(t.targetPages, t.readUnit, true)} · alt sınır {formatAmount(t.minPages, t.readUnit)} · {t.penalty}
                         </span>
                       </span>
                     </label>

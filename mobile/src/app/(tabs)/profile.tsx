@@ -18,6 +18,7 @@ import { Bell, BookOpen, CalendarCheck, LogOut, Monitor, Moon, Palette, Pencil, 
 import { fonts, useColors } from "@/lib/theme";
 import type { ProfileResponse } from "@/lib/types";
 import { showAlert } from "@/lib/dialog";
+import { formatMinutes } from "@/lib/types";
 
 export default function ProfileScreen() {
   const { signOut } = useClerk();
@@ -94,7 +95,8 @@ export default function ProfileScreen() {
       </Row>
       <NameSheet visible={editName} name={data.user.name} onClose={() => setEditName(false)} />
       <Row gap={12}>
-        <Stat icon={BookOpen} label="Toplam sayfa" value={s.totalPages} />
+        {/* Saat hesabıyla okuyanda toplam süre de */}
+        <Stat icon={BookOpen} label={s.totalMinutes ? "Toplam okuma" : "Toplam sayfa"} value={s.totalMinutes ? (s.totalPages ? `${s.totalPages} sf · ${formatMinutes(s.totalMinutes)}` : formatMinutes(s.totalMinutes)) : s.totalPages} />
         <Stat icon={CalendarCheck} label="Okunan gün" value={s.readDays} />
       </Row>
       <Row gap={12}>

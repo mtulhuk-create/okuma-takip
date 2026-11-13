@@ -3,8 +3,9 @@
 import { BookHeart, Info, X } from "lucide-react";
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { cancelKefaretAction, startKefaretAction } from "@/app/actions";
+import { formatAmount } from "@/lib/rules";
 
-type Row = { userId: string; name: string; teamName: string | null; penaltyTotal: number; missedPages: number; discountTotal: number; pages: number; target: number; dailyExtra: number; days: number; active: boolean };
+type Row = { userId: string; name: string; teamName: string | null; penaltyTotal: number; missedPages: number; discountTotal: number; pages: number; target: number; unit?: "PAGES" | "MINUTES"; dailyExtra: number; days: number; active: boolean };
 type Plan = { id: string; userId: string; name: string; status: "ACTIVE" | "DONE"; discountPercent: number; raisePercent: number; discountTotal: number; earned: number; pages: number; dailyExtra: number; days: number; doneDays: number };
 type Data = { discount: number; raise: number; maxDays: number; pageValue: number; rows: Row[]; plans: Plan[] };
 
@@ -123,13 +124,13 @@ export function KefaretPanel({ groupId }: { groupId: string }) {
                 <tr key={r.userId} className={r.active ? "text-muted-foreground" : ""}>
                   <td className="max-w-32 px-2 py-1.5">
                     <p className="truncate font-semibold">{r.name}</p>
-                    <p className="truncate text-[10px] text-muted-foreground">{r.active ? "süren kefareti var" : (r.teamName ?? `hedef ${r.target} sf`)}</p>
+                    <p className="truncate text-[10px] text-muted-foreground">{r.active ? "süren kefareti var" : (r.teamName ?? `hedef ${formatAmount(r.target, r.unit)}`)}</p>
                   </td>
                   <td className="px-2 py-1.5 text-right">{r.penaltyTotal} TL</td>
                   <td className="px-2 py-1.5 text-right font-semibold text-teal-700 dark:text-teal-400">{r.discountTotal} TL</td>
-                  <td className="px-2 py-1.5 text-right">{r.pages} sf</td>
+                  <td className="px-2 py-1.5 text-right">{formatAmount(r.pages, r.unit)}</td>
                   <td className="whitespace-nowrap px-2 py-1.5 text-right">
-                    <b>{r.target + r.dailyExtra} sf</b>
+                    <b>{formatAmount(r.target + r.dailyExtra, r.unit)}</b>
                     <span className="block text-[9px] text-muted-foreground">
                       hedef {r.target} + {r.dailyExtra}
                     </span>

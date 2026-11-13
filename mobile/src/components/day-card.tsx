@@ -6,7 +6,7 @@ import { useAction } from "@/lib/api";
 import { useOfflineQueue } from "@/lib/offline";
 import { formatDayLong, formatClock } from "@/lib/format";
 import { fonts, KEFARET, radius, STATE, useColors } from "@/lib/theme";
-import type { DayCard as Card } from "@/lib/types";
+import { formatAmount, type DayCard as Card, type ReadUnit } from "@/lib/types";
 import { Countdown } from "./countdown";
 import { Avatar, EdgeNotches, Row, TIER_COLORS } from "./ui";
 
@@ -89,10 +89,10 @@ export function ReportControls({ groupId, card, compact, onDone }: { groupId: st
   // Renkler okuma takip tablosuyla aynı; sağ üst çentik sayfa, sağ alt çentik ceza ("-10 TL")
   const bottom: { key: string; label: string; hint: string; corner?: string; fine?: string; Icon: LucideIcon; color: string; body: Record<string, unknown> }[] = [
     ...(plan
-      ? [{ key: "kefaret", label: "Kefaret", hint: `Kefaret okuması: bugün ${me.target + plan.dailyExtra} sayfa`, corner: `${me.target + plan.dailyExtra} sf`, Icon: BookHeart, color: STATE.kefaret, body: { choice: "kefaret" } }]
+      ? [{ key: "kefaret", label: "Kefaret", hint: `Kefaret okuması: bugün ${formatAmount(me.target + plan.dailyExtra, me.unit, true)}`, corner: formatAmount(me.target + plan.dailyExtra, me.unit), Icon: BookHeart, color: STATE.kefaret, body: { choice: "kefaret" } }]
       : []),
-    { key: "all", label: "Okudum", hint: `Okudum: ${me.target} sayfa`, corner: `${me.target} sf`, Icon: CheckCheck, color: STATE.read, body: { choice: "all" } },
-    { key: "min", label: "Alt sınır", hint: `Alt sınırı okudum: ${me.min} sayfa${fine?.min ? `, ${fine.min} TL ceza` : ""}`, corner: `${me.min} sf`, fine: fine?.min ? `-${fine.min} TL` : undefined, Icon: Check, color: STATE.min, body: { choice: "min" } },
+    { key: "all", label: "Okudum", hint: `Okudum: ${formatAmount(me.target, me.unit, true)}`, corner: formatAmount(me.target, me.unit), Icon: CheckCheck, color: STATE.read, body: { choice: "all" } },
+    { key: "min", label: "Alt sınır", hint: `Alt sınırı okudum: ${formatAmount(me.min, me.unit, true)}${fine?.min ? `, ${fine.min} TL ceza` : ""}`, corner: formatAmount(me.min, me.unit), fine: fine?.min ? `-${fine.min} TL` : undefined, Icon: Check, color: STATE.min, body: { choice: "min" } },
     { key: "none", label: "Okumadım", hint: fine ? `Okumadım: ${fine.none} TL ceza` : "Okumadım", fine: fine ? `-${fine.none} TL` : undefined, Icon: X, color: STATE.none, body: { choice: "none" } },
   ];
   return (
@@ -110,7 +110,7 @@ export function ReportControls({ groupId, card, compact, onDone }: { groupId: st
                 <Text style={{ fontFamily: fonts.regular, fontSize: 10, color: c.mutedForeground }}>
                   Hedef {b.target} · alt sınır {b.min}
                   {plan ? <Text style={{ color: KEFARET }}> · kefaret {kefPages.get(b.id)}</Text> : null}
-                  {b.pages != null ? <Text style={{ fontFamily: fonts.semibold, color: c.foreground }}> · {b.pages} sf</Text> : null}
+                  {b.pages != null ? <Text style={{ fontFamily: fonts.semibold, color: c.foreground }}> · {formatAmount(b.pages, me.unit)}</Text> : null}
                 </Text>
                 {b.linked?.length ? (
                   <Row gap={3}>
@@ -150,7 +150,7 @@ export function ReportControls({ groupId, card, compact, onDone }: { groupId: st
           );
         })}
       </View>
-      {plan && <KefaretOffer plan={plan} today={card.dayKey} dailyPages={me.target + plan.dailyExtra} markedToday={!!me.kefaret} />}
+      {plan && <KefaretOffer plan={plan} today={card.dayKey} dailyPages={me.target + plan.dailyExtra} unit={me.unit} markedToday={!!me.kefaret} />}
       {/* Butonlar arası daha geniş, butonlar bir tık dar */}
       <Row gap={10} style={{ paddingTop: 4, paddingBottom: 5, paddingHorizontal: 6 }}>
         {bottom.map((b) => {
@@ -205,7 +205,7 @@ export function ReportControls({ groupId, card, compact, onDone }: { groupId: st
 const addDay = (k: string, n: number) => new Date(Date.parse(k) + n * 86_400_000).toISOString().slice(0, 10);
 
 /** Yöneticinin kefaret teklifi: kaç gün, ne kadar silinecek, ne kadarı silindi ve son günlerde kefaret yapılıp yapılmadığı */
-function KefaretOffer({ plan, today, dailyPages, markedToday }: { plan: NonNullable<NonNullable<Card["me"]>["plan"]>; today: string; dailyPages: number; markedToday: boolean }) {
+function KefaretOffer({ plan, today, dailyPages, unit, markedToday }: { plan: NonNullable<NonNullable<Card["me"]>["plan"]>; today: string; dailyPages: number; unit?: ReadUnit; markedToday: boolean }) {
   const c = useColors();
   const perDay = Math.round(plan.discountTotal / plan.days);
   const used = new Set(plan.usedDays ?? []);
@@ -246,7 +246,7 @@ function KefaretOffer({ plan, today, dailyPages, markedToday }: { plan: NonNulla
       </Row>
       <Row gap={8}>
         <Text numberOfLines={1} style={{ ...small, flex: 1 }}>
-          Günde <Text style={strong}>{dailyPages} sf</Text> · gün başı <Text style={strong}>{perDay} TL</Text> · kalan {Math.max(0, plan.discountTotal - plan.earned)} TL
+          Günde <Text style={strong}>{formatAmount(dailyPages, unit)}</Text> · gün başı <Text style={strong}>{perDay} TL</Text> · kalan {Math.max(0, plan.discountTotal - plan.earned)} TL
         </Text>
         <Row gap={3}>
           {recent.map((k) => (
@@ -495,7 +495,7 @@ function CategoryChips({ card, interactive }: { card: Card; interactive?: boolea
                 {/* Yazı kutunun tam ortasında: yazı tipi iç boşluğu kapalı, satır yüksekliği sabit */}
                 <Text style={{ fontFamily: fonts.semibold, fontSize: 11, lineHeight: 15, includeFontPadding: false, textAlignVertical: "center", textAlign: "center", color: sel.color(c) }}>
                   {p.name}
-                  {p.pages ? ` · ${p.pages}` : ""}
+                  {p.pages ? ` · ${p.unit === "MINUTES" ? formatAmount(p.pages, p.unit) : p.pages}` : ""}
                 </Text>
                 {p.kefaret ? <BookHeart size={11} color={KEFARET} /> : null}
                 {p.tier && <EdgeNotches tier={p.tier} bw={0.75} d={2.8} />}
@@ -654,9 +654,9 @@ export function DayShortcut({ card, groupId, onJump, onReported }: { card: Card;
   const fine = me?.fine;
   // Gün kartındaki butonlarla aynı: kefaret (varsa) en başta, sağ üst çentikte sayfa / ceza
   const btns: { choice: string; state: string; label: string; corner?: string; fine?: string; Icon: LucideIcon; color: string }[] = [
-    ...(plan && me ? [{ choice: "kefaret", state: "kefaret", label: "Kefaret okuması", corner: `${me.target + plan.dailyExtra} sf`, Icon: BookHeart, color: KEFARET }] : []),
-    { choice: "all", state: "read", label: "Okudum", corner: me ? `${me.target} sf` : undefined, Icon: CheckCheck, color: STATE.read },
-    { choice: "min", state: "min", label: "Alt sınır", corner: me ? `${me.min} sf` : undefined, fine: fine?.min ? `-${fine.min} TL` : undefined, Icon: Check, color: STATE.min },
+    ...(plan && me ? [{ choice: "kefaret", state: "kefaret", label: "Kefaret okuması", corner: formatAmount(me.target + plan.dailyExtra, me.unit), Icon: BookHeart, color: KEFARET }] : []),
+    { choice: "all", state: "read", label: "Okudum", corner: me ? formatAmount(me.target, me.unit) : undefined, Icon: CheckCheck, color: STATE.read },
+    { choice: "min", state: "min", label: "Alt sınır", corner: me ? formatAmount(me.min, me.unit) : undefined, fine: fine?.min ? `-${fine.min} TL` : undefined, Icon: Check, color: STATE.min },
     { choice: "none", state: "none", label: "Okumadım", fine: fine ? `-${fine.none} TL` : undefined, Icon: X, color: STATE.none },
   ];
   const busy = (k: string) => action.isPending && action.variables?.body?.key === `sc-${k}`;

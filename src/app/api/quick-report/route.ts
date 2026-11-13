@@ -31,7 +31,7 @@ export async function POST(req: Request) {
     await publish(t.groupId, { type: "refresh", reason: "day" });
     // Kart güncellensin: eser bazında okunan sayfa, kefaret ve grubun günlük durumu (üstteki çubuk)
     const day = await dayCounts(t.groupId, t.dayKey, t.userId).catch(() => null);
-    return Response.json({ ok: true, pages: log?.pages ?? 0, required: rules.targetPages, books: (log?.books as { id: string; pages: number | null }[] | null) ?? [], kefaret: log?.kefaret ?? 0, ...(day ? { day } : {}) });
+    return Response.json({ ok: true, pages: log?.pages ?? 0, required: rules.targetPages, unit: rules.readUnit, books: (log?.books as { id: string; pages: number | null }[] | null) ?? [], kefaret: log?.kefaret ?? 0, ...(day ? { day } : {}) });
   } catch (e) {
     return Response.json({ error: (e as Error).message }, { status: 400 });
   }
