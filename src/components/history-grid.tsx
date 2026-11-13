@@ -58,7 +58,7 @@ export function HistoryGrid({ start, cells, frame }: { start: string; cells: str
                 {c === "k" && <BookHeart className="size-3.5 text-white" strokeWidth={2.5} />}
                 {c === "m" && <Check className="size-3.5 text-white" strokeWidth={3} />}
                 {c === "n" && <X className="size-3.5 text-white" strokeWidth={3} />}
-                {frame && c !== "-" && <EdgeNotches tier={frame} offset={0.75} />}
+                {frame && c !== "-" && <EdgeNotches tier={frame} offset={0.375} />}
               </span>
               <span className="text-[10px] leading-none text-muted-foreground">{Number(key.slice(8))}</span>
             </div>
@@ -87,7 +87,7 @@ export function HistoryGrid({ start, cells, frame }: { start: string; cells: str
             className={`relative flex h-6 items-center justify-center rounded-md text-[11px] font-semibold ${COLOR[c]} ${TEXT[c]} ${c !== "-" && c !== "x" ? fr : ""} ${today ? "outline-2 outline-offset-1 outline-primary/60" : ""}`}
           >
             {Number(key.slice(8))}
-            {frame && c !== "-" && c !== "x" && <EdgeNotches tier={frame} offset={0.75} />}
+            {frame && c !== "-" && c !== "x" && <EdgeNotches tier={frame} offset={0.375} />}
           </span>
         ))}
       </div>
@@ -116,7 +116,7 @@ export function HistoryGrid({ start, cells, frame }: { start: string; cells: str
             {months[w]}
           </span>,
           ...days.slice(w * 7, w * 7 + 7).map(({ key, c, today }) => (
-            <span key={key} title={`${fmt(key)} · ${TITLE[c]}`} className={`aspect-square max-h-5 w-full rounded-[3px] ${COLOR[c]} ${frame && c !== "-" && c !== "x" ? { gold: "ring-1 ring-[#d4a017]", silver: "ring-1 ring-[#a7b1bc]", bronze: "ring-1 ring-[#b07040]/70" }[frame] : ""} ${today ? "outline-2 outline-offset-1 outline-primary/60" : ""}`} />
+            <span key={key} title={`${fmt(key)} · ${TITLE[c]}`} className={`aspect-square max-h-5 w-full rounded-[3px] ${COLOR[c]} ${frame && c !== "-" && c !== "x" ? { gold: "ring-[0.5px] ring-[#d4a017]", silver: "ring-[0.5px] ring-[#d0d8e1]", bronze: "ring-[0.5px] ring-[#b07040]/70" }[frame] : ""} ${today ? "outline-2 outline-offset-1 outline-primary/60" : ""}`} />
           )),
         ])}
       </div>

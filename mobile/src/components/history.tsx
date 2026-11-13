@@ -55,7 +55,7 @@ export function HistoryGrid({
   const c = useColors();
   // Kutucuklarda yalnızca ince halka; tüm çerçevelerde aynı kalınlık
   const fr = (ch: string, small?: boolean) =>
-    frame && ch !== "-" && ch !== "x" ? { borderWidth: small ? 1 : 1.5, borderColor: TIER_COLORS[frame] } : null;
+    frame && ch !== "-" && ch !== "x" ? { borderWidth: small ? 0.5 : 0.75, borderColor: TIER_COLORS[frame] } : null;
   const base = useCellColor();
   const color = colorOf ?? base;
   // Koyu hücrede beyaz yazı
@@ -84,7 +84,7 @@ export function HistoryGrid({
                 ) : (
                   Icon && <Icon size={14} color="#fff" strokeWidth={3} />
                 )}
-                {frame && fr(ch) && <EdgeNotches tier={frame} bw={today ? 2 : 1.5} />}
+                {frame && fr(ch) && <EdgeNotches tier={frame} bw={today ? 2 : 0.75} />}
               </View>
               <Text style={{ fontFamily: fonts.regular, fontSize: 10, color: c.mutedForeground }}>{Number(key.slice(8))}</Text>
             </View>
@@ -120,7 +120,7 @@ export function HistoryGrid({
                 ]}
               >
                 <Text style={{ fontFamily: fonts.semibold, fontSize: 11, color: strong(ch) ? "#fff" : ch === "x" ? c.mutedForeground + "66" : c.mutedForeground }}>{Number(key.slice(8))}</Text>
-                {frame && fr(ch) && <EdgeNotches tier={frame} bw={today ? 2 : 1.5} />}
+                {frame && fr(ch) && <EdgeNotches tier={frame} bw={today ? 2 : 0.75} />}
               </View>
             ))}
           </Row>

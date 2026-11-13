@@ -35,7 +35,7 @@ object AvatarIcon {
     "#881337" to "#ffe4e6", "#78350f" to "#fef3c7", "#064e3b" to "#d1fae5", "#0c4a6e" to "#e0f2fe", "#4c1d95" to "#ede9fe",
     "#7c2d12" to "#ffedd5", "#134e4a" to "#ccfbf1", "#701a75" to "#fae8ff", "#365314" to "#ecfccb", "#312e81" to "#e0e7ff",
   )
-  private val TIER = mapOf("gold" to "#D4A017", "silver" to "#A7B1BC", "bronze" to "#B07040")
+  private val TIER = mapOf("gold" to "#D4A017", "silver" to "#D0D8E1", "bronze" to "#B07040")
   // Altın 4 çıkıntı, gümüş üst + alt, bronz üst
   private val NOTCHES = mapOf("gold" to listOf(0, 1, 2, 3), "silver" to listOf(0, 2), "bronze" to listOf(0))
   // Lucide "flame" simgesi (24'lük görünüm)
@@ -82,7 +82,7 @@ object AvatarIcon {
     }
     if (framed) {
       val color = Color.parseColor(TIER[tier])
-      val ring = SIZE * 0.025f
+      val ring = SIZE * 0.0125f
       c.drawCircle(cx, cy, r + ring / 2, Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = ring; this.color = color })
       // Çıkıntılar: halkanın üzerinde küçük baklava (üst, sağ, alt, sol)
       val d = SIZE * 0.07f

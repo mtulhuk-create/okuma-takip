@@ -500,13 +500,13 @@ function CategoryChips({ card, interactive }: { card: Card; interactive?: boolea
               // Ekip çerçevesi: tüm kenar ince ve hafif saydam altın / gümüş / bronz; yazı kutunun tam ortasında
               <span
                 key={p.id}
-                className={`relative inline-flex h-[21px] items-center justify-center gap-1 rounded-full border bg-card/70 px-2 text-center text-[11px] font-semibold leading-none ${p.tier ? "border-[0.75px]" : "border-border"}`}
+                className={`relative inline-flex h-[21px] items-center justify-center gap-1 rounded-full border bg-card/70 px-2 text-center text-[11px] font-semibold leading-none ${p.tier ? "border-[0.4px]" : "border-border"}`}
                 style={p.tier ? { borderColor: TIER_COLOR[p.tier] + "cc" } : undefined}
               >
                 {p.name}
                 {p.kefaret ? <BookHeart className="size-3 text-teal-600 dark:text-teal-400" aria-label="Kefaret okuması" /> : null}
                 {p.pages != null && p.pages > 0 && <span className="opacity-70">· {p.unit === "MINUTES" ? formatAmount(p.pages, p.unit) : p.pages}</span>}
-                {p.tier && <EdgeNotches tier={p.tier} offset={0.375} d={2.8} />}
+                {p.tier && <EdgeNotches tier={p.tier} offset={0.2} d={2.8} />}
                 <StreakFlame s={p.streak} />
               </span>
             ))}
