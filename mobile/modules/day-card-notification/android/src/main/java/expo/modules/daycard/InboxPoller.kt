@@ -61,6 +61,16 @@ object InboxPoller {
     return PendingIntent.getBroadcast(context, 7301, i, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
   }
 
+  /**
+   * Anlık bildirim (Firebase) çalışıyorsa mesajlar zaten anında gelir: yedek kontrol saatte bire iner (pil).
+   * Çalışmıyorsa ~15 dakikada bir.
+   */
+  fun setPushActive(context: Context, on: Boolean) {
+    if (prefs(context).getBoolean("push", false) == on) return
+    prefs(context).edit().putBoolean("push", on).apply()
+    arm(context)
+  }
+
   /** JS ayarlar: sunucu adresi, token ve aç/kapa. Kapalıysa ya da token yoksa alarm kaldırılır */
   fun configure(context: Context, apiUrl: String, token: String, enabled: Boolean) {
     prefs(context).edit().putString("apiUrl", apiUrl).putString("token", token).putBoolean("enabled", enabled).apply()
@@ -79,7 +89,9 @@ object InboxPoller {
     am.cancel(pi)
     if (!p.getBoolean("enabled", false) || p.getString("token", "").isNullOrEmpty()) return
     // Kesin olmayan alarm: sistem diğer uyanmalarla birleştirir, pili yormaz
-    am.setInexactRepeating(AlarmManager.RTC_WAKEUP, System.currentTimeMillis() + AlarmManager.INTERVAL_FIFTEEN_MINUTES, AlarmManager.INTERVAL_FIFTEEN_MINUTES, pi)
+    val every = if (p.getBoolean("push", false)) AlarmManager.INTERVAL_HOUR else AlarmManager.INTERVAL_FIFTEEN_MINUTES
+    // RTC (uyandırmayan): telefon zaten uyanınca çalışır, yalnızca bunun için uyandırılmaz
+    am.setInexactRepeating(AlarmManager.RTC, System.currentTimeMillis() + every, every, pi)
   }
 
   private fun nowIso(): String {
@@ -166,7 +178,8 @@ object InboxPoller {
     }
     val open = Intent(Intent.ACTION_VIEW, Uri.parse("okumatakip://group/$groupId")).setPackage(context.packageName).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     val pi = PendingIntent.getActivity(context, groupId.hashCode(), open, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-    val icon = context.resources.getIdentifier("notification_icon", "drawable", context.packageName).takeIf { it != 0 } ?: android.R.drawable.ic_dialog_info
+    // Grup mesajlarının kendi ikonu (kitap + okuyan kişi): sabit kartlardan ayırt edilsin
+    val icon = R.drawable.okuma_ic_message
     val n = NotificationCompat.Builder(context, CHANNEL)
       .setSmallIcon(icon)
       .setColor(0xFF9B2C2C.toInt())

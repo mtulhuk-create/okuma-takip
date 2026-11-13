@@ -5,6 +5,7 @@
     <receiver android:name="expo.modules.daycard.DayCardAlarmReceiver" android:exported="false" />
     <receiver android:name="expo.modules.daycard.KazaReceiver" android:exported="false" />
     <receiver android:name="expo.modules.daycard.InboxReceiver" android:exported="false" />
+    <receiver android:name="expo.modules.daycard.ChronoReceiver" android:exported="false" />
     <!-- Anlık bildirim: expo-notifications'ın servisi -1 önceliklidir, mesajlar buraya gelir -->
     <service android:name="expo.modules.daycard.PushService" android:exported="false">
       <intent-filter>

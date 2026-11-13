@@ -16,9 +16,9 @@ import { unregisterPushDevice } from "@/lib/push";
 import { hideAllDayCardNotifications, hideKazaNotification, scheduleDayCardNotificationsJson } from "../../../modules/day-card-notification";
 import { Bell, BookOpen, CalendarCheck, LogOut, Monitor, Moon, Palette, Pencil, Sun, Users, Wallet } from "lucide-react-native";
 import { fonts, useColors } from "@/lib/theme";
-import type { ProfileResponse } from "@/lib/types";
+import { formatMinutes, type MeResponse, type ProfileResponse } from "@/lib/types";
 import { showAlert } from "@/lib/dialog";
-import { formatMinutes } from "@/lib/types";
+import { getChronoPref, hasMinutesGroup, setChronoPref } from "@/lib/chrono";
 
 export default function ProfileScreen() {
   const { signOut } = useClerk();
@@ -27,6 +27,10 @@ export default function ProfileScreen() {
   const { pref, setPref } = useThemePref();
   const [editName, setEditName] = useState(false);
   const [sticky, setSticky] = useState(false);
+  const [chrono, setChrono] = useState(false);
+  // Kronometre ayarı yalnızca saat hesabıyla okuyanlara görünür
+  const me = useApi<MeResponse>("/api/m/me");
+  const minutesReader = hasMinutesGroup(me.data);
   const [msgNotify, setMsgNotify] = useState(true);
   const [status, setStatus] = useState<{ count: number; next: Date | null; error: string | null } | null>(null);
   const c = useColors();
@@ -45,8 +49,10 @@ export default function ProfileScreen() {
     };
     check();
     getStickyPref().then((v) => alive && setSticky(v));
+    getChronoPref().then((v) => alive && setChrono(v));
     getMessagePref().then((v) => alive && setMsgNotify(v));
-    refreshStatus();
+    // Planlı bildirim özeti (yeniden planlamadan)
+    scheduledSummary().then((sum) => alive && setStatus({ ...sum, error: getLastSync()?.error ?? null }));
     // Telefon ayarlarından dönünce izinleri yeniden kontrol et
     const sub = AppState.addEventListener("change", (st) => st === "active" && check());
     return () => {
@@ -160,6 +166,24 @@ export default function ProfileScreen() {
             />
           </Row>
         )}
+        {perm?.notif && minutesReader && (
+          <Row style={{ justifyContent: "space-between", borderTopWidth: 1, borderTopColor: c.border, paddingTop: 10 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontFamily: fonts.semibold, fontSize: 14, color: c.foreground }}>Kronometre</Text>
+              <Muted>Bildirim panelinde sabit bir kronometre durur; okuma süreni ölçmek için başlat, durdur, sıfırla. Okuma bildirimine bağlı değildir.</Muted>
+            </View>
+            <Switch
+              value={chrono}
+              onValueChange={async (v) => {
+                setChrono(v);
+                await setupNotifications().catch(() => {});
+                await setChronoPref(v);
+              }}
+              trackColor={{ true: c.primary, false: c.muted }}
+              thumbColor="#fff"
+            />
+          </Row>
+        )}
         {perm?.notif && (
           <Row style={{ justifyContent: "space-between", borderTopWidth: 1, borderTopColor: c.border, paddingTop: 10 }}>
             <View style={{ flex: 1 }}>
@@ -239,6 +263,8 @@ export default function ProfileScreen() {
                 hideAllDayCardNotifications();
                 scheduleDayCardNotificationsJson("[]");
                 hideKazaNotification();
+                // Kronometre başka hesaba geçmesin
+                await setChronoPref(false);
                 await setKazaStickyPref(false);
                 // Bu telefona artık bu hesabın anlık bildirimi gelmesin (oturum kapanmadan önce)
                 await unregisterPushDevice(fetcher);

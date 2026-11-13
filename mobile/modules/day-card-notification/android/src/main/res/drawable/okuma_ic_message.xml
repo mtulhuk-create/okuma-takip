@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Grup mesajı bildirimi küçük ikonu: açık kitap üzerinde okuyan kişi (baş ve omuzlar).
+  Bildirim ikonları tek renk olmalı: yalnızca beyaz şekil, sistem renklendirir. Sabit kartların ikonundan ayırt edilsin diye ayrı.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+  android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+  <!-- Kişi: baş -->
+  <path android:fillColor="#FFFFFFFF" android:pathData="M12,2.2a3.1,3.1 0,1 1,0 6.2a3.1,3.1 0,1 1,0 -6.2z" />
+  <!-- Kişi: omuzlar (kitabın üstünde) -->
+  <path android:fillColor="#FFFFFFFF" android:pathData="M6.6,13.2c0.4,-2.6 2.6,-4.2 5.4,-4.2s5,1.6 5.4,4.2l-5.4,1.6z" />
+  <!-- Açık kitap: sol ve sağ sayfa, ortada sırt -->
+  <path android:fillColor="#FFFFFFFF" android:pathData="M1.5,13.6c3.6,-1.4 7.1,-0.9 9.9,1.3v7.6c-2.8,-2.1 -6.3,-2.6 -9.9,-1.3z" />
+  <path android:fillColor="#FFFFFFFF" android:pathData="M22.5,13.6c-3.6,-1.4 -7.1,-0.9 -9.9,1.3v7.6c2.8,-2.1 6.3,-2.6 9.9,-1.3z" />
+</vector>

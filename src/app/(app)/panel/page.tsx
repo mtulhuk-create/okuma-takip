@@ -1,8 +1,7 @@
 import { Avatar } from "@/components/avatar";
 import { avatarInitial } from "@/lib/names";
-import { CalendarDays, Plus, Receipt, Search, Wallet } from "lucide-react";
+import { CalendarDays, Plus, Receipt, Search } from "lucide-react";
 import Link from "next/link";
-import { Countdown } from "@/components/countdown";
 import { DayCardMini } from "@/components/day-card";
 import { PushToggle } from "@/components/push-toggle";
 import { MyHistory } from "@/components/my-history";
@@ -11,7 +10,6 @@ import { DueBadge } from "@/components/due-badge";
 import { requireUser } from "@/lib/auth";
 import { getMyHistory } from "@/lib/history";
 import { myGroupsToday, myMoney } from "@/lib/queries";
-import { formatDateTime } from "@/lib/schedule";
 
 export const metadata = { title: "Bugün" };
 

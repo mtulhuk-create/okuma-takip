@@ -164,7 +164,7 @@ model Group {
   badgesEnabled  Boolean     @default(false) // latife rozetleri (yönetici uyarıyı onaylayarak açar)
   badgesSince    String? // rozetler açıldığında kapanmış son gün; seriler sonraki günlerden sayılır
   streaksEnabled Boolean     @default(true) // seri rozetleri (3+ gün okuma, tam seri)
-  framesEnabled  Boolean     @default(true) // ekip hiyerarşisi çerçeveleri (altın / gümüş / bronz)
+  framesEnabled  Boolean     @default(false) // ekip hiyerarşisi çerçeveleri (altın / gümüş / bronz)
   dayDetails     Boolean     @default(true) // gün kartında kim okudu / alt sınır / okumadı; kapalıyken yalnızca bildirdi / bildirmedi
   lastSettledDay String? // ceza hesaplaması yapılan son okuma günü (YYYY-MM-DD)
   createdAt      DateTime    @default(now())

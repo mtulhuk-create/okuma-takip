@@ -149,7 +149,7 @@ export function GroupForm({ group }: { group?: Group & { teams?: Team[] } }) {
   const [nameDisplay, setNameDisplay] = useState<"ENTERED" | "ACCOUNT" | "BOTH">(group?.nameDisplay ?? "ENTERED");
   const [badgesEnabled, setBadgesEnabled] = useState(group?.badgesEnabled ?? false);
   const [streaksEnabled, setStreaksEnabled] = useState(group?.streaksEnabled ?? true);
-  const [framesEnabled, setFramesEnabled] = useState(group?.framesEnabled ?? true);
+  const [framesEnabled, setFramesEnabled] = useState(group?.framesEnabled ?? false);
   const [dayDetails, setDayDetails] = useState(group?.dayDetails ?? true);
   const edit = !!group;
   // Kaydedilmemiş değişiklik: seçimlerin ilk halinden farkı ya da metin alanlarına yazılması

@@ -2,7 +2,7 @@ import { Lock, Mail, Users } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requestJoin, respondInvite } from "@/app/actions";
-import { ActionForm, SubmitButton } from "@/components/action-form";
+import { SubmitButton } from "@/components/action-form";
 import { JoinForm } from "@/components/join-form";
 import { ChatView } from "@/components/chat/chat-view";
 import { GroupRules } from "@/components/group-rules";

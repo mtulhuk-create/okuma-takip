@@ -1,7 +1,7 @@
 import { Bell, Mail } from "lucide-react";
 import Link from "next/link";
 import { respondInvite } from "@/app/actions";
-import { ActionForm, SubmitButton } from "@/components/action-form";
+import { SubmitButton } from "@/components/action-form";
 import { JoinForm } from "@/components/join-form";
 import { MarkSeen } from "@/components/mark-seen";
 import { TeamSelect } from "@/components/team-select";

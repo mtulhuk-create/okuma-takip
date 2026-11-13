@@ -3,42 +3,42 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
   android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal"
   android:paddingTop="2dp" android:paddingBottom="2dp">
-    <LinearLayout android:id="@+id/kb_sabah" android:layout_width="0dp" android:layout_height="38dp" android:layout_weight="1" android:layout_marginLeft="3dp" android:layout_marginRight="3dp"
+    <LinearLayout android:id="@+id/kb_sabah" android:layout_width="0dp" android:layout_height="34dp" android:layout_weight="1" android:layout_marginLeft="3dp" android:layout_marginRight="3dp"
       android:background="@drawable/okuma_kaza_btn_sabah" android:gravity="center" android:orientation="vertical" android:contentDescription="Sabah">
       <TextView android:id="@+id/kn_sabah" android:layout_width="wrap_content" android:layout_height="wrap_content" android:includeFontPadding="false" android:maxLines="1"
         android:text="Sabah" android:textColor="@color/kaza_sabah" android:textSize="9.5sp" android:textStyle="bold" />
       <TextView android:id="@+id/kc_sabah" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:includeFontPadding="false" android:maxLines="1"
         android:textAppearance="@android:style/TextAppearance.Material.Notification.Title" android:textSize="12sp" android:textStyle="bold" />
     </LinearLayout>
-    <LinearLayout android:id="@+id/kb_ogle" android:layout_width="0dp" android:layout_height="38dp" android:layout_weight="1" android:layout_marginLeft="3dp" android:layout_marginRight="3dp"
+    <LinearLayout android:id="@+id/kb_ogle" android:layout_width="0dp" android:layout_height="34dp" android:layout_weight="1" android:layout_marginLeft="3dp" android:layout_marginRight="3dp"
       android:background="@drawable/okuma_kaza_btn_ogle" android:gravity="center" android:orientation="vertical" android:contentDescription="Öğle">
       <TextView android:id="@+id/kn_ogle" android:layout_width="wrap_content" android:layout_height="wrap_content" android:includeFontPadding="false" android:maxLines="1"
         android:text="Öğle" android:textColor="@color/kaza_ogle" android:textSize="9.5sp" android:textStyle="bold" />
       <TextView android:id="@+id/kc_ogle" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:includeFontPadding="false" android:maxLines="1"
         android:textAppearance="@android:style/TextAppearance.Material.Notification.Title" android:textSize="12sp" android:textStyle="bold" />
     </LinearLayout>
-    <LinearLayout android:id="@+id/kb_ikindi" android:layout_width="0dp" android:layout_height="38dp" android:layout_weight="1" android:layout_marginLeft="3dp" android:layout_marginRight="3dp"
+    <LinearLayout android:id="@+id/kb_ikindi" android:layout_width="0dp" android:layout_height="34dp" android:layout_weight="1" android:layout_marginLeft="3dp" android:layout_marginRight="3dp"
       android:background="@drawable/okuma_kaza_btn_ikindi" android:gravity="center" android:orientation="vertical" android:contentDescription="İkindi">
       <TextView android:id="@+id/kn_ikindi" android:layout_width="wrap_content" android:layout_height="wrap_content" android:includeFontPadding="false" android:maxLines="1"
         android:text="İkindi" android:textColor="@color/kaza_ikindi" android:textSize="9.5sp" android:textStyle="bold" />
       <TextView android:id="@+id/kc_ikindi" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:includeFontPadding="false" android:maxLines="1"
         android:textAppearance="@android:style/TextAppearance.Material.Notification.Title" android:textSize="12sp" android:textStyle="bold" />
     </LinearLayout>
-    <LinearLayout android:id="@+id/kb_aksam" android:layout_width="0dp" android:layout_height="38dp" android:layout_weight="1" android:layout_marginLeft="3dp" android:layout_marginRight="3dp"
+    <LinearLayout android:id="@+id/kb_aksam" android:layout_width="0dp" android:layout_height="34dp" android:layout_weight="1" android:layout_marginLeft="3dp" android:layout_marginRight="3dp"
       android:background="@drawable/okuma_kaza_btn_aksam" android:gravity="center" android:orientation="vertical" android:contentDescription="Akşam">
       <TextView android:id="@+id/kn_aksam" android:layout_width="wrap_content" android:layout_height="wrap_content" android:includeFontPadding="false" android:maxLines="1"
         android:text="Akşam" android:textColor="@color/kaza_aksam" android:textSize="9.5sp" android:textStyle="bold" />
       <TextView android:id="@+id/kc_aksam" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:includeFontPadding="false" android:maxLines="1"
         android:textAppearance="@android:style/TextAppearance.Material.Notification.Title" android:textSize="12sp" android:textStyle="bold" />
     </LinearLayout>
-    <LinearLayout android:id="@+id/kb_yatsi" android:layout_width="0dp" android:layout_height="38dp" android:layout_weight="1" android:layout_marginLeft="3dp" android:layout_marginRight="3dp"
+    <LinearLayout android:id="@+id/kb_yatsi" android:layout_width="0dp" android:layout_height="34dp" android:layout_weight="1" android:layout_marginLeft="3dp" android:layout_marginRight="3dp"
       android:background="@drawable/okuma_kaza_btn_yatsi" android:gravity="center" android:orientation="vertical" android:contentDescription="Yatsı">
       <TextView android:id="@+id/kn_yatsi" android:layout_width="wrap_content" android:layout_height="wrap_content" android:includeFontPadding="false" android:maxLines="1"
         android:text="Yatsı" android:textColor="@color/kaza_yatsi" android:textSize="9.5sp" android:textStyle="bold" />
       <TextView android:id="@+id/kc_yatsi" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:includeFontPadding="false" android:maxLines="1"
         android:textAppearance="@android:style/TextAppearance.Material.Notification.Title" android:textSize="12sp" android:textStyle="bold" />
     </LinearLayout>
-    <LinearLayout android:id="@+id/kb_vitir" android:layout_width="0dp" android:layout_height="38dp" android:layout_weight="1" android:layout_marginLeft="3dp" android:layout_marginRight="3dp"
+    <LinearLayout android:id="@+id/kb_vitir" android:layout_width="0dp" android:layout_height="34dp" android:layout_weight="1" android:layout_marginLeft="3dp" android:layout_marginRight="3dp"
       android:background="@drawable/okuma_kaza_btn_vitir" android:gravity="center" android:orientation="vertical" android:contentDescription="Vitir">
       <TextView android:id="@+id/kn_vitir" android:layout_width="wrap_content" android:layout_height="wrap_content" android:includeFontPadding="false" android:maxLines="1"
         android:text="Vitir" android:textColor="@color/kaza_vitir" android:textSize="9.5sp" android:textStyle="bold" />
