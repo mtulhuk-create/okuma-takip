@@ -59,11 +59,16 @@ export function teamsActive(group: { teamsEnabled: boolean; teams?: unknown[] })
   return group.teamsEnabled && (group.teams?.length ?? 0) >= 2;
 }
 
+/** Çerçeve sıralamasında saat hesabının sayfa karşılığı: 15 dakika = 3 sayfa */
+const MINUTES_PER_PAGE = 5;
+const pageEquivalent = (r: Pick<Rules, "readUnit" | "targetPages">) => (r.readUnit === "MINUTES" ? r.targetPages / MINUTES_PER_PAGE : r.targetPages);
+
 /** Ekip hiyerarşisi çerçevesi */
 export type Tier = "gold" | "silver" | "bronze";
 
 /**
- * Ekip hiyerarşisi: ekibin günlük toplam tam sayfası (eserlerin hedefleri) en çok olan en üstte.
+ * Ekip hiyerarşisi: ekibin günlük toplam tam sayfası (eserlerin hedefleri) en çok olan en üstte;
+ * saat hesaplı ekibin hedefi sayfa karşılığıyla (15 dk = 3 sayfa) karşılaştırılır.
  * 1 ekip ya da hepsi eşitse çerçeve yok; 2 ekipte yalnızca üstteki altın; 3 ekipte altın ve gümüş
  * (en az okuyan çerçevesiz); 4 ve üstünde altın, gümüş, bronz, kalanlar çerçevesiz. Eşit sayfalı ekipler aynı çerçeveyi alır.
  */
@@ -72,8 +77,8 @@ export function teamTiers(group: GroupLike): Map<string, Tier> {
   // Grup ayarında çerçeveler kapalıysa hiç verilmez
   if (!teamsActive(group) || group.framesEnabled === false) return out;
   const teams = group.teams!;
-  // Saat hesaplı ekipte 1 dakika 1 sayfa sayılır (sıralama için yaklaşık ölçü)
-  const totals = teams.map((t) => ({ id: t.id, total: pickRules(t).targetPages }));
+  // Saat hesaplı ekipler sayfaya çevrilerek karşılaştırılır: 15 dakika = 3 sayfa (yalnızca sıralamada, hiçbir yerde gösterilmez)
+  const totals = teams.map((t) => ({ id: t.id, total: pageEquivalent(pickRules(t)) }));
   const levels = [...new Set(totals.map((t) => t.total))].sort((a, b) => b - a);
   const tiers: Tier[] = teams.length === 2 ? ["gold"] : teams.length === 3 ? ["gold", "silver"] : ["gold", "silver", "bronze"];
   // En alt seviye hiçbir zaman çerçeve almaz (ör. 3 ekip 50-50-20: yalnızca 50'ler altın)
