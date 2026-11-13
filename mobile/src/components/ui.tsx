@@ -253,7 +253,7 @@ export function isRealPhoto(uri?: string | null): uri is string {
  * Ekip hiyerarşisi çerçeveleri (gruba özel): yalnızca halka; üzerinde küçük baklava çıkıntılar.
  * Altın 4 çıkıntı (en şaşalı), gümüş 2, bronz 1 (üstte). Hepsi sade tutulur.
  */
-export const TIER_COLORS = { gold: "#D4A017", silver: "#A7B1BC", bronze: "#B07040" } as const;
+export const TIER_COLORS = { gold: "#D4A017", silver: "#D0D8E1", bronze: "#B07040" } as const;
 export type Tier = "gold" | "silver" | "bronze";
 const TIER_NOTCHES: Record<Tier, ("top" | "bottom" | "left" | "right")[]> = { gold: ["top", "bottom", "left", "right"], silver: ["top", "bottom"], bronze: ["top"] };
 
@@ -290,7 +290,7 @@ export function Avatar({ name, uri, size = 36, initial, seed, frame }: { name: s
   if (!frame) return inner;
   // Halka avatarın üstüne çizilir (boyut değişmez, dairenin tam çevresine oturur); çıkıntılar halkanın üzerinde
   // Tüm çerçevelerde aynı, ince halka; çıkıntılar küçük (göze batmasın)
-  const bw = 1;
+  const bw = 0.5;
   const R = size + bw * 2;
   const d = Math.max(2.5, size * 0.096);
   const color = TIER_COLORS[frame];

@@ -490,7 +490,7 @@ function CategoryChips({ card, interactive }: { card: Card; interactive?: boolea
               // Ekip çerçevesi: tüm kenar ince ve hafif saydam altın / gümüş / bronz
               <View
                 key={p.id}
-                style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 3, height: 21, backgroundColor: c.card, borderRadius: 99, paddingHorizontal: 8, borderWidth: p.tier ? 0.75 : 1, borderColor: p.tier ? TIER_COLORS[p.tier] + "cc" : c.border }}
+                style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 3, height: 21, backgroundColor: c.card, borderRadius: 99, paddingHorizontal: 8, borderWidth: p.tier ? 0.4 : 1, borderColor: p.tier ? TIER_COLORS[p.tier] + "cc" : c.border }}
               >
                 {/* Yazı kutunun tam ortasında: yazı tipi iç boşluğu kapalı, satır yüksekliği sabit */}
                 <Text style={{ fontFamily: fonts.semibold, fontSize: 11, lineHeight: 15, includeFontPadding: false, textAlignVertical: "center", textAlign: "center", color: sel.color(c) }}>
@@ -498,7 +498,7 @@ function CategoryChips({ card, interactive }: { card: Card; interactive?: boolea
                   {p.pages ? ` · ${p.unit === "MINUTES" ? formatAmount(p.pages, p.unit) : p.pages}` : ""}
                 </Text>
                 {p.kefaret ? <BookHeart size={11} color={KEFARET} /> : null}
-                {p.tier && <EdgeNotches tier={p.tier} bw={0.75} d={2.8} />}
+                {p.tier && <EdgeNotches tier={p.tier} bw={0.4} d={2.8} />}
                 <StreakFlame s={p.streak} top={-8} />
               </View>
             ))}
