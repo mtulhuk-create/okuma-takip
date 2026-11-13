@@ -553,7 +553,7 @@ export function ChatView({ initial }: { initial: Page }) {
             </form>
           ) : (
             <p className="flex items-center justify-center gap-2 rounded-full bg-card py-2.5 text-sm text-muted-foreground shadow-xs">
-              <Lock className="size-4" /> Bu grupta yalnızca yöneticiler mesaj gönderebilir
+              <Lock className="size-4" /> {me.observer ? "Bu grubu gözlemci olarak görüntülüyorsun" : "Bu grupta yalnızca yöneticiler mesaj gönderebilir"}
             </p>
           )}
         </div>

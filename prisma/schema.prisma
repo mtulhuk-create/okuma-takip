@@ -94,6 +94,7 @@ model User {
   name          String // ad soyad (kullanıcının girdiği)
   accountName   String? // hesaptan (Google/e-posta) gelen ad
   nameConfirmed Boolean  @default(false) // kullanıcı ad soyadını onayladı mı
+  siteAdmin     Boolean  @default(false) // site yöneticisi: üye olmadığı grupların sohbetini salt okunur görebilir
   liteApp       Boolean  @default(false) // mobil uygulamanın Lite sürümünü kullanıyor (yönetici yapılamaz)
   email         String?
   imageUrl      String?

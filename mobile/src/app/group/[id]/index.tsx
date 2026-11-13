@@ -82,6 +82,7 @@ function ChatHeader({ title, sub, onTitle, children }: { title: string; sub?: st
 
 /** Mesaj yazma alanı: yazılan metin yalnızca burada tutulur, sohbet listesi her harfte yeniden çizilmez */
 function Composer({
+  observer,
   canPost,
   onSend,
   onPoll,
@@ -89,6 +90,8 @@ function Composer({
   reply,
   onCancelReply,
 }: {
+  /** Site yöneticisi üye olmadığı grubu gözlemci olarak görüntülüyor */
+  observer?: boolean;
   canPost: boolean;
   onSend: (text: string) => void;
   onPoll: () => void;
@@ -158,7 +161,7 @@ function Composer({
       ) : (
         <Row style={{ justifyContent: "center", paddingVertical: 10, backgroundColor: c.card, borderRadius: 24 }} gap={6}>
           <Lock size={15} color={c.mutedForeground} />
-          <Text style={{ fontFamily: fonts.regular, fontSize: 13, color: c.mutedForeground }}>Bu grupta yalnızca yöneticiler mesaj gönderebilir</Text>
+          <Text style={{ fontFamily: fonts.regular, fontSize: 13, color: c.mutedForeground }}>{observer ? "Bu grubu gözlemci olarak görüntülüyorsun" : "Bu grupta yalnızca yöneticiler mesaj gönderebilir"}</Text>
         </Row>
       )}
     </Animated.View>
@@ -575,7 +578,7 @@ export default function ChatScreen() {
       />
       )}
       </View>
-      <Composer canPost={data.me.canPost} onSend={send} onPoll={() => setPollOpen(true)} onPhoto={choosePhoto} reply={replyOf(replyTo)} onCancelReply={() => setReplyTo(null)} />
+      <Composer observer={data.me.observer} canPost={data.me.canPost} onSend={send} onPoll={() => setPollOpen(true)} onPhoto={choosePhoto} reply={replyOf(replyTo)} onCancelReply={() => setReplyTo(null)} />
       <PhotoSendSheet photo={photo?.picked ?? null} initialCaption={photo?.draft ?? ""} onClose={() => setPhoto(null)} onSend={sendPhoto} />
       <PollModal groupId={id} visible={pollOpen} onClose={() => setPollOpen(false)} />
       <GroupHistoryModal groupId={id} visible={historyOpen} onClose={() => setHistoryOpen(false)} />
