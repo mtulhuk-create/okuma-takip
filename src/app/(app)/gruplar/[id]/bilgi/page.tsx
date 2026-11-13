@@ -8,13 +8,12 @@ import { ActionForm, SubmitButton } from "@/components/action-form";
 import { Avatar } from "@/components/avatar";
 import { CopyButton } from "@/components/copy-button";
 import { DueBadge } from "@/components/due-badge";
-import { Countdown } from "@/components/countdown";
 import { GroupRules } from "@/components/group-rules";
 import { TeamSelect } from "@/components/team-select";
 import { teamsActive } from "@/lib/rules";
 import { requireUser } from "@/lib/auth";
 import { getGroupDetail } from "@/lib/queries";
-import { formatDateTime, formatDayKey } from "@/lib/schedule";
+import { formatDayKey } from "@/lib/schedule";
 
 export const metadata = { title: "Grup bilgisi" };
 

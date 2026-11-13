@@ -38,10 +38,13 @@ type Native = {
   showKaza?(json: string): void;
   hideKaza?(): void;
   getAppIcon?(): string;
+  showChrono?(): void;
+  hideChrono?(): void;
   configureInbox?(apiUrl: string, token: string, enabled: boolean): void;
   setInboxAfter?(iso: string): void;
   showMessages?(json: string, skipGroupId: string): void;
   setOpenChat?(groupId: string): void;
+  setPushActive?(on: boolean): void;
   getPushToken?(): Promise<string>;
   dismissMessages?(groupId: string): void;
   setAppIcon?(name: string): void;
@@ -139,4 +142,19 @@ export async function getPushToken() {
   } catch {
     return null;
   }
+}
+
+/** Bildirim panelinde kronometre (saat hesabıyla okuyanlar için); gösterir ya da kaldırır */
+export function setChronoNotification(on: boolean) {
+  try {
+    if (on) native?.showChrono?.();
+    else native?.hideChrono?.();
+  } catch {}
+}
+
+/** Anlık bildirim (Firebase) çalışıyorsa yedek mesaj kontrolü seyrekleşir (pil) */
+export function setNativePushActive(on: boolean) {
+  try {
+    native?.setPushActive?.(on);
+  } catch {}
 }

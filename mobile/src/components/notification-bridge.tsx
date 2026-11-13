@@ -6,7 +6,8 @@ import { AppState, Pressable, Text } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApi, useApiFetch } from "@/lib/api";
 import { checkInbox, markInboxSeen, refreshInboxToken } from "@/lib/inbox";
-import { registerPushDevice } from "@/lib/push";
+import { pushActive, registerPushDevice } from "@/lib/push";
+import { syncChrono } from "@/lib/chrono";
 import { LITE } from "@/lib/variant";
 import { getKazaStickyPref, syncKazaCard, type KazaState } from "@/lib/kaza";
 import { exactAlarmsAllowed, handleReportAction, requestExactAlarms, setupNotifications, syncSchedule, type ReportData, SCHEDULE_PATH, setDayCards } from "@/lib/notifications";
@@ -33,9 +34,11 @@ export function NotificationBridge() {
       .catch(() => setReady(true));
   }, []);
 
-  // Kilit ekranı kartı uygulamadaki gün kartlarıyla aynı kalsın
+  // Kilit ekranı kartı uygulamadaki gün kartlarıyla aynı kalsın; kronometre (açıksa) yerinde dursun
   useEffect(() => {
-    if (me.data?.groups) setDayCards(me.data.groups);
+    if (!me.data?.groups) return;
+    setDayCards(me.data.groups);
+    syncChrono(me.data).catch(() => {});
   }, [me.data]);
 
   // Bildirim panelindeki kaza kartı: uygulama açılınca güncel sayılar ve yeni token ile yenilenir
@@ -61,8 +64,11 @@ export function NotificationBridge() {
 
   // Uygulama açıkken gruplara gelen mesajlar da bildirilir (açık olan sohbet hariç)
   useEffect(() => {
+    let n = 0;
     const t = setInterval(() => {
       if (AppState.currentState !== "active") return;
+      // Anlık bildirim çalışıyorsa mesajlar zaten anında geliyor: yedek kontrol 4 kat seyrek (pil ve veri)
+      if (pushActive() && n++ % 4) return;
       checkInbox()
         .then((n) => {
           // Yeni mesaj geldi: menüdeki ve grup kartlarındaki okunmamış sayıları tazelenir

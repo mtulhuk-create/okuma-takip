@@ -56,6 +56,11 @@ class DayCardNotificationModule : Module() {
       InboxPoller.dismiss(context, groupId)
     }
 
+    // Anlık bildirim çalışıyor mu (yedek mesaj kontrolünün sıklığı buna göre)
+    Function("setPushActive") { on: Boolean ->
+      InboxPoller.setPushActive(context, on)
+    }
+
     // Ekranda açık olan sohbet: onun anlık mesajları bildirilmez
     Function("setOpenChat") { groupId: String ->
       InboxPoller.openChat = groupId.ifEmpty { null }
@@ -74,6 +79,15 @@ class DayCardNotificationModule : Module() {
       } catch (_: Throwable) {
         promise.resolve("")
       }
+    }
+
+    // Kronometre (saat hesabıyla okuyanlar için, ayardan açılır)
+    Function("showChrono") {
+      ChronoCard.show(context)
+    }
+
+    Function("hideChrono") {
+      ChronoCard.hide(context)
     }
 
     Function("hideKaza") {
