@@ -120,7 +120,7 @@ export default async function GroupInfoPage({ params }: { params: Promise<{ id: 
             {unpaid.slice(0, 10).map((p) => (
               <li key={p.id} className="flex justify-between py-2">
                 <span className="text-muted-foreground">
-                  {formatDayKey(p.dayKey)} · {p.pagesRead}/{p.requiredPages} sf
+                  {formatDayKey(p.dayKey)} · {p.pagesRead}/{p.requiredPages}
                 </span>
                 <b>{p.amount} TL</b>
               </li>

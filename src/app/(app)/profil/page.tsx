@@ -8,6 +8,7 @@ import { PushToggle } from "@/components/push-toggle";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { requireUser } from "@/lib/auth";
 import { getProfileStats } from "@/lib/queries";
+import { formatMinutes } from "@/lib/rules";
 
 export const metadata = { title: "Profil" };
 
@@ -15,7 +16,8 @@ export default async function ProfilePage() {
   const user = await requireUser();
   const stats = await getProfileStats(user.id);
   const items = [
-    { Icon: BookOpen, label: "Toplam sayfa", value: stats.totalPages },
+    // Saat hesabıyla okuyanda toplam süre de gösterilir
+    stats.totalMinutes ? { Icon: BookOpen, label: "Toplam okuma", value: stats.totalPages ? `${stats.totalPages} sf · ${formatMinutes(stats.totalMinutes)}` : formatMinutes(stats.totalMinutes) } : { Icon: BookOpen, label: "Toplam sayfa", value: stats.totalPages },
     { Icon: CalendarCheck, label: "Okunan gün", value: stats.readDays },
     { Icon: Wallet, label: "Toplam ceza", value: `${stats.totalPenalty} TL` },
     { Icon: Users, label: "Aktif grup", value: stats.activeGroups },

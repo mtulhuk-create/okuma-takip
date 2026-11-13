@@ -159,7 +159,10 @@ object InboxPoller {
     style.setConversationTitle(name).setGroupConversation(true)
     for (m in msgs) {
       val author = m.optString("author").ifEmpty { name }
-      style.addMessage(m.optString("text"), parseTime(m.optString("createdAt")), Person.Builder().setName(author).setKey("$groupId:$author").build())
+      // Yazanın avatarı (fotoğraf ya da harfli), çerçevesi ve serisi (grup ayarlarında açıksa)
+      val person = Person.Builder().setName(author).setKey("$groupId:${m.optString("authorId").ifEmpty { author }}")
+      AvatarIcon.make(context, m)?.let { person.setIcon(it) }
+      style.addMessage(m.optString("text"), parseTime(m.optString("createdAt")), person.build())
     }
     val open = Intent(Intent.ACTION_VIEW, Uri.parse("okumatakip://group/$groupId")).setPackage(context.packageName).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     val pi = PendingIntent.getActivity(context, groupId.hashCode(), open, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)

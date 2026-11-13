@@ -7,7 +7,7 @@ import { Platform } from "react-native";
 import { API_URL } from "./config";
 import { enqueue } from "./offline";
 import { LITE } from "./variant";
-import type { DayCard } from "./types";
+import { formatAmount, type DayCard } from "./types";
 import { dayCardNotificationAvailable, hideDayCardNotification, scheduleDayCardNotificationsJson, showDayCardNotification, type DayCardPayload } from "../../modules/day-card-notification";
 
 export const REPORT_CATEGORY = "REPORT";
@@ -22,6 +22,8 @@ type Schedule = {
     groupId: string;
     name: string;
     dailyPages: number;
+    /** Okuma hesabı: saat hesabında dailyPages / minPages dakika (eski sunucuda yok) */
+    unit?: "PAGES" | "MINUTES";
     minPages?: number;
     books?: string[];
     reminderHours: number;
@@ -96,7 +98,7 @@ function dayCardContent(g: Schedule["groups"][number], deadline: Date, dayKey: s
   const books = g.books && g.books.length > 1 ? ` · ${g.books.length} eser` : g.books?.[0] && g.books[0] !== "Günlük okuma" ? ` · ${g.books[0]}` : "";
   return {
     title: `📖 ${g.name} · ${dayText(dayKey)}`,
-    body: `Hedef ${g.dailyPages} sf${g.minPages != null ? ` (alt sınır ${g.minPages})` : ""}${books}\nSon bildirim ${hhmm(deadline)} · butonlarla hemen bildir`,
+    body: `Hedef ${formatAmount(g.dailyPages, g.unit)}${g.minPages != null ? ` (alt sınır ${formatAmount(g.minPages, g.unit)})` : ""}${books}\nSon bildirim ${hhmm(deadline)} · butonlarla hemen bildir`,
   };
 }
 
@@ -146,11 +148,15 @@ function dayCardPayload(g: Schedule["groups"][number], p: Schedule["groups"][num
   const list = base?.books?.length
     ? base.books.map((b) => ({ ...b, pages: today ? b.pages : null }))
     : [{ id: "", title: g.books?.length === 1 ? g.books[0] : "Günlük okuma", target, min, pages: null }];
+  // Okuma hesabı: saat hesabında hedef ve sayfalar dakikadır
+  const unit = base?.unit ?? g.unit ?? "PAGES";
   // Kefaret okumasında her esere düşen sayfa (sunucudaki dağıtımla aynı: hedefleri oranında)
   const sum = list.reduce((n, b) => n + b.target, 0) || 1;
   let left = plan?.dailyExtra ?? 0;
   const books = list.map((b, i) => {
-    const share = !plan ? 0 : i === list.length - 1 ? left : Math.min(left, Math.floor((plan.dailyExtra * b.target) / sum));
+    // Saat hesabında paylar 15 dakikanın katı (sunucudaki dağıtımla aynı)
+    const step = unit === "MINUTES" ? 15 : 1;
+    const share = !plan ? 0 : i === list.length - 1 ? left : Math.min(left, Math.floor((plan.dailyExtra * b.target) / sum / step) * step);
     left -= share;
     return { id: b.id, title: b.title, target: b.target, min: b.min, pages: b.pages, ...(plan ? { kefPages: b.target + share } : {}) };
   });
@@ -169,6 +175,7 @@ function dayCardPayload(g: Schedule["groups"][number], p: Schedule["groups"][num
     books,
     plan: !!plan,
     kefaretOn: !!me?.kefaret,
+    unit,
     fineMin: base?.fine?.min ?? 0,
     fineNone: base?.fine?.none ?? 0,
     kefaretLine: plan ? `Kefaret ${plan.doneDays}${today && me?.kefaret ? "+1" : !today && base?.kefaret ? "+1" : ""}/${plan.days} gün · ${plan.earned}/${plan.discountTotal} TL silindi` : null,
@@ -282,7 +289,7 @@ function buildPlan(data: Schedule, sticky: boolean, now: number): Planned[] {
         add(
           `rem-${g.groupId}-${p.dayKey}`,
           remindAt,
-          { title: `📚 ${g.name}: okuma hatırlatması`, body: `Bugünkü ${g.dailyPages} sayfanı henüz bildirmedin. Son bildirim saati ${hhmm(deadline)}.`, ...category, data: payload },
+          { title: `📚 ${g.name}: okuma hatırlatması`, body: `Bugünkü ${formatAmount(g.dailyPages, g.unit, true)} okumanı henüz bildirmedin. Son bildirim saati ${hhmm(deadline)}.`, ...category, data: payload },
           "reminders",
         );
       }

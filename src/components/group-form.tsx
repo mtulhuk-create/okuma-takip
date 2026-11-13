@@ -4,7 +4,7 @@ import type { Group, Team } from "@prisma/client";
 import { AlarmClock, AtSign, BookOpen, ChevronDown, Globe, Landmark, Lock, PencilLine, Plus, ShieldCheck, Trash2, UserRound, Users } from "lucide-react";
 import { useState } from "react";
 import { createGroup, updateGroup } from "@/app/actions";
-import { pickRules, type Rules } from "@/lib/rules";
+import { formatAmount, pickRules, type Rules } from "@/lib/rules";
 import { minuteToTime, periodLengthMinutes, timeToMinute } from "@/lib/schedule";
 import { BookSuggestProvider } from "./book-suggest";
 import { ActionForm, SubmitButton } from "./action-form";
@@ -86,7 +86,7 @@ function Toggle({ checked, onChange, title, desc }: { checked: boolean; onChange
 }
 
 type TeamDraft = Rules & { id?: string; name: string; key: string };
-const DEFAULT_RULES: Rules = { penaltyMode: "FIXED", targetPages: 20, minPages: 10, penaltyAmount: 20, minDiscount: 50, books: [{ id: "kitap1", title: "Risale-i Nur Külliyatı", targetPages: 20, minPages: 10 }] };
+const DEFAULT_RULES: Rules = { penaltyMode: "FIXED", readUnit: "PAGES", targetPages: 20, minPages: 10, penaltyAmount: 20, minDiscount: 50, books: [{ id: "kitap1", title: "Risale-i Nur Külliyatı", targetPages: 20, minPages: 10 }] };
 
 function TeamCard({ team, index, canRemove, onChange, onRemove }: { team: TeamDraft; index: number; canRemove: boolean; onChange: (t: TeamDraft) => void; onRemove: () => void }) {
   const [open, setOpen] = useState(index === 0);
@@ -106,7 +106,8 @@ function TeamCard({ team, index, canRemove, onChange, onRemove }: { team: TeamDr
       </div>
       {!open && (
         <p className="px-3 pb-2 text-xs text-muted-foreground">
-          {team.books.length} eser · günde {team.targetPages} sayfa · alt sınır {team.minPages} · {team.penaltyMode === "FIXED" ? `${team.penaltyAmount} TL (%${team.minDiscount} indirim)` : `${team.penaltyAmount} TL/eksik sayfa`}
+          {team.readUnit === "MINUTES" ? "Saat hesabı" : "Sayfa hesabı"} · {team.books.length} eser · günde {formatAmount(team.targetPages, team.readUnit, true)} · alt sınır {formatAmount(team.minPages, team.readUnit)} ·{" "}
+          {team.penaltyMode === "FIXED" ? `${team.penaltyAmount} TL (%${team.minDiscount} indirim)` : `${team.penaltyAmount} TL/eksik ${team.readUnit === "MINUTES" ? "15 dk" : "sayfa"}`}
         </p>
       )}
       {open && (
@@ -184,6 +185,7 @@ export function GroupForm({ group }: { group?: Group & { teams?: Team[] } }) {
       <input type="hidden" name="visibility" value={visibility} />
       <input type="hidden" name="chatPolicy" value={chatPolicy} />
       <input type="hidden" name="penaltyMode" value={rules.penaltyMode} />
+      <input type="hidden" name="readUnit" value={rules.readUnit} />
       <input type="hidden" name="targetPages" value={rules.targetPages} />
       <input type="hidden" name="minPages" value={rules.minPages} />
       <input type="hidden" name="penaltyAmount" value={rules.penaltyAmount} />

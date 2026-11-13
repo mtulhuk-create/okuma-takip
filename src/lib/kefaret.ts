@@ -17,7 +17,7 @@ import { getDb } from "./db";
 import { discountPenalties } from "./dues";
 import { shownName } from "./names";
 import { notifyUsers } from "./notify";
-import { rulesFor } from "./rules";
+import { MINUTE_STEP, formatAmount, rulesFor, type ReadUnit } from "./rules";
 import { currentPeriod } from "./schedule";
 
 const OPEN_DUE = ["PENDING", "SUBMITTED", "OVERDUE"];
@@ -32,6 +32,8 @@ export type KefaretRow = {
   discountTotal: number;
   pages: number;
   target: number;
+  /** Okuma hesabı (saat hesabında pages/target/dailyExtra dakika) */
+  unit: ReadUnit;
   dailyExtra: number;
   days: number;
   /** Zaten süren kefareti var (yenisi başlatılmaz) */
@@ -66,14 +68,17 @@ export async function previewKefaret(groupId: string, discountPercent: number, r
   });
   const [open, active] = await Promise.all([openPenalties(groupId), db.kefaretPlan.findMany({ where: { groupId, status: "ACTIVE" }, select: { userId: true } })]);
   const busy = new Set(active.map((a) => a.userId));
-  // Ortak sayfa değeri grubun tüm açık cezalarından (tek kişiye yapılsa da aynı ölçü)
-  let sumC = 0;
-  let sumM = 0;
-  for (const v of open.values()) {
-    sumC += v.c;
-    sumM += v.m;
+  // Ortak sayfa (ya da dakika) değeri grubun tüm açık cezalarından (tek kişiye yapılsa da aynı ölçü);
+  // sayfa ve saat hesaplı okuyucular kendi aralarında ölçülür
+  const unitOf = new Map(group.members.map((m) => [m.userId, rulesFor(group, m).readUnit]));
+  const sums = { PAGES: { c: 0, m: 0 }, MINUTES: { c: 0, m: 0 } };
+  for (const [uid, v] of open) {
+    const u = sums[unitOf.get(uid) ?? "PAGES"];
+    u.c += v.c;
+    u.m += v.m;
   }
-  const pageValue = sumC > 0 ? sumM / sumC : 0;
+  const valueOf = (u: ReadUnit) => (sums[u].c > 0 ? sums[u].m / sums[u].c : 0);
+  const pageValue = valueOf("PAGES");
   const rows: KefaretRow[] = [];
   for (const m of group.members) {
     if (onlyUserId && m.userId !== onlyUserId) continue;
@@ -82,8 +87,11 @@ export async function previewKefaret(groupId: string, discountPercent: number, r
     const r = rulesFor(group, m);
     const discountTotal = Math.round((o.c * discountPercent) / 100);
     if (discountTotal <= 0) continue;
-    const pages = Math.max(1, Math.ceil(discountTotal * pageValue));
-    const dailyExtra = Math.max(1, Math.round((r.targetPages * raisePercent) / 100));
+    // Saat hesabında toplam ek süre ve günlük ek 15 dakikanın katı (yukarı yuvarlanır)
+    const step = r.readUnit === "MINUTES" ? MINUTE_STEP : 1;
+    const up = (n: number) => Math.max(step, Math.ceil(n / step) * step);
+    const pages = up(discountTotal * valueOf(r.readUnit));
+    const dailyExtra = r.readUnit === "MINUTES" ? up((r.targetPages * raisePercent) / 100) : Math.max(1, Math.round((r.targetPages * raisePercent) / 100));
     rows.push({
       userId: m.userId,
       name: shownName(m.user, group.nameDisplay),
@@ -93,6 +101,7 @@ export async function previewKefaret(groupId: string, discountPercent: number, r
       discountTotal,
       pages,
       target: r.targetPages,
+      unit: r.readUnit,
       dailyExtra,
       days: Math.ceil(pages / dailyExtra),
       active: busy.has(m.userId),
@@ -132,7 +141,7 @@ export async function startKefaret(groupId: string, adminId: string, discountPer
         [r.userId],
         {
           title: `📗 ${group.name}: kefaret okuması`,
-          body: `Cezana %${discountPercent} indirim (${r.discountTotal} TL) kazanabilirsin: ${r.days} gün, günde ${r.target + r.dailyExtra} sayfa oku. Gün kartındaki "Kefaret okuması" butonunu kullan; istemezsen normal okumaya devam edebilirsin.`,
+          body: `Cezana %${discountPercent} indirim (${r.discountTotal} TL) kazanabilirsin: ${r.days} gün, günde ${formatAmount(r.target + r.dailyExtra, r.unit, true)} oku. Gün kartındaki "Kefaret okuması" butonunu kullan; istemezsen normal okumaya devam edebilirsin.`,
           url: `/gruplar/${groupId}`,
         },
         { inApp: true },

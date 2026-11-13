@@ -2,7 +2,7 @@ import "server-only";
 import type { Group, Team } from "@prisma/client";
 import { getDb } from "./db";
 import { publish } from "./realtime";
-import { booksOf, parseBookLogs, rulesFor, teamsActive, type BookLog } from "./rules";
+import { booksOf, parseBookLogs, rulesFor, teamsActive, type BookLog, type ReadUnit } from "./rules";
 import { openPeriod } from "./schedule";
 
 // ---------- Eser adı benzerliği ----------
@@ -144,16 +144,16 @@ export function parseLinks(v: unknown): LinkInput[] {
  * Bir grupta bildirilen eser sayfalarını, kullanıcının "aynı eser" dediği diğer gruplara da yansıtır.
  * Diğer grupta hedef kadar sayılır (fazlası değil) ve oradaki kayıt yalnızca artırılır, hiç azaltılmaz.
  */
-export async function propagateLinkedBooks(userId: string, groupId: string, books: BookLog[]) {
+export async function propagateLinkedBooks(userId: string, groupId: string, books: BookLog[], unit: ReadUnit = "PAGES") {
   const db = getDb();
   const read = books.filter((b) => (b.pages ?? 0) > 0);
   if (!read.length) return;
   const links = await db.bookLink.findMany({ where: { userId, groupId, bookId: { in: read.map((b) => b.id) } } });
   if (!links.length) return;
-  const byGroup = new Map<string, { linkBookId: string; pages: number }[]>();
+  const byGroup = new Map<string, { linkBookId: string; pages: number; full: boolean }[]>();
   for (const l of links) {
-    const pages = read.find((b) => b.id === l.bookId)!.pages!;
-    byGroup.set(l.linkGroupId, [...(byGroup.get(l.linkGroupId) ?? []), { linkBookId: l.linkBookId, pages }]);
+    const b = read.find((x) => x.id === l.bookId)!;
+    byGroup.set(l.linkGroupId, [...(byGroup.get(l.linkGroupId) ?? []), { linkBookId: l.linkBookId, pages: b.pages!, full: b.pages! >= b.target }]);
   }
   for (const [gid, items] of byGroup) {
     const member = await db.groupMember.findUnique({ where: { groupId_userId: { groupId: gid, userId } }, include: { group: { include: { teams: true } } } });
@@ -168,7 +168,9 @@ export async function propagateLinkedBooks(userId: string, groupId: string, book
       const cur = prev.get(b.id) ?? null;
       const item = items.find((i) => i.linkBookId === b.id);
       if (!item) return { id: b.id, title: b.title, target: b.targetPages, min: b.minPages, pages: cur };
-      const val = Math.min(item.pages, b.targetPages);
+      // Hesapları farklı gruplar (sayfa ↔ saat): yalnızca hedefi tam okunduysa öbüründe de hedef sayılır
+      if (rules.readUnit !== unit && !item.full) return { id: b.id, title: b.title, target: b.targetPages, min: b.minPages, pages: cur };
+      const val = rules.readUnit !== unit ? b.targetPages : Math.min(item.pages, b.targetPages);
       if (cur == null || val > cur) {
         changed = true;
         return { id: b.id, title: b.title, target: b.targetPages, min: b.minPages, pages: val };
@@ -176,7 +178,7 @@ export async function propagateLinkedBooks(userId: string, groupId: string, book
       return { id: b.id, title: b.title, target: b.targetPages, min: b.minPages, pages: cur };
     });
     if (!changed) continue;
-    const snapshot = { pages: next.reduce((s, b) => s + (b.pages ?? 0), 0), requiredPages: rules.targetPages, minPages: rules.minPages, books: next };
+    const snapshot = { pages: next.reduce((s, b) => s + (b.pages ?? 0), 0), requiredPages: rules.targetPages, minPages: rules.minPages, unit: rules.readUnit, books: next };
     await db.readingLog.upsert({
       where: { groupId_userId_dayKey: { groupId: gid, userId, dayKey: period.dayKey } },
       create: { groupId: gid, userId, dayKey: period.dayKey, ...snapshot },

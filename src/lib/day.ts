@@ -2,12 +2,12 @@ import "server-only";
 import type { Group, Team } from "@prisma/client";
 import { linkedGroupNames } from "./book-links";
 import { getDb } from "./db";
-import { categoryOf, parseBookLogs, penaltyFor, rulesFor, teamTiers, type BookLog, type Tier } from "./rules";
+import { categoryOf, parseBookLogs, penaltyFor, rulesFor, teamTiers, type BookLog, type ReadUnit, type Tier } from "./rules";
 import { memberStreaks, streakTag } from "./history";
 import { periodFor } from "./schedule";
 
 /** tier: ekip hiyerarşisi çerçevesi (gruba özel) */
-export type DayPerson = { id: string; name: string; imageUrl: string | null; initial?: string; pages: number | null; required: number; kefaret?: number; tier?: Tier; streak?: { n: number; full: boolean } };
+export type DayPerson = { id: string; name: string; imageUrl: string | null; initial?: string; pages: number | null; required: number; unit?: ReadUnit; kefaret?: number; tier?: Tier; streak?: { n: number; full: boolean } };
 /** Kişinin süren kefaret okuması (gün kartında "Kefaret" butonu) */
 export type DayKefaret = {
   planId: string;
@@ -36,6 +36,8 @@ export type DayCard = {
     pages: number | null;
     target: number;
     min: number;
+    /** Okuma hesabı: saat hesabında pages/target/min dakika */
+    unit: ReadUnit;
     teamName: string | null;
     books: (BookLog & { linked?: string[] })[];
     /** Bu gün kefaret okuması bildirildi mi (ek sayfa) */
@@ -96,6 +98,7 @@ export async function getDayCards(group: Group & { teams: Team[] }, members: Mem
           pages: log?.pages ?? null,
           target,
           min,
+          unit: log?.unit ?? r.readUnit,
           teamName: r.teamName,
           books,
           kefaret: log?.kefaret ?? 0,
@@ -121,7 +124,9 @@ export async function getDayCards(group: Group & { teams: Team[] }, members: Mem
       if (!eligible && !log) continue;
       const tier = m.teamId ? tiers.get(m.teamId) : undefined;
       const streak = streakTag(streaks?.get(m.userId));
-      const person = { id: m.user.id, name: m.user.name, imageUrl: m.user.imageUrl, initial: m.user.initial, pages: log?.pages ?? null, required: target, ...(log?.kefaret ? { kefaret: log.kefaret } : {}), ...(tier ? { tier } : {}), ...(streak ? { streak } : {}) };
+      // Saat hesabıyla okuyanın sayfası dakikadır (yalnızca o durumda gönderilir)
+      const unit = log?.unit ?? r.readUnit;
+      const person = { id: m.user.id, name: m.user.name, imageUrl: m.user.imageUrl, initial: m.user.initial, pages: log?.pages ?? null, required: target, ...(unit === "MINUTES" ? { unit } : {}), ...(log?.kefaret ? { kefaret: log.kefaret } : {}), ...(tier ? { tier } : {}), ...(streak ? { streak } : {}) };
       if (!log) (open ? card.pending : card.none).push(person);
       else card[categoryOf(log.pages, { targetPages: target, minPages: min })].push(person);
     }

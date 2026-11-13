@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { reportReading } from "@/app/actions";
 import type { DayCard as Card } from "@/lib/day";
+import { formatAmount } from "@/lib/rules";
 import { formatClock, formatDayLong } from "@/lib/schedule";
 import { AvatarStack } from "./avatar";
 import { EdgeNotches } from "./edge-notches";
@@ -93,7 +94,7 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
                 <p className="text-[10px] leading-tight text-muted-foreground">
                   Hedef {b.target} · alt sınır {b.min}
                   {plan && <span className="text-teal-700 dark:text-teal-400"> · kefaret {kefPages.get(b.id)}</span>}
-                  {b.pages != null && <b className="text-foreground"> · {b.pages} sf</b>}
+                  {b.pages != null && <b className="text-foreground"> · {formatAmount(b.pages, me.unit)}</b>}
                 </p>
                 {b.linked?.length ? (
                   <p className="flex items-center gap-0.5 truncate text-[10px] font-semibold leading-tight text-sky-700 dark:text-sky-400" title="Burada işaretlediğin sayfa o gruplara da yansır (orada hedef kadar)">
@@ -104,7 +105,7 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
               <div className="flex gap-2">
                 {plan && (
                   <button
-                    title={`Kefaret okuması: bugün toplam ${me.target + plan.dailyExtra} sayfa`}
+                    title={`Kefaret okuması: bugün toplam ${formatAmount(me.target + plan.dailyExtra, me.unit, true)}`}
                     aria-label={`${b.title}: kefaret okuması`}
                     aria-pressed={active === "kefaret"}
                     disabled={pending}
@@ -132,7 +133,7 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
           );
         })}
       </ul>
-      {plan && <KefaretOffer plan={plan} today={card.dayKey} dailyPages={me.target + plan.dailyExtra} markedToday={me.kefaret > 0} />}
+      {plan && <KefaretOffer plan={plan} today={card.dayKey} dailyPages={me.target + plan.dailyExtra} unit={me.unit} markedToday={me.kefaret > 0} />}
       {/* Kısa etiketli seçim grubu; sayfa / ceza sağ üst çentiklerde */}
       <div className="flex gap-2.5 px-1.5 pb-1.5 pt-1" role="group" aria-label="Bugünkü okumanı bildir">
         {plan && (
@@ -143,9 +144,9 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
             disabled={pending}
             Icon={BookHeart}
             label="Kefaret"
-            corner={`${me.target + plan.dailyExtra} sf`}
+            corner={formatAmount(me.target + plan.dailyExtra, me.unit)}
             cornerTone="text-teal-700 ring-teal-600/70 dark:text-teal-300"
-            hint={`Kefaret okuması: bugün toplam ${me.target + plan.dailyExtra} sayfa, ≈${Math.round(plan.discountTotal / plan.days)} TL indirim`}
+            hint={`Kefaret okuması: bugün toplam ${formatAmount(me.target + plan.dailyExtra, me.unit, true)}, ≈${Math.round(plan.discountTotal / plan.days)} TL indirim`}
             onClick={() => send({ choice: "kefaret" }, "kefaret")}
             dense
           />
@@ -158,9 +159,9 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
           Icon={CheckCheck}
           dense={!!plan}
           label="Okudum"
-          corner={`${me.target} sf`}
+          corner={formatAmount(me.target, me.unit)}
           cornerTone="text-emerald-700 ring-emerald-600/70 dark:text-emerald-300"
-          hint={`Hedefin tamamı: ${me.target} sayfa, ceza yok`}
+          hint={`Hedefin tamamı: ${formatAmount(me.target, me.unit, true)}, ceza yok`}
           onClick={() => send({ choice: "all" }, "all")}
         />
         <ChoiceButton
@@ -171,10 +172,10 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
           Icon={Check}
           dense={!!plan}
           label="Alt sınır"
-          corner={`${me.min} sf`}
+          corner={formatAmount(me.min, me.unit)}
           cornerTone="text-amber-700 ring-amber-500/70 dark:text-amber-300"
           fine={me.fine.min ? `-${me.fine.min} TL` : undefined}
-          hint={`Alt sınır: ${me.min} sayfa${me.fine.min ? `, ${me.fine.min} TL ceza` : ""}`}
+          hint={`Alt sınır: ${formatAmount(me.min, me.unit, true)}${me.fine.min ? `, ${me.fine.min} TL ceza` : ""}`}
           onClick={() => send({ choice: "min" }, "min")}
         />
         <ChoiceButton
@@ -200,7 +201,7 @@ const shortDay = (k: string) => `${Number(k.slice(8))} ${MONTHS_SHORT[Number(k.s
 const addDay = (k: string, n: number) => new Date(Date.parse(k) + n * 86_400_000).toISOString().slice(0, 10);
 
 /** Yöneticinin kefaret teklifi: kaç gün, ne kadar silinecek, ne kadarı silindi ve son günlerde kefaret yapılıp yapılmadığı */
-function KefaretOffer({ plan, today, dailyPages, markedToday }: { plan: NonNullable<NonNullable<Card["me"]>["plan"]>; today: string; dailyPages: number; markedToday: boolean }) {
+function KefaretOffer({ plan, today, dailyPages, unit, markedToday }: { plan: NonNullable<NonNullable<Card["me"]>["plan"]>; today: string; dailyPages: number; unit?: "PAGES" | "MINUTES"; markedToday: boolean }) {
   const perDay = Math.round(plan.discountTotal / plan.days);
   const used = new Set(plan.usedDays ?? []);
   if (markedToday) used.add(today);
@@ -237,7 +238,7 @@ function KefaretOffer({ plan, today, dailyPages, markedToday }: { plan: NonNulla
       </div>
       <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
         <span className="min-w-0 flex-1 truncate">
-          Günde <b className="text-foreground">{dailyPages} sf</b> · gün başı <b className="text-foreground">{perDay} TL</b> · kalan {Math.max(0, plan.discountTotal - plan.earned)} TL
+          Günde <b className="text-foreground">{formatAmount(dailyPages, unit)}</b> · gün başı <b className="text-foreground">{perDay} TL</b> · kalan {Math.max(0, plan.discountTotal - plan.earned)} TL
         </span>
         <span className="flex shrink-0 gap-[3px]" aria-label="Son günlerde kefaret">
           {recent.map((k) => (
@@ -504,7 +505,7 @@ function CategoryChips({ card, interactive }: { card: Card; interactive?: boolea
               >
                 {p.name}
                 {p.kefaret ? <BookHeart className="size-3 text-teal-600 dark:text-teal-400" aria-label="Kefaret okuması" /> : null}
-                {p.pages != null && p.pages > 0 && <span className="opacity-70">· {p.pages}</span>}
+                {p.pages != null && p.pages > 0 && <span className="opacity-70">· {p.unit === "MINUTES" ? formatAmount(p.pages, p.unit) : p.pages}</span>}
                 {p.tier && <EdgeNotches tier={p.tier} offset={0.375} d={2.8} />}
                 <StreakFlame s={p.streak} />
               </span>
@@ -615,10 +616,10 @@ export function DayShortcut({ card, groupId, onJump, onReported }: { card: Card;
   // Gün kartındaki butonlarla aynı: kefaret (varsa) en başta, sağ üst çentikte sayfa / ceza
   const btns: { key: Choice | "kefaret"; state: string; label: string; corner?: string; fine?: string; tone: string; Icon: typeof Check; on: string }[] = [
     ...(plan && me
-      ? [{ key: "kefaret" as const, state: "kefaret", label: "Kefaret", corner: `${me.target + plan.dailyExtra} sf`, tone: "text-teal-700 ring-teal-600/70", Icon: BookHeart, on: "bg-teal-600 text-white border-teal-600" }]
+      ? [{ key: "kefaret" as const, state: "kefaret", label: "Kefaret", corner: formatAmount(me.target + plan.dailyExtra, me.unit), tone: "text-teal-700 ring-teal-600/70", Icon: BookHeart, on: "bg-teal-600 text-white border-teal-600" }]
       : []),
-    { key: "all", state: "read", label: "Okudum", corner: me ? `${me.target} sf` : undefined, tone: "text-emerald-700 ring-emerald-600/70", Icon: CheckCheck, on: "bg-emerald-600 text-white border-emerald-600" },
-    { key: "min", state: "min", label: "Alt sınır", corner: me ? `${me.min} sf` : undefined, fine: me?.fine?.min ? `-${me.fine.min} TL` : undefined, tone: "text-amber-700 ring-amber-500/70", Icon: Check, on: "bg-amber-500 text-white border-amber-500" },
+    { key: "all", state: "read", label: "Okudum", corner: me ? formatAmount(me.target, me.unit) : undefined, tone: "text-emerald-700 ring-emerald-600/70", Icon: CheckCheck, on: "bg-emerald-600 text-white border-emerald-600" },
+    { key: "min", state: "min", label: "Alt sınır", corner: me ? formatAmount(me.min, me.unit) : undefined, fine: me?.fine?.min ? `-${me.fine.min} TL` : undefined, tone: "text-amber-700 ring-amber-500/70", Icon: Check, on: "bg-amber-500 text-white border-amber-500" },
     { key: "none", state: "none", label: "Okumadım", fine: me?.fine ? `-${me.fine.none} TL` : undefined, tone: "text-rose-700 ring-rose-500/60", Icon: X, on: "bg-rose-500 text-white border-rose-500" },
   ];
 

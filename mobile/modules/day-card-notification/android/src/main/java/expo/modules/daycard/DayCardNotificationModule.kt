@@ -47,7 +47,9 @@ class DayCardNotificationModule : Module() {
 
     // Grup mesajı bildirimi (WhatsApp grubu tarzı); uygulama açıkken JS de bunu kullanır
     Function("showMessages") { json: String, skipGroupId: String ->
-      InboxPoller.showAll(context, JSONArray(json), skipGroupId.ifEmpty { null })
+      // Avatar fotoğrafı indirilebilir: arka planda
+      val ctx = context
+      Thread { runCatching { InboxPoller.showAll(ctx, JSONArray(json), skipGroupId.ifEmpty { null }) } }.start()
     }
 
     Function("dismissMessages") { groupId: String ->

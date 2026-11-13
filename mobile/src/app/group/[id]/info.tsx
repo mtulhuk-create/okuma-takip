@@ -115,7 +115,7 @@ export default function GroupInfoScreen() {
             {i > 0 && <Divider />}
             <Row style={{ justifyContent: "space-between" }}>
               <Muted>
-                {formatDayKey(p.dayKey)} · {p.pagesRead}/{p.requiredPages} sf
+                {formatDayKey(p.dayKey)} · {p.pagesRead}/{p.requiredPages}
               </Muted>
               <Body style={{ fontFamily: fonts.bold }}>{p.amount} TL</Body>
             </Row>

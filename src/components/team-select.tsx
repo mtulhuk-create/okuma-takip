@@ -1,4 +1,6 @@
-type TeamOption = { id: string; name: string; targetPages?: number; minPages?: number };
+import { formatAmount, type ReadUnit } from "@/lib/rules";
+
+type TeamOption = { id: string; name: string; targetPages?: number; minPages?: number; readUnit?: ReadUnit };
 
 /** Ekipli gruplarda katılırken / değiştirirken ekip seçimi (hedef bilgisiyle) */
 export function TeamSelect({ teams, defaultValue, name = "teamId" }: { teams: TeamOption[]; defaultValue?: string | null; name?: string }) {
@@ -10,7 +12,7 @@ export function TeamSelect({ teams, defaultValue, name = "teamId" }: { teams: Te
       {teams.map((t) => (
         <option key={t.id} value={t.id}>
           {t.name}
-          {t.targetPages != null ? ` · günde ${t.targetPages} sayfa${t.minPages ? ` (alt sınır ${t.minPages})` : ""}` : ""}
+          {t.targetPages != null ? ` · günde ${formatAmount(t.targetPages, t.readUnit, true)}${t.minPages ? ` (alt sınır ${formatAmount(t.minPages, t.readUnit)})` : ""}` : ""}
         </option>
       ))}
     </select>

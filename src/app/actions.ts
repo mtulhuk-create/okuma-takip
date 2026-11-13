@@ -15,9 +15,10 @@ import { isCatalogBook } from "@/lib/catalog";
 import { discountPenalties, ensureAdmin, extendDue, kickForDue } from "@/lib/dues";
 import { groupAdminIds, notifyUsers } from "@/lib/notify";
 import { canPost, replyTarget, replyView } from "@/lib/chat";
-import { booksOf, teamsActive } from "@/lib/rules";
+import { booksOf, formatAmount, teamsActive } from "@/lib/rules";
 import { publish } from "@/lib/realtime";
 import { pushData } from "@/lib/fcm";
+import { authorBadge } from "@/lib/author-badge";
 import { checkMediaUrl, destroyMedia, mediaView, uploadTicket } from "@/lib/media";
 import { submitReading, type ReportChoice } from "@/lib/reading";
 import { DAY, MIN, formatDateTime, timeToMinute } from "@/lib/schedule";
@@ -29,7 +30,7 @@ function refresh() {
 }
 
 type BookInput = { id: string; title: string; targetPages: number; minPages: number };
-type RulesInput = { penaltyMode: "FIXED" | "PER_PAGE"; targetPages: number; minPages: number; penaltyAmount: number; minDiscount: number; books: BookInput[] };
+type RulesInput = { penaltyMode: "FIXED" | "PER_PAGE"; readUnit: "PAGES" | "MINUTES"; targetPages: number; minPages: number; penaltyAmount: number; minDiscount: number; books: BookInput[] };
 
 function validateRules(r: Record<string, unknown>, label = "", keepTitles?: Set<string>): RulesInput {
   const num = (v: unknown, min: number, max: number, name: string) => {
@@ -38,6 +39,14 @@ function validateRules(r: Record<string, unknown>, label = "", keepTitles?: Set<
     return n;
   };
   const penaltyMode = r.penaltyMode === "PER_PAGE" ? ("PER_PAGE" as const) : ("FIXED" as const);
+  // Saat hesabı: hedef ve alt sınır dakika, 15'in katları (en çok 24 saat)
+  const readUnit = r.readUnit === "MINUTES" ? ("MINUTES" as const) : ("PAGES" as const);
+  const minutes = readUnit === "MINUTES";
+  const amount = (v: unknown, min: number, name: string) => {
+    const n = num(v, min, minutes ? 1440 : 2000, name);
+    if (minutes && n % 15) throw new Error(`${label}${name} 15 dakikanın katı olmalı (15, 30, 45, 1 saat…)`);
+    return n;
+  };
   let rawBooks: Record<string, unknown>[] = [];
   try {
     rawBooks = Array.isArray(r.books) ? r.books : typeof r.books === "string" ? JSON.parse(r.books) : [];
@@ -49,16 +58,17 @@ function validateRules(r: Record<string, unknown>, label = "", keepTitles?: Set<
     const title = String(b.title ?? "").trim().slice(0, 80);
     // Yalnızca katalogdaki eserler (eski gruplarda kayıtlı olan ad aynen kalabilir)
     if (!isCatalogBook(title) && !keepTitles?.has(title)) throw new Error(`${label}"${title}" listede yok; eseri listeden seçin`);
-    const t = num(b.targetPages, 1, 2000, `"${title}" günlük hedefi`);
-    const m = num(b.minPages, 0, 2000, `"${title}" alt sınırı`);
+    const t = amount(b.targetPages, minutes ? 15 : 1, `"${title}" günlük hedefi`);
+    const m = amount(b.minPages, 0, `"${title}" alt sınırı`);
     if (m > t) throw new Error(`${label}"${title}" için alt sınır hedeften büyük olamaz`);
     return { id: typeof b.id === "string" && b.id ? b.id.slice(0, 40) : crypto.randomUUID().slice(0, 12), title, targetPages: t, minPages: m };
   });
-  const targetPages = books.length ? books.reduce((s, b) => s + b.targetPages, 0) : num(r.targetPages, 1, 2000, "Günlük hedef");
-  const minPages = books.length ? books.reduce((s, b) => s + b.minPages, 0) : num(r.minPages, 0, 2000, "Alt sınır");
+  const targetPages = books.length ? books.reduce((s, b) => s + b.targetPages, 0) : amount(r.targetPages, minutes ? 15 : 1, "Günlük hedef");
+  const minPages = books.length ? books.reduce((s, b) => s + b.minPages, 0) : amount(r.minPages, 0, "Alt sınır");
   if (minPages > targetPages) throw new Error(`${label}Alt sınır günlük hedeften büyük olamaz`);
   return {
     penaltyMode,
+    readUnit,
     targetPages,
     minPages,
     books,
@@ -68,7 +78,7 @@ function validateRules(r: Record<string, unknown>, label = "", keepTitles?: Set<
 }
 
 type TeamInput = RulesInput & { id?: string; name: string };
-const rulesOf = ({ penaltyMode, targetPages, minPages, penaltyAmount, minDiscount, books }: RulesInput): RulesInput => ({ penaltyMode, targetPages, minPages, penaltyAmount, minDiscount, books });
+const rulesOf = ({ penaltyMode, readUnit, targetPages, minPages, penaltyAmount, minDiscount, books }: RulesInput): RulesInput => ({ penaltyMode, readUnit, targetPages, minPages, penaltyAmount, minDiscount, books });
 
 function parseTeams(fd: FormData, keep?: Set<string>): { enabled: boolean; teams: TeamInput[] } {
   const enabled = str(fd, "teamsEnabled") === "1";
@@ -117,6 +127,7 @@ function parseGroupForm(fd: FormData, teamRules?: RulesInput, keep?: Set<string>
     chatPolicy: str(fd, "chatPolicy") === "ADMINS" ? ("ADMINS" as const) : ("ALL" as const),
     ...(teamRules ?? validateRules({
       penaltyMode,
+      readUnit: str(fd, "readUnit"),
       targetPages: fd.get("targetPages"),
       minPages: fd.get("minPages"),
       penaltyAmount: fd.get("penaltyAmount"),
@@ -253,9 +264,10 @@ export async function reportReading(_: Prev, fd: FormData) {
     await publish(groupId, { type: "refresh", reason: "day" });
     refresh();
     if (!log) return "Bildirim geri alındı · beklemede. Gün sonuna kadar bildirmezsen okumadı sayılırsın.";
-    if (log.kefaret > 0) return `Kefaret okuması bildirildi: ${log.pages} sayfa. Gün kapanınca indirimin bu güne düşen payı borcundan düşülür.`;
-    if (log.pages >= rules.targetPages) return `Harika! ${log.pages} sayfa bildirildi`;
-    return `${log.pages} sayfa bildirildi. Hedef ${rules.targetPages} sayfa — son saate kadar güncelleyebilirsin.`;
+    const f = (n: number) => formatAmount(n, log.unit, true);
+    if (log.kefaret > 0) return `Kefaret okuması bildirildi: ${f(log.pages)}. Gün kapanınca indirimin bu güne düşen payı borcundan düşülür.`;
+    if (log.pages >= rules.targetPages) return `Harika! ${f(log.pages)} bildirildi`;
+    return `${f(log.pages)} bildirildi. Hedef ${f(rules.targetPages)} — son saate kadar güncelleyebilirsin.`;
   });
 }
 
@@ -810,8 +822,10 @@ function notifyChat(group: { id: string; name: string }, authorId: string, title
     await Promise.all([
       // Tarayıcı bildirimi
       notifyUsers(others, { title, body: body.length > 140 ? `${body.slice(0, 137)}…` : body, url: `/gruplar/${group.id}`, tag: `msg-${group.id}`, renotify: true }, { push: true }).catch((e) => console.error("mesaj bildirimi", e)),
-      // Telefondaki uygulamaya anında (uygulama grup bildirimi olarak gösterir)
-      pushData(others, { type: "msg", id: item.id, groupId: group.id, groupName: group.name, author: item.author, text: item.text.slice(0, 200), createdAt: item.createdAt.toISOString() }),
+      // Telefondaki uygulamaya anında (uygulama grup bildirimi olarak gösterir; yazanın avatarı, çerçevesi ve serisiyle)
+      authorBadge(group.id, authorId)
+        .catch(() => null)
+        .then((badge) => pushData(others, { type: "msg", id: item.id, groupId: group.id, groupName: group.name, author: item.author, text: item.text.slice(0, 200), createdAt: item.createdAt.toISOString(), ...(badge ?? {}) })),
     ]);
   });
 }

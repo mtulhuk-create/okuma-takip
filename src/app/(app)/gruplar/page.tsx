@@ -7,7 +7,7 @@ import { Countdown } from "@/components/countdown";
 import { DueBadge } from "@/components/due-badge";
 import { requireUser } from "@/lib/auth";
 import { getGroupsOverview } from "@/lib/queries";
-import { booksOf, describePenalty, teamsActive } from "@/lib/rules";
+import { booksOf, describePenalty, formatAmount, teamsActive } from "@/lib/rules";
 import { minuteToTime } from "@/lib/schedule";
 
 export const metadata = { title: "Gruplar" };
@@ -102,7 +102,7 @@ export default async function GroupsPage({ searchParams }: { searchParams: Promi
             const status = done
               ? { text: "Okudun", cls: "bg-emerald-500 text-white", Icon: Check }
               : partial
-                ? { text: `${t.myPages}/${t.myTarget} sf`, cls: "bg-amber-500 text-white", Icon: BookOpen }
+                ? { text: t.unit === "MINUTES" ? `${formatAmount(t.myPages ?? 0, t.unit)} / ${formatAmount(t.myTarget, t.unit)}` : `${t.myPages}/${t.myTarget} sf`, cls: "bg-amber-500 text-white", Icon: BookOpen }
                 : t.open
                   ? { text: "Bekliyor", cls: "bg-primary/10 text-primary", Icon: Clock }
                   : { text: "Kapandı", cls: "bg-muted text-muted-foreground", Icon: Clock };
@@ -148,7 +148,7 @@ export default async function GroupsPage({ searchParams }: { searchParams: Promi
                     {t.books.length > 1 && <span className="shrink-0">+{t.books.length - 1}</span>}
                   </span>
                   <span className="inline-flex shrink-0 items-center gap-1">
-                    <Target className="size-3 text-primary" /> {t.myTarget} sf
+                    <Target className="size-3 text-primary" /> {formatAmount(t.myTarget, t.unit)}
                   </span>
                   <span className="inline-flex shrink-0 items-center gap-1">
                     <Coins className="size-3 text-primary" /> {t.penaltyShort}
@@ -237,7 +237,7 @@ export default async function GroupsPage({ searchParams }: { searchParams: Promi
                   ...(teams.length
                     ? []
                     : [
-                        { Icon: Target, label: "Günlük", value: `${g.targetPages} sayfa · alt sınır ${g.minPages}` },
+                        { Icon: Target, label: "Günlük", value: `${formatAmount(g.targetPages, g.readUnit, true)} · alt sınır ${formatAmount(g.minPages, g.readUnit)}` },
                         { Icon: Coins, label: "Ceza", value: describePenalty(g) },
                       ]),
                   { Icon: AlarmClock, label: "Son bildirim", value: minuteToTime(g.deadlineMinute) },
@@ -250,7 +250,7 @@ export default async function GroupsPage({ searchParams }: { searchParams: Promi
                     <li key={t.id} className="flex items-start gap-1.5">
                       <Shield className="mt-0.5 size-3.5 shrink-0 text-primary" />
                       <span className="min-w-0">
-                        <b className="font-semibold">{t.name}:</b> günde {t.targetPages} sayfa · alt sınır {t.minPages} · {describePenalty(t)}
+                        <b className="font-semibold">{t.name}:</b> günde {formatAmount(t.targetPages, t.readUnit, true)} · alt sınır {formatAmount(t.minPages, t.readUnit)} · {describePenalty(t)}
                       </span>
                     </li>
                   ))}
@@ -264,7 +264,7 @@ export default async function GroupsPage({ searchParams }: { searchParams: Promi
                   <SubmitButton className="btn-quiet btn-sm">Geri çek</SubmitButton>
                 </ActionForm>
               ) : (
-                <JoinDialog groupId={g.id} groupName={g.name} teams={teams.map((t) => ({ id: t.id, name: t.name, targetPages: t.targetPages, minPages: t.minPages, penalty: describePenalty(t) }))} />
+                <JoinDialog groupId={g.id} groupName={g.name} teams={teams.map((t) => ({ id: t.id, name: t.name, targetPages: t.targetPages, minPages: t.minPages, readUnit: t.readUnit, penalty: describePenalty(t) }))} />
               )}
             </div>
           );

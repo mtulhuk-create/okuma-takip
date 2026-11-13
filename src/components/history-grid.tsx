@@ -3,12 +3,13 @@
 import { EdgeNotches } from "./edge-notches";
 import { CELL_FRAME, type Tier } from "./tier";
 
-import { BookHeart, BookOpen, Check, CheckCheck, ChevronDown, Flame, X } from "lucide-react";
+import { BookHeart, BookOpen, Check, CheckCheck, ChevronDown, Clock, Flame, X } from "lucide-react";
+import { formatMinutes } from "@/lib/rules";
 import { useEffect, useRef, useState } from "react";
 
 export type Range = "7d" | "1m" | "3m" | "1y" | "all";
 export const RANGE_LABELS: Record<Range, string> = { "7d": "Son 7 gün", "1m": "Son 1 ay", "3m": "Son 3 ay", "1y": "Son 1 yıl", all: "Üye olduğumdan beri" };
-export type Stats = { read: number; min: number; none: number; pages: number };
+export type Stats = { read: number; min: number; none: number; pages: number; minutes?: number };
 
 const COLOR: Record<string, string> = {
   r: "bg-emerald-500",
@@ -132,7 +133,9 @@ export function StatsLine({ stats }: { stats: Stats }) {
     { Icon: CheckCheck, n: stats.read, cls: "text-emerald-600 dark:text-emerald-400", label: "okudu" },
     { Icon: Check, n: stats.min, cls: "text-amber-600 dark:text-amber-400", label: "alt sınır" },
     { Icon: X, n: stats.none, cls: "text-rose-600 dark:text-rose-400", label: "okumadı" },
-    { Icon: BookOpen, n: stats.pages, cls: "text-muted-foreground", label: "sayfa" },
+    // Sayfa ve (saat hesabıyla okuyanlarda) süre; yalnızca saat hesabıyla okuyanda sayfa gösterilmez
+    ...(stats.pages || !stats.minutes ? [{ Icon: BookOpen, n: stats.pages as number | string, cls: "text-muted-foreground", label: "sayfa" }] : []),
+    ...(stats.minutes ? [{ Icon: Clock, n: formatMinutes(stats.minutes), cls: "text-muted-foreground", label: "süre" }] : []),
   ];
   return (
     <div className="flex flex-wrap gap-x-2.5 gap-y-1 text-[11px]">

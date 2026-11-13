@@ -2,7 +2,7 @@ import "server-only";
 import type { Group, Team } from "@prisma/client";
 import { getDb } from "./db";
 import { notifyEach, type PushMessage } from "./notify";
-import { rulesFor } from "./rules";
+import { formatAmount, rulesFor } from "./rules";
 import { formatDayLong, minuteToTime, type Period } from "./schedule";
 import { signQuickToken } from "./token";
 
@@ -23,7 +23,7 @@ export async function dayCardPush(g: G, m: M, period: Period, opts: { done: numb
   const books = r.books.length > 1 ? ` · ${r.books.length} eser` : r.books[0]?.title && r.books[0].title !== "Günlük okuma" ? ` · ${r.books[0].title}` : "";
   return {
     title: `${opts.prefix ?? "📖"} ${g.name} · ${formatDayLong(period.dayKey)}`,
-    body: `Hedef ${r.targetPages} sf (alt sınır ${r.minPages})${books}\n${opts.done}/${opts.total} kişi okudu · son bildirim ${minuteToTime(g.deadlineMinute)}`,
+    body: `Hedef ${formatAmount(r.targetPages, r.readUnit)} (alt sınır ${formatAmount(r.minPages, r.readUnit)})${books}\n${opts.done}/${opts.total} kişi okudu · son bildirim ${minuteToTime(g.deadlineMinute)}`,
     tag: `day-${g.id}-${period.dayKey}`,
     renotify: opts.renotify,
     url: `/bildir/${g.id}?t=${encodeURIComponent(token)}`,

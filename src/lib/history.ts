@@ -15,7 +15,8 @@ export const RANGES: Record<HistoryRange, { label: string; days: number }> = {
 export const parseRange = (v: string | null): HistoryRange => (v && v in RANGES ? (v as HistoryRange) : "7d");
 
 /** Günlük durum kodu: r okudu · m alt sınır · n okumadı · p bekleniyor · - üye değildi */
-export type Stats = { read: number; min: number; none: number; pages: number };
+/** pages: sayfa hesabıyla okunan toplam sayfa; minutes: saat hesabıyla okunan toplam dakika */
+export type Stats = { read: number; min: number; none: number; pages: number; minutes?: number };
 export type HistoryRow = { start: string; cells: string; stats: Stats };
 
 /** Bugünden geriye kesintisiz okunan (hedef ya da alt sınır) gün sayısı; bugün henüz bildirilmediyse seriyi bozmaz. */
@@ -53,7 +54,7 @@ export async function memberStreaks(g: G, members: { userId: string; joinedAt: D
   const startKey = shiftDayKey(endKey, -(STREAK_DAYS - 1));
   const logs = await getDb().readingLog.findMany({
     where: { groupId: g.id, dayKey: { gte: startKey } },
-    select: { userId: true, dayKey: true, pages: true, requiredPages: true, minPages: true, kefaret: true },
+    select: { userId: true, dayKey: true, pages: true, requiredPages: true, minPages: true, kefaret: true, unit: true },
   });
   const data = new Map<string, { n: number; full: number }>();
   for (const m of members) {
@@ -82,7 +83,7 @@ function combine(rows: HistoryRow[]): HistoryRow {
   }, "0000");
   const start = rows.reduce((a, r) => (r.start < a ? r.start : a), "9999");
   let cells = "";
-  const stats: Stats = { read: 0, min: 0, none: 0, pages: rows.reduce((s, r) => s + r.stats.pages, 0) };
+  const stats: Stats = { read: 0, min: 0, none: 0, pages: rows.reduce((s, r) => s + r.stats.pages, 0), minutes: rows.reduce((s, r) => s + (r.stats.minutes ?? 0), 0) };
   for (let k = start; k <= end; k = shiftDayKey(k, 1)) {
     const day = rows.map((r) => {
       const i = Math.round((Date.parse(k) - Date.parse(r.start)) / 86_400_000);
@@ -98,11 +99,11 @@ function combine(rows: HistoryRow[]): HistoryRow {
 }
 
 type G = { id: string; startMinute: number; deadlineMinute: number; tzOffset: number; reminderHours: number; createdAt: Date };
-type Log = { userId: string; dayKey: string; pages: number; requiredPages: number; minPages: number; kefaret?: number };
+type Log = { userId: string; dayKey: string; pages: number; requiredPages: number; minPages: number; kefaret?: number; unit?: "PAGES" | "MINUTES" };
 
 function row(g: G, joinedAt: Date, startKey: string, endKey: string, logs: Map<string, Log>, now: Date): HistoryRow {
   let cells = "";
-  const stats: Stats = { read: 0, min: 0, none: 0, pages: 0 };
+  const stats: Stats = { read: 0, min: 0, none: 0, pages: 0, minutes: 0 };
   for (let k = startKey; k <= endKey; k = shiftDayKey(k, 1)) {
     const p = periodFor(k, g);
     const log = logs.get(k);
@@ -111,7 +112,8 @@ function row(g: G, joinedAt: Date, startKey: string, endKey: string, logs: Map<s
       c = categoryOf(log.pages, { targetPages: log.requiredPages, minPages: log.minPages })[0];
       // k: kefaret okuması (hedefin üstüne ek sayfa)
       if (c === "r" && log.kefaret) c = "k";
-      stats.pages += log.pages;
+      if (log.unit === "MINUTES") stats.minutes! += log.pages;
+      else stats.pages += log.pages;
     } else if (joinedAt <= p.start) c = now < p.deadline ? "p" : "n";
     if (c === "r" || c === "k") stats.read++;
     else if (c === "m") stats.min++;

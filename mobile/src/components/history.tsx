@@ -1,12 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
-import { BookHeart, BookOpen, CalendarRange, Check, CheckCheck, ChevronDown, EyeOff, Flame, Layers, X } from "lucide-react-native";
+import { BookHeart, BookOpen, CalendarRange, Check, CheckCheck, ChevronDown, Clock, EyeOff, Flame, Layers, X } from "lucide-react-native";
 import { useState } from "react";
 import { ActivityIndicator, Modal, Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApi, useApiFetch } from "@/lib/api";
 import { KAZA, type KazaState } from "@/lib/kaza";
 import { fonts, STATE, useColors } from "@/lib/theme";
-import type { GroupHistory, HistoryRange, MyHistory, Stats } from "@/lib/types";
+import { formatMinutes, type GroupHistory, type HistoryRange, type MyHistory, type Stats } from "@/lib/types";
 import { StreakFlame } from "./day-card";
 import { Avatar, Card, EdgeNotches, Muted, Row, TIER_COLORS, type Tier } from "./ui";
 
@@ -175,7 +175,9 @@ export function StatsLine({ stats }: { stats: Stats }) {
     { Icon: CheckCheck, n: stats.read, color: c.success, label: "okudu" },
     { Icon: Check, n: stats.min, color: c.warning, label: "alt sınır" },
     { Icon: X, n: stats.none, color: c.destructive, label: "okumadı" },
-    { Icon: BookOpen, n: stats.pages, color: c.mutedForeground, label: "sayfa" },
+    // Sayfa ve (saat hesabıyla okuyanda) süre; yalnızca saat hesabıyla okuyanda sayfa gösterilmez
+    ...(stats.pages || !stats.minutes ? [{ Icon: BookOpen, n: stats.pages as number | string, color: c.mutedForeground, label: "sayfa" }] : []),
+    ...(stats.minutes ? [{ Icon: Clock, n: formatMinutes(stats.minutes), color: c.mutedForeground, label: "süre" }] : []),
   ];
   return (
     <Row style={{ flexWrap: "wrap", rowGap: 2 }} gap={10}>
