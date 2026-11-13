@@ -14,7 +14,8 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   const { id: groupId } = await ctx.params;
   const db = getDb();
   const member = await db.groupMember.findUnique({ where: { groupId_userId: { groupId, userId } }, select: { status: true } });
-  if (member?.status !== "ACTIVE") return new Response("Forbidden", { status: 403 });
+  // Site yöneticisi üye olmadığı grubun sohbetini de (gözlemci olarak) izleyebilir
+  if (member?.status !== "ACTIVE" && !(await db.user.findUnique({ where: { id: userId }, select: { siteAdmin: true } }))?.siteAdmin) return new Response("Forbidden", { status: 403 });
 
   const url = new URL(req.url);
   let cursor = Number(req.headers.get("last-event-id") ?? url.searchParams.get("after") ?? 0) || 0;

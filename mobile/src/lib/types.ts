@@ -271,7 +271,7 @@ export type ChatResponse = {
   group: { id: string; name: string; chatPolicy: "ALL" | "ADMINS"; memberCount: number; deadlineMinute: number; today?: string };
   kasa?: GroupCash | null;
   todayCard?: DayCard | null;
-  me: { userId: string; role: Member["role"]; canPost: boolean; canPhoto?: boolean };
+  me: { userId: string; role: Member["role"]; canPost: boolean; canPhoto?: boolean; observer?: boolean };
   /** Okundu bilgisi: her üyenin sohbeti en son okuduğu an (eski sunucuda yok) */
   reads?: { id: string; name: string; at: string | null }[] | null;
   /** Sohbet bu kadar sessiz kalınca gün kartı en alta taşınır (eski sunucuda yok) */

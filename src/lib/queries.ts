@@ -162,6 +162,8 @@ const teamRules = { id: true, name: true, penaltyMode: true, targetPages: true, 
 /** Gruplar sayfası: üye olduğum gruplar (bugünkü durumla) ve keşfedilecek herkese açık gruplar (kurallar ve ekip hedefleriyle) */
 export async function getGroupsOverview(userId: string, q: string) {
   const db = getDb();
+  // Site yöneticisi keşfette özel gruplar dahil tüm grupları görür (sohbetlerini gözlemci olarak açabilir)
+  const siteAdmin = !!(await db.user.findUnique({ where: { id: userId }, select: { siteAdmin: true } }))?.siteAdmin;
   const [mine, publicGroups, myRequests] = await Promise.all([
     db.groupMember.findMany({
       where: { userId, status: "ACTIVE" },
@@ -172,7 +174,7 @@ export async function getGroupsOverview(userId: string, q: string) {
     }),
     db.group.findMany({
       where: {
-        visibility: "PUBLIC",
+        ...(siteAdmin ? {} : { visibility: "PUBLIC" as const }),
         ...(q ? { OR: [{ name: { contains: q, mode: "insensitive" as const } }, { description: { contains: q, mode: "insensitive" as const } }] } : {}),
       },
       include: {
@@ -181,7 +183,7 @@ export async function getGroupsOverview(userId: string, q: string) {
         teams: { select: teamRules, orderBy: { position: "asc" } },
       },
       orderBy: { createdAt: "desc" },
-      take: 50,
+      take: siteAdmin ? 200 : 50,
     }),
     db.joinRequest.findMany({ where: { userId, status: "PENDING" }, select: { groupId: true } }),
   ]);
@@ -226,7 +228,7 @@ export async function getGroupsOverview(userId: string, q: string) {
       })(),
     };
   });
-  return { mine, today, publicGroups, requestedIds: myRequests.map((r) => r.groupId) };
+  return { mine, today, publicGroups, requestedIds: myRequests.map((r) => r.groupId), siteAdmin };
 }
 
 export async function getNotificationsData(userId: string) {

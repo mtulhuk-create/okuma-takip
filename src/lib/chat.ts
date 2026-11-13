@@ -85,8 +85,11 @@ export async function getChatPage(groupId: string, userId: string, before?: Date
   if (!raw) return null;
   // Okuyucu adları grup ayarına göre (girdiği ad / hesap adı / ikisi)
   const group = { ...raw, members: raw.members.map((m) => ({ ...m, user: withShownName(m.user, raw.nameDisplay) })) };
-  const me = group.members.find((m) => m.userId === userId);
-  if (!me) return { group: { id: group.id, name: group.name }, me: null };
+  const member = group.members.find((m) => m.userId === userId);
+  // Site yöneticisi üye olmadığı grubun sohbetini salt okunur (gözlemci) görebilir: yazamaz, okundu bilgisi bırakmaz
+  const observer = !member && !!(await db.user.findUnique({ where: { id: userId }, select: { siteAdmin: true } }))?.siteAdmin;
+  if (!member && !observer) return { group: { id: group.id, name: group.name }, me: null };
+  const me = member ?? { id: null, role: "MEMBER" as const, lastReadAt: null };
   if (!before) {
     await ensureDayCard(group);
     await sinkDayCard(group).catch(() => false);
@@ -118,11 +121,11 @@ export async function getChatPage(groupId: string, userId: string, before?: Date
   const page = rows.slice(0, PAGE).reverse();
   // Sohbeti açan kişi buraya kadar okumuş sayılır (okundu tikleri ve okunmamış sayısı). Yalnızca yeni mesaj varsa yazılır.
   let myReadAt = me.lastReadAt;
-  if (!before) {
+  if (!before && me.id) {
     const newest = rows.find((m) => m.kind !== "DAY" && m.userId !== userId)?.createdAt;
     if (newest && (!myReadAt || newest > myReadAt)) {
       myReadAt = new Date();
-      await db.groupMember.update({ where: { id: me.id }, data: { lastReadAt: myReadAt } });
+      await db.groupMember.update({ where: { id: me.id! }, data: { lastReadAt: myReadAt } });
       // Yazanların tikleri güncellensin
       await publish(groupId, { type: "refresh", reason: "read" });
       // Sohbet başka cihazda okundu: telefondaki mesaj bildirimi kalkar (yanıtı bekletmeden)
@@ -177,7 +180,7 @@ export async function getChatPage(groupId: string, userId: string, before?: Date
     },
     todayCard: before ? null : (cards[today] ?? null),
     kasa,
-    me: { userId, role: me.role, canPost: canPost(group, me.role), canPhoto: canPost(group, me.role) && mediaEnabled() },
+    me: { userId, role: me.role, canPost: !observer && canPost(group, me.role), canPhoto: !observer && canPost(group, me.role) && mediaEnabled(), observer },
     // Sohbet bu kadar sessiz kalınca gün kartı en alta taşınır (istemci süre dolunca sayfayı yeniler)
     cardSinkMs: CARD_SINK_MS,
     // Okundu bilgisi: her üyenin sohbeti en son okuduğu an (bir mesajı, o andan önce yazıldıysa okumuştur)

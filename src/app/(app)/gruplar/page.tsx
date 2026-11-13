@@ -74,7 +74,7 @@ const Spine = ({ id }: { id: string }) => <span className="absolute inset-y-0 le
 export default async function GroupsPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const user = await requireUser();
   const { q = "" } = await searchParams;
-  const { mine, today, publicGroups, requestedIds } = await getGroupsOverview(user.id, q);
+  const { mine, today, publicGroups, requestedIds, siteAdmin } = await getGroupsOverview(user.id, q);
   const myIds = new Set(mine.map((m) => m.groupId));
   const requested = new Set(requestedIds);
   const discover = publicGroups.filter((g) => !myIds.has(g.id));
@@ -206,6 +206,14 @@ export default async function GroupsPage({ searchParams }: { searchParams: Promi
               <CardHead
                 id={g.id}
                 name={g.name}
+                right={
+                  // Site yöneticisi: üye olmadan sohbeti gözlemci olarak açar
+                  siteAdmin ? (
+                    <Link href={`/gruplar/${g.id}`} className="shrink-0 rounded-full border border-border px-2 py-0.5 text-[11px] font-semibold text-primary hover:bg-muted">
+                      Sohbeti gör
+                    </Link>
+                  ) : undefined
+                }
                 meta={
                   <>
                     <span className="inline-flex items-center gap-1">
