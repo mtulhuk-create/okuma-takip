@@ -116,7 +116,7 @@ export function HistoryGrid({ start, cells, frame }: { start: string; cells: str
             {months[w]}
           </span>,
           ...days.slice(w * 7, w * 7 + 7).map(({ key, c, today }) => (
-            <span key={key} title={`${fmt(key)} · ${TITLE[c]}`} className={`aspect-square max-h-5 w-full rounded-[3px] ${COLOR[c]} ${frame && c !== "-" && c !== "x" ? { gold: "ring-[0.5px] ring-[#d4a017]", silver: "ring-[0.5px] ring-[#d0d8e1]", bronze: "ring-[0.5px] ring-[#b07040]/70" }[frame] : ""} ${today ? "outline-2 outline-offset-1 outline-primary/60" : ""}`} />
+            <span key={key} title={`${fmt(key)} · ${TITLE[c]}`} className={`aspect-square max-h-5 w-full rounded-[3px] ${COLOR[c]} ${frame && c !== "-" && c !== "x" ? { gold: "ring-[0.5px] ring-[#d4a017]", silver: "ring-[0.5px] ring-[#bccfe3]", bronze: "ring-[0.5px] ring-[#b07040]/70" }[frame] : ""} ${today ? "outline-2 outline-offset-1 outline-primary/60" : ""}`} />
           )),
         ])}
       </div>

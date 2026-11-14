@@ -50,8 +50,11 @@ export async function replyTarget(id: string, groupId: string) {
   return r && r.groupId === groupId && (r.kind === "TEXT" || r.kind === "IMAGE" || r.kind === "POLL") ? r : null;
 }
 
-/** Sohbet bu kadar süre sessiz kalınca açık günün kartı en alta taşınır */
-export const CARD_SINK_MS = 3 * MIN;
+/**
+ * Sohbet bu kadar süre sessiz kalınca açık günün kartı en alta taşınır. Konuşma sürerken ya da yeni bitmişken
+ * araya girmesin diye uzun tutulur.
+ */
+export const CARD_SINK_MS = 20 * MIN;
 
 /**
  * Mesajlaşma gün kartını yukarıda bıraktıysa ve sohbet bir süredir sessizse, açık günün kartını

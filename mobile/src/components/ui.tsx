@@ -20,6 +20,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { fonts, radius, useColors, type Colors } from "@/lib/theme";
+import { initialsOf } from "@/lib/initials";
 
 export function Screen({
   children,
@@ -253,7 +254,7 @@ export function isRealPhoto(uri?: string | null): uri is string {
  * Ekip hiyerarşisi çerçeveleri (gruba özel): yalnızca halka; üzerinde küçük baklava çıkıntılar.
  * Altın 4 çıkıntı (en şaşalı), gümüş 2, bronz 1 (üstte). Hepsi sade tutulur.
  */
-export const TIER_COLORS = { gold: "#D4A017", silver: "#D0D8E1", bronze: "#B07040" } as const;
+export const TIER_COLORS = { gold: "#D4A017", silver: "#BCCFE3", bronze: "#B07040" } as const;
 export type Tier = "gold" | "silver" | "bronze";
 const TIER_NOTCHES: Record<Tier, ("top" | "bottom" | "left" | "right")[]> = { gold: ["top", "bottom", "left", "right"], silver: ["top", "bottom"], bronze: ["top"] };
 
@@ -314,10 +315,12 @@ function AvatarCore({ name, uri, size = 36, initial, seed }: { name: string; uri
   let h = 0;
   for (const ch of key) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
   const [bg, fg] = (dark ? AVATAR_DARK : AVATAR_LIGHT)[h % AVATAR_LIGHT.length];
-  const letter = (initial || name.trim().match(/\p{L}|\d/u)?.[0] || "?").toLocaleUpperCase("tr-TR");
+  // Sunucudan gelen 2 harf; eski veride tek harf gelirse addan hesaplanır
+  const letter = initial && initial.length > 1 ? initial : initialsOf(name);
   return (
     <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: bg, alignItems: "center", justifyContent: "center" }}>
-      <Text style={{ fontFamily: fonts.serif, fontSize: size * 0.42, lineHeight: size * 0.6, color: fg }}>{letter}</Text>
+      {/* Sistem yazı tipi (serif değil); iki harf sığsın diye biraz küçük */}
+      <Text style={{ fontWeight: "700", fontSize: size * 0.36, lineHeight: size * 0.5, letterSpacing: -0.2, includeFontPadding: false, color: fg }}>{letter}</Text>
     </View>
   );
 }

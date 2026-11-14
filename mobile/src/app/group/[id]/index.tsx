@@ -173,7 +173,16 @@ export default function ChatScreen() {
   const c = useColors();
   const fetcher = useApiFetch();
   const action = useAction();
-  const chat = useQuery({ queryKey: [`/api/m/groups/${id}/chat`], queryFn: () => fetcher<ChatResponse>(`/api/m/groups/${id}/chat`), retry: (n, e) => !(e instanceof ApiError) && n < 2 });
+  // Önbellekteki sohbet hemen görünür ama açılışta her zaman yenilenir: bildirimden gelinen yeni mesaj beklemeden düşer
+  const chat = useQuery({
+    queryKey: [`/api/m/groups/${id}/chat`],
+    queryFn: () => fetcher<ChatResponse>(`/api/m/groups/${id}/chat`),
+    retry: (n, e) => !(e instanceof ApiError) && n < 2,
+    staleTime: 0,
+    refetchOnMount: "always",
+  });
+  const refetchRef = useRef(chat.refetch);
+  refetchRef.current = chat.refetch;
   const [older, setOlder] = useState<ChatMessage[]>([]);
   const [pending, setPending] = useState<ChatMessage[]>([]);
   const [hasMoreOlder, setHasMoreOlder] = useState<boolean | null>(null);
@@ -208,10 +217,12 @@ export default function ChatScreen() {
     if (chat.data && !cursor.current) cursor.current = chat.data.cursor;
   }, [chat.data]);
 
-  // Bu sohbet açıkken mesajları bildirim olarak gelmez; bildirimi varsa kalkar
+  // Bu sohbet açıkken mesajları bildirim olarak gelmez; bildirimi varsa kalkar.
+  // Ekrana her dönüşte (bildirime dokunup gelince de) sohbet hemen yenilenir.
   useFocusEffect(
     useCallback(() => {
       setOpenChat(id);
+      refetchRef.current();
       return () => {
         setOpenChat(null);
         // Sohbet okundu: menüdeki ve grup kartındaki okunmamış sayıları tazelenir
@@ -246,9 +257,12 @@ export default function ChatScreen() {
         } catch {}
       };
       const t = setInterval(tick, LITE ? 10_000 : 3000);
+      // Uygulamaya dönülünce (ör. bildirime dokunarak) beklemeden yenile
+      const sub = AppState.addEventListener("change", (st) => st === "active" && refetchRef.current());
       return () => {
         active = false;
         clearInterval(t);
+        sub.remove();
       };
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id, fetcher]),
@@ -426,8 +440,6 @@ export default function ChatScreen() {
     [reversed],
   );
   const canDeleteAll = chat.data?.me.role === "ADMIN" && !LITE;
-  const refetchRef = useRef(chat.refetch);
-  refetchRef.current = chat.refetch;
   const onReported = useCallback(() => {
     refetchRef.current();
   }, []);

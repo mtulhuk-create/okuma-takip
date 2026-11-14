@@ -4,6 +4,7 @@ import { useCallback } from "react";
 import { Platform, ToastAndroid } from "react-native";
 import { API_URL } from "./config";
 import { APP_VARIANT } from "./variant";
+import { showCardNotice } from "./card-notice";
 import { enqueue, isNetworkError } from "./offline";
 import type { ActionResult } from "./types";
 import { showAlert } from "./dialog";
@@ -68,8 +69,10 @@ export function useAction() {
         throw e;
       }
     },
-    onSuccess: (res) => {
-      if (res.message) toast(res.message);
+    onSuccess: (res, { name, body }) => {
+      // Okuma bildirimi sonucu sistem kutusunda değil, gün kartının tepesinde kısa bir bilgiyle gösterilir
+      if (res.message && name === "reportReading" && body?.groupId) showCardNotice(String(body.groupId), res.message);
+      else if (res.message) toast(res.message);
       qc.invalidateQueries();
     },
     onError: (e) => showAlert("İşlem yapılamadı", e.message),

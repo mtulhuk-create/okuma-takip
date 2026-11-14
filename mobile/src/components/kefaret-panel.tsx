@@ -89,6 +89,22 @@ export function KefaretPanel({ groupId }: { groupId: string }) {
                 <Text numberOfLines={1} style={{ fontFamily: fonts.regular, fontSize: 9, color: c.mutedForeground }}>
                   {r.active ? "süren kefareti var" : `${formatAmount(r.pages, r.unit)} kefaret${r.teamName ? ` · ${r.teamName}` : ""}`}
                 </Text>
+                {/* Kişiye özel: yalnızca bu üyeye teklif */}
+                {!r.active && (
+                  <Pressable
+                    disabled={action.isPending}
+                    hitSlop={6}
+                    onPress={() =>
+                      showAlert("Kişiye özel kefaret", `${r.name} için %${discount} indirimli kefaret okuması başlatılsın mı?`, [
+                        { text: "Vazgeç", style: "cancel" },
+                        { text: "Başlat", onPress: () => action.mutate({ name: "startKefaret", body: { groupId, discount, raise, userId: r.userId } }) },
+                      ])
+                    }
+                    style={({ pressed }) => ({ alignSelf: "flex-start", marginTop: 3, borderWidth: 1, borderColor: KEFARET, borderRadius: 99, paddingHorizontal: 8, paddingVertical: 1, opacity: pressed ? 0.6 : 1 })}
+                  >
+                    <Text style={{ fontFamily: fonts.semibold, fontSize: 10, color: KEFARET }}>Başlat</Text>
+                  </Pressable>
+                )}
               </View>
               <Text style={{ ...cell, flex: 1, textAlign: "right" }}>{r.penaltyTotal} TL</Text>
               <Text style={{ ...cell, flex: 1, textAlign: "right", fontFamily: fonts.bold, color: KEFARET }}>{r.discountTotal} TL</Text>
@@ -113,7 +129,7 @@ export function KefaretPanel({ groupId }: { groupId: string }) {
           style={({ pressed }) => ({ height: 42, borderRadius: 10, backgroundColor: KEFARET, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, opacity: pressed || action.isPending ? 0.8 : 1 })}
         >
           <BookHeart size={16} color="#fff" />
-          <Text style={{ fontFamily: fonts.semibold, fontSize: 14, color: "#fff" }}>{todo.length} kişi için başlat</Text>
+          <Text style={{ fontFamily: fonts.semibold, fontSize: 14, color: "#fff" }}>{todo.length === 1 ? "Kefaret okumasını başlat" : `Hepsine başlat (${todo.length} kişi)`}</Text>
         </Pressable>
       )}
 

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { reportReading } from "@/app/actions";
 import type { DayCard as Card } from "@/lib/day";
+import { showCardNotice, useCardNotice } from "@/lib/card-notice";
 import { formatAmount } from "@/lib/rules";
 import { formatClock, formatDayLong } from "@/lib/schedule";
 import { AvatarStack } from "./avatar";
@@ -63,6 +64,8 @@ function ReportControls({ groupId, card, onDone, compact }: { groupId: string; c
       const res = await reportReading(null, fd);
       setBusy(null);
       if (res?.error) return setError(res.error);
+      // Sonuç kartın tepesinde kısa bir bilgiyle görünür, sonra kaybolur
+      if (res?.message) showCardNotice(groupId, res.message);
       onDone ? onDone() : router.refresh();
     });
   }
@@ -351,16 +354,38 @@ function DayProgress({ card }: { card: Card }) {
  * Günün hasılatı: kasanın o gün alacağı ceza. Kartın üst kenarının ortasında, kenarlığa bitişik küçük çıkıntı.
  * Gün açıkken bildirmeyenler okumadı sayılır (en kötü durum); okudukça düşer.
  */
-function RevenueTab({ card }: { card: Card }) {
+function RevenueTab({ card, hidden }: { card: Card; hidden?: boolean }) {
   if (card.penaltyTotal == null) return null;
   const v = card.penaltyTotal;
   return (
     <span
       title={card.penaltyFinal ? "Bu gün yazılan cezalar" : "Bildirmeyenler okumadı sayılır; okudukça düşer"}
-      className="absolute -top-2.5 left-1/2 z-[1] -translate-x-1/2 whitespace-nowrap rounded-full border border-border bg-card px-2.5 py-0.5 text-[10px] font-semibold leading-4 text-muted-foreground shadow-xs"
+      className={`absolute -top-2.5 left-1/2 z-[1] -translate-x-1/2 whitespace-nowrap rounded-full border border-border bg-card px-2.5 py-0.5 text-[10px] font-semibold leading-4 text-muted-foreground shadow-xs transition-opacity duration-300 ${hidden ? "opacity-0" : ""}`}
     >
       Günün hasılatı <b className={v ? "text-rose-600 dark:text-rose-400" : "text-emerald-600"}>{v} TL</b>
     </span>
+  );
+}
+
+/**
+ * Kartın üst kenarına bitişik sekme: normalde "Günün hasılatı"; okuma bildirilince bir an kısa bilgi
+ * ("Hedefe ulaşıldı ✓", "Bildirim geri alındı"…) belirir, sonra akıcı biçimde kaybolup hasılata döner.
+ */
+function TopTab({ card, groupId }: { card: Card; groupId: string }) {
+  const notice = useCardNotice(groupId);
+  return (
+    <>
+      <RevenueTab card={card} hidden={!!notice} />
+      {notice && (
+        <span
+          key={notice.at}
+          role="status"
+          className={`notice-pop absolute -top-2.5 left-1/2 z-[2] -translate-x-1/2 whitespace-nowrap rounded-full border bg-card px-2.5 py-0.5 text-[10px] font-semibold leading-4 shadow-xs ${notice.tone === "info" ? "border-border text-muted-foreground" : "border-emerald-500/70 text-emerald-700 dark:text-emerald-400"}`}
+        >
+          {notice.text}
+        </span>
+      )}
+    </>
   );
 }
 
@@ -501,7 +526,7 @@ function CategoryChips({ card, interactive }: { card: Card; interactive?: boolea
               <span
                 key={p.id}
                 className={`relative inline-flex h-[21px] items-center justify-center gap-1 rounded-full border bg-card/70 px-2 text-center text-[11px] font-semibold leading-none ${p.tier ? "border-[0.4px]" : "border-border"}`}
-                style={p.tier ? { borderColor: TIER_COLOR[p.tier] + "cc" } : undefined}
+                style={p.tier ? { borderColor: TIER_COLOR[p.tier] + (p.tier === "silver" ? "" : "cc") } : undefined}
               >
                 {p.name}
                 {p.kefaret ? <BookHeart className="size-3 text-teal-600 dark:text-teal-400" aria-label="Kefaret okuması" /> : null}
@@ -523,7 +548,7 @@ export function DayCardFull({ card, groupId, onReported }: { card: Card; groupId
   return (
     <div id={`gun-${card.dayKey}`} className="relative mx-auto w-full max-w-md scroll-mt-24 space-y-2.5 rounded-2xl border border-border bg-card p-3 pt-3.5 shadow-sm">
       <BlinkBorder on={urgent} />
-      <RevenueTab card={card} />
+      <TopTab card={card} groupId={groupId} />
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[10px] font-bold uppercase leading-tight tracking-wider text-primary">Okuma günü</p>
@@ -564,7 +589,7 @@ export function DayCardMini({ card, groupId, groupName }: { card: Card; groupId:
       className="card relative mt-2 cursor-pointer space-y-2.5 p-3 pt-3.5 transition-colors hover:border-primary/40"
     >
       <BlinkBorder on={urgent} />
-      <RevenueTab card={card} />
+      <TopTab card={card} groupId={groupId} />
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="truncate font-serif text-[15px] font-bold leading-snug">{groupName}</p>

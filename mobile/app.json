@@ -2,7 +2,7 @@
   "expo": {
     "name": "Okuma Takip",
     "slug": "okuma-takip",
-    "version": "3.0.1",
+    "version": "3.0.2",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "okumatakip",
@@ -14,7 +14,7 @@
     },
     "android": {
       "package": "com.okumatakip.app",
-      "versionCode": 58,
+      "versionCode": 59,
       "adaptiveIcon": {
         "backgroundColor": "#FAF7F5",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

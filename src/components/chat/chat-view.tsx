@@ -157,7 +157,7 @@ export function ChatView({ initial }: { initial: Page }) {
   const lastChatAt = [...messages].reverse().find((m) => m.kind !== "DAY" && !m.pending && !m.failed)?.createdAt;
   const cardAtBottom = messages[messages.length - 1]?.kind === "DAY";
   const cardOpen = !!todayCard?.open;
-  const sinkMs = initial.cardSinkMs ?? 180_000;
+  const sinkMs = initial.cardSinkMs ?? 1_200_000;
   useEffect(() => {
     if (!lastChatAt || cardAtBottom || !cardOpen) return;
     let n = 0;

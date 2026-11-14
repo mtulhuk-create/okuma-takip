@@ -117,6 +117,7 @@ export function KefaretPanel({ groupId }: { groupId: string }) {
                 <th className="px-2 py-1.5 text-right">Kefaret</th>
                 <th className="px-2 py-1.5 text-right">Günlük</th>
                 <th className="px-2 py-1.5 text-right">Gün</th>
+                <th className="px-1 py-1.5" aria-label="Kişiye özel" />
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -136,6 +137,20 @@ export function KefaretPanel({ groupId }: { groupId: string }) {
                     </span>
                   </td>
                   <td className={`px-2 py-1.5 text-right font-bold ${r.days > data.maxDays ? "text-destructive" : ""}`}>{r.days}</td>
+                  <td className="px-1 py-1.5 text-right">
+                    {/* Kişiye özel: yalnızca bu üyeye teklif */}
+                    {!r.active && (
+                      <button
+                        className="rounded-full border border-teal-600/60 px-2 py-0.5 text-[10px] font-semibold text-teal-700 hover:bg-teal-500/10 disabled:opacity-50 dark:text-teal-400"
+                        disabled={pending || loading}
+                        onClick={() =>
+                          confirm(`${r.name} için %${discount} indirimli kefaret okuması başlatılsın mı?`) && run(startKefaretAction, { groupId, discount: String(discount), raise: String(raise), userId: r.userId })
+                        }
+                      >
+                        Başlat
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -152,7 +167,7 @@ export function KefaretPanel({ groupId }: { groupId: string }) {
             run(startKefaretAction, { groupId, discount: String(discount), raise: String(raise) })
           }
         >
-          <BookHeart /> {todo.length} kişi için kefaret okumasını başlat
+          <BookHeart /> {todo.length === 1 ? "Kefaret okumasını başlat" : `Hepsine başlat (${todo.length} kişi)`}
         </button>
       )}
       {msg && <p className={`text-xs font-medium ${msg.ok ? "text-teal-700 dark:text-teal-400" : "text-destructive"}`}>{msg.text}</p>}

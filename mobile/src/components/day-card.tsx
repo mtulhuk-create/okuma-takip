@@ -6,6 +6,7 @@ import { useAction } from "@/lib/api";
 import { useOfflineQueue } from "@/lib/offline";
 import { formatDayLong, formatClock } from "@/lib/format";
 import { fonts, KEFARET, radius, STATE, useColors } from "@/lib/theme";
+import { NOTICE_MS, useCardNotice } from "@/lib/card-notice";
 import { formatAmount, type DayCard as Card, type ReadUnit } from "@/lib/types";
 import { Countdown } from "./countdown";
 import { Avatar, EdgeNotches, Row, TIER_COLORS } from "./ui";
@@ -340,12 +341,54 @@ function DayProgress({ card }: { card: Card }) {
  * Günün hasılatı: kasanın o gün alacağı ceza. Kartın üst kenarının ortasında, kenarlığa bitişik küçük çıkıntı.
  * Gün açıkken bildirmeyenler okumadı sayılır (en kötü durum); okudukça düşer.
  */
+/**
+ * Kartın üst kenarına bitişik sekme: normalde "Günün hasılatı"; okuma bildirilince bir an kısa bilgi
+ * ("Hedefe ulaşıldı ✓", "Bildirim geri alındı"…) belirir, sonra akıcı biçimde kaybolup hasılata döner.
+ */
+function TopTab({ card, groupId }: { card: Card; groupId: string }) {
+  const c = useColors();
+  const notice = useCardNotice(groupId);
+  const [anim] = useState(() => new Animated.Value(0));
+  useEffect(() => {
+    if (!notice) return;
+    anim.setValue(0);
+    const run = Animated.sequence([
+      Animated.timing(anim, { toValue: 1, duration: 220, useNativeDriver: true }),
+      Animated.delay(NOTICE_MS - 650),
+      Animated.timing(anim, { toValue: 0, duration: 380, useNativeDriver: true }),
+    ]);
+    run.start();
+    return () => run.stop();
+  }, [notice, anim]);
+  const tone = notice?.tone === "info" ? c.mutedForeground : c.success;
+  return (
+    <>
+      <Animated.View pointerEvents="none" style={{ position: "absolute", top: -10, left: 0, right: 0, zIndex: 2, opacity: anim.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }}>
+        <RevenueTab card={card} />
+      </Animated.View>
+      {notice && (
+        <Animated.View
+          pointerEvents="none"
+          accessibilityLiveRegion="polite"
+          style={{ position: "absolute", top: -10, left: 0, right: 0, alignItems: "center", zIndex: 3, opacity: anim, transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [4, 0] }) }] }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: c.card, borderWidth: 1, borderColor: tone, borderRadius: 99, paddingHorizontal: 10, paddingVertical: 2 }}>
+            <Text numberOfLines={1} style={{ fontFamily: fonts.semibold, fontSize: 10, color: tone }}>
+              {notice.text}
+            </Text>
+          </View>
+        </Animated.View>
+      )}
+    </>
+  );
+}
+
 function RevenueTab({ card }: { card: Card }) {
   const c = useColors();
   if (card.penaltyTotal == null) return null; // eski sunucu
   const v = card.penaltyTotal;
   return (
-    <View pointerEvents="none" style={{ position: "absolute", top: -10, left: 0, right: 0, alignItems: "center", zIndex: 2 }}>
+    <View pointerEvents="none" style={{ alignItems: "center" }}>
       <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 99, paddingHorizontal: 10, paddingVertical: 2 }}>
         <Text style={{ fontFamily: fonts.semibold, fontSize: 10, color: c.mutedForeground }}>
           Günün hasılatı <Text style={{ fontFamily: fonts.bold, color: v ? c.destructive : c.success }}>{v} TL</Text>
@@ -490,7 +533,7 @@ function CategoryChips({ card, interactive }: { card: Card; interactive?: boolea
               // Ekip çerçevesi: tüm kenar ince ve hafif saydam altın / gümüş / bronz
               <View
                 key={p.id}
-                style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 3, height: 21, backgroundColor: c.card, borderRadius: 99, paddingHorizontal: 8, borderWidth: p.tier ? 0.4 : 1, borderColor: p.tier ? TIER_COLORS[p.tier] + "cc" : c.border }}
+                style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 3, height: 21, backgroundColor: c.card, borderRadius: 99, paddingHorizontal: 8, borderWidth: p.tier ? 0.4 : 1, borderColor: p.tier ? TIER_COLORS[p.tier] + (p.tier === "silver" ? "" : "cc") : c.border }}
               >
                 {/* Yazı kutunun tam ortasında: yazı tipi iç boşluğu kapalı, satır yüksekliği sabit */}
                 <Text style={{ fontFamily: fonts.semibold, fontSize: 11, lineHeight: 15, includeFontPadding: false, textAlignVertical: "center", textAlign: "center", color: sel.color(c) }}>
@@ -577,7 +620,7 @@ export const DayCardFull = memo(function DayCardFull({ card, groupId, onReported
       }}
     >
       <BlinkBorder on={urgent} radius={16} />
-      <RevenueTab card={card} />
+      <TopTab card={card} groupId={groupId} />
       <Row style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
         <View style={{ flex: 1 }}>
           <Text style={{ fontFamily: fonts.bold, fontSize: 9, letterSpacing: 1, color: c.primary }}>OKUMA GÜNÜ</Text>
@@ -615,7 +658,7 @@ export function DayCardMini({ card, groupId, groupName }: { card: Card; groupId:
       style={({ pressed }) => [{ backgroundColor: c.card, borderColor: c.border, borderWidth: 1, borderRadius: radius + 6, padding: 12, paddingTop: 14, marginTop: 8, gap: 8, opacity: pressed ? 0.85 : 1 }]}
     >
       <BlinkBorder on={urgent} radius={radius + 6} />
-      <RevenueTab card={card} />
+      <TopTab card={card} groupId={groupId} />
       <Row style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
         <View style={{ flex: 1 }}>
           <Text numberOfLines={1} style={{ fontFamily: fonts.serif, fontSize: 15, color: c.foreground }}>

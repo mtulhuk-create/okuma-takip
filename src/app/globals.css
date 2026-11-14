@@ -291,3 +291,14 @@ textarea.input {
     animation: none;
   }
 }
+
+/* Gün kartı tepesindeki kısa bilgi: belirir, durur, akıcı biçimde kaybolur (2.6 sn) */
+@keyframes notice-pop {
+  0% { opacity: 0; transform: translate(-50%, 4px); }
+  10% { opacity: 1; transform: translate(-50%, 0); }
+  80% { opacity: 1; transform: translate(-50%, 0); }
+  100% { opacity: 0; transform: translate(-50%, 0); }
+}
+.notice-pop {
+  animation: notice-pop 2.6s ease-in-out forwards;
+}

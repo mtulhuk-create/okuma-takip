@@ -1,5 +1,6 @@
 /* eslint-disable @next/next/no-img-element */
 import { AVATAR_FRAME, TIER_COLOR, TIER_LABEL, TIER_NOTCHES, type Tier } from "./tier";
+import { initialsOf } from "@/lib/initials";
 // Her kişiye sabit bir renk: açık modda açık, koyu modda koyu tonlar
 const COLORS = [
   "bg-rose-100 text-rose-800 dark:bg-rose-900/80 dark:text-rose-100",
@@ -51,13 +52,14 @@ export function Avatar(props: { name: string; src?: string | null; size?: number
 }
 
 function AvatarCore({ name, src, size = 36, ring = false, initial, seed, frame }: { name: string; src?: string | null; size?: number; ring?: boolean; initial?: string; seed?: string; frame?: Tier | null }) {
-  const letter = (initial || name.trim().match(/\p{L}|\d/u)?.[0] || "?").toLocaleUpperCase("tr-TR");
+  // Sunucudan gelen 2 harf; eski veride tek harf gelirse addan hesaplanır
+  const letter = initial && initial.length > 1 ? initial : initialsOf(name);
   // Ekip çerçevesi (altın / gümüş / bronz) üst üste dizilimdeki ayırıcı halkanın yerine geçer
   const cls = `shrink-0 rounded-full ${frame ? AVATAR_FRAME[frame] : ring ? "ring-2 ring-card" : ""}`;
   return isRealPhoto(src) ? (
     <img src={src} alt={name} title={frame ? TIER_LABEL[frame] : undefined} width={size} height={size} loading="lazy" className={`${cls} object-cover`} style={{ width: size, height: size }} />
   ) : (
-    <span className={`${cls} inline-flex items-center justify-center font-serif font-bold ${colorFor(seed || name)}`} style={{ width: size, height: size, fontSize: size * 0.44 }} aria-label={name} title={frame ? TIER_LABEL[frame] : undefined}>
+    <span className={`${cls} inline-flex items-center justify-center font-semibold tracking-tight ${colorFor(seed || name)}`} style={{ width: size, height: size, fontSize: size * 0.38, fontFamily: "system-ui, -apple-system, Roboto, sans-serif" }} aria-label={name} title={frame ? TIER_LABEL[frame] : undefined}>
       {letter}
     </span>
   );
