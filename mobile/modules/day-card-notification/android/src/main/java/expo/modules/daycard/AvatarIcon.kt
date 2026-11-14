@@ -35,7 +35,7 @@ object AvatarIcon {
     "#881337" to "#ffe4e6", "#78350f" to "#fef3c7", "#064e3b" to "#d1fae5", "#0c4a6e" to "#e0f2fe", "#4c1d95" to "#ede9fe",
     "#7c2d12" to "#ffedd5", "#134e4a" to "#ccfbf1", "#701a75" to "#fae8ff", "#365314" to "#ecfccb", "#312e81" to "#e0e7ff",
   )
-  private val TIER = mapOf("gold" to "#D4A017", "silver" to "#D0D8E1", "bronze" to "#B07040")
+  private val TIER = mapOf("gold" to "#D4A017", "silver" to "#BCCFE3", "bronze" to "#B07040")
   // Altın 4 çıkıntı, gümüş üst + alt, bronz üst
   private val NOTCHES = mapOf("gold" to listOf(0, 1, 2, 3), "silver" to listOf(0, 2), "bronze" to listOf(0))
   // Lucide "flame" simgesi (24'lük görünüm)
@@ -71,11 +71,19 @@ object AvatarIcon {
       val dark = (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
       val (bg, fg) = (if (dark) DARK else LIGHT)[(h % LIGHT.size).toInt()]
       c.drawCircle(cx, cy, r, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor(bg) })
-      val letter = m.optString("initial").ifEmpty { name.firstOrNull { it.isLetterOrDigit() }?.toString() ?: "?" }.uppercase(java.util.Locale.forLanguageTag("tr"))
+      // İki harf (sunucudan); yoksa addan: ilk ve son kelimenin baş harfi
+      val words = name.split(" ").map { w -> w.filter { it.isLetterOrDigit() } }.filter { it.isNotEmpty() }
+      val fallback = when {
+        words.size > 1 -> "${words.first()[0]}${words.last()[0]}"
+        words.size == 1 -> words[0].take(2)
+        else -> "?"
+      }
+      val letter = m.optString("initial").takeIf { it.length > 1 }.orEmpty().ifEmpty { fallback }.uppercase(java.util.Locale.forLanguageTag("tr"))
       val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.parseColor(fg)
-        textSize = r * 0.95f
-        typeface = Typeface.create(Typeface.SERIF, Typeface.BOLD)
+        // Sistem yazı tipi; iki harf sığsın
+        textSize = r * 0.72f
+        typeface = Typeface.DEFAULT_BOLD
         textAlign = Paint.Align.CENTER
       }
       c.drawText(letter, cx, cy - (text.descent() + text.ascent()) / 2, text)

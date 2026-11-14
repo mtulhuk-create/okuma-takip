@@ -1,3 +1,4 @@
+import { initialsOf } from "./initials";
 // Grupta okuyucu adlarının görünümü (grup ayarı): girdiği ad soyad, hesap adı ya da ikisinin ilk kelimeleri
 export type NameMode = "ENTERED" | "ACCOUNT" | "BOTH";
 type U = { name: string; accountName?: string | null };
@@ -63,11 +64,11 @@ export function shownName(u: U, mode: NameMode | null | undefined) {
   return u.name;
 }
 
-/** Avatar harfi: hesap (mail) adının baş harfi; yoksa girilen adın */
+/** Avatar harfleri (2 harf): hesap (mail) adından; yoksa girilen addan */
 export function avatarInitial(u: U) {
-  const src = (u.accountName?.trim() || u.name).trim();
-  return (src.match(/\p{L}|\d/u)?.[0] ?? "?").toLocaleUpperCase("tr-TR");
+  return initialsOf((u.accountName?.trim() || u.name).trim());
 }
+
 
 /** Nesnedeki kullanıcının adını grup ayarına göre değiştirir (accountName dışarı verilmez, yalnızca baş harfi) */
 export function withShownName<T extends { name: string; accountName?: string | null }>(u: T, mode: NameMode | null | undefined): Omit<T, "accountName"> & { initial: string } {
